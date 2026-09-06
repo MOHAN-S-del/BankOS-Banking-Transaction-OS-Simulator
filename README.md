@@ -1,39 +1,31 @@
 # Banking Transaction OS Simulator
 
-A concurrent banking transaction system designed to demonstrate **Operating System and DBMS concepts** through a realistic digital banking environment.
-
-The simulator models multiple users performing banking operations concurrently and demonstrates how threads are created and managed, how CPU time is allocated using **Round Robin scheduling**, how shared bank accounts are protected using **locks**, and how financial transactions are executed safely using **atomicity**.
+A concurrent banking transaction system designed to demonstrate Operating System and DBMS concepts using a realistic digital banking scenario. The project simulates multiple users performing banking operations concurrently while demonstrating how an operating system can manage threads, CPU scheduling, synchronization, and safe transaction execution.
 
 ---
 
 ## 🎯 Project Objective
 
-The primary objective of this project is to combine theoretical **Operating System (OS)** and **Database Management System (DBMS)** concepts into a practical digital banking transaction simulator.
+The goal of this project is to connect theoretical **OS and DBMS concepts** with a practical digital banking system.
 
-The project is built around four core concepts:
+The system focuses on four major concepts:
 
-- **Thread Handling** — Each banking operation is represented as a concurrent thread.
-- **Round Robin Scheduling** — Transaction threads are managed using a Round Robin scheduling model with a fixed time quantum.
-- **Synchronization using Locks** — Locks protect shared bank-account resources and prevent race conditions during concurrent transactions.
-- **Transaction Atomicity** — A money transfer consists of both **debit and credit operations**. Both operations must succeed for the transaction to commit; if either operation fails, the complete transaction is rolled back.
+### 1. Thread Handling
 
-Instead of treating a money transfer as a simple function call, the project models it as a complete concurrent transaction that must be **scheduled, synchronized, and executed atomically**.
+Each banking operation is represented as a separate thread, allowing multiple users to perform transactions concurrently.
 
-### Core Workflow
+### 2. Round Robin CPU Scheduling
 
-```text
-Banking Operation
-       ↓
-     Thread
-       ↓
-Round Robin Scheduler
-       ↓
-    Acquire Lock
-       ↓
-Execute Transaction
-       ↓
- ┌─────┴─────┐
- ↓           ↓
-Success    Failure
- ↓           ↓
-Commit     Rollback
+Transactions are managed using **Round Robin scheduling**, where each transaction receives a fixed time slice (time quantum) before the CPU moves to another transaction.
+
+### 3. Synchronization using Locks
+
+Locks are used to prevent multiple threads from modifying the same bank account simultaneously, avoiding race conditions and maintaining data consistency.
+
+### 4. Transaction Atomicity
+
+A money transfer is treated as an **atomic transaction**. Either the complete transaction succeeds, or all changes are rolled back so that the system never remains in an inconsistent state.
+
+---
+
+Instead of treating a money transfer as a simple function call, the project models it as a **concurrent transaction that must be scheduled, synchronized, and completed safely**.
