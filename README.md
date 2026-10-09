@@ -8,7 +8,7 @@ A concurrent banking transaction system designed to demonstrate Operating System
 
 The goal of this project is to connect theoretical **OS and DBMS concepts** with a practical digital banking system.
 
-The system focuses on four major concepts:
+The system focuses on four major  of the concepts:
 
 ### 1. Thread Handling
 
