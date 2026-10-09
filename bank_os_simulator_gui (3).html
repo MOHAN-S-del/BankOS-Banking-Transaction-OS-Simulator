@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank OS Simulator</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a2d;--panel2:#172239;--line:#26334d;--text:#edf3ff;--muted:#91a2c0;--cyan:#55d6ff;--green:#45d6a2;--amber:#ffca72;--red:#ff7185;--purple:#b9a2ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#172747 0,transparent 35%),var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+button,input,select{font:inherit}button{cursor:pointer;border:1px solid #314261;background:#1b2a45;color:var(--text);padding:9px 13px;border-radius:9px;transition:.15s}button:hover{border-color:var(--cyan);transform:translateY(-1px)}button.primary{background:var(--cyan);color:#07111e;border-color:var(--cyan);font-weight:750}button.ghost{background:transparent}button.danger{color:var(--red)}
+.app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}.sidebar{padding:25px 16px;border-right:1px solid var(--line);background:#0c1425}.brand{display:flex;gap:11px;align-items:center;padding:0 9px 27px}.logo{width:39px;height:39px;border-radius:12px;background:linear-gradient(145deg,#56ddff,#6c83ff);display:grid;place-items:center;color:#07111e;font-size:21px;font-weight:900}.brand strong{display:block;letter-spacing:.3px}.brand small{color:var(--muted)}.navlabel{font-size:10px;letter-spacing:1.5px;color:#6f83a5;margin:17px 12px 8px}.nav{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px;color:#9eafcc;margin:3px 0}.nav.active{background:#1a2c48;color:#eafaff;border:1px solid #2b4566}.nav span{width:20px;text-align:center}.sidefoot{position:sticky;top:90vh;margin:45px 7px 0;padding:13px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:12px}.live{display:inline-block;width:7px;height:7px;background:var(--green);border-radius:50%;margin-right:6px;box-shadow:0 0 10px #45d6a2}.main{min-width:0;padding:25px 30px 35px;max-width:1700px;width:100%;margin:auto}.topbar{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:25px}.eyebrow{color:var(--cyan);font-size:11px;letter-spacing:1.7px;font-weight:750}.topbar h1{font-size:27px;letter-spacing:-.7px;margin:5px 0}.sub{color:var(--muted)}.topright{display:flex;align-items:center;gap:10px}.avatar{height:36px;width:36px;border-radius:50%;display:grid;place-items:center;background:#263d60;color:var(--cyan);font-weight:800}.pill{border:1px solid #2b405f;color:#b7c8e5;background:#111c30;padding:7px 10px;border-radius:20px;font-size:11px}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:17px}.metric,.panel{background:linear-gradient(145deg,rgba(22,33,55,.96),rgba(15,24,42,.96));border:1px solid var(--line);border-radius:14px}.metric{padding:17px 18px}.metrichead{display:flex;justify-content:space-between;color:var(--muted);font-size:12px}.metricicon{font-size:17px;color:var(--cyan)}.metricval{font-size:27px;font-weight:750;letter-spacing:-.8px;margin:10px 0 2px}.trend{font-size:11px;color:var(--green)}.gridmain{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.9fr);gap:16px}.panel{padding:18px;margin-bottom:16px;min-width:0}.panelhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}.panelhead h2{font-size:15px;margin:0}.panelhead p{margin:3px 0 0;color:var(--muted);font-size:11px}.tiny{font-size:11px;color:var(--muted)}.cpu{display:grid;grid-template-columns:1fr 1fr;gap:13px}.cpuunit{border:1px solid #30415e;background:#0d1729;border-radius:12px;padding:15px}.cpurow{display:flex;align-items:center;justify-content:space-between}.cpurow b{font-size:20px}.status{font-size:10px;letter-spacing:.7px;color:var(--green);background:#12392f;padding:5px 8px;border-radius:6px}.status.idle{color:var(--amber);background:#3b2e19}.progress{height:5px;background:#263650;border-radius:10px;overflow:hidden;margin:13px 0 8px}.progress div{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--purple));transition:width .25s}.queue{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center}.qchip{background:#192a45;border:1px solid #375173;color:#c5eaff;padding:8px 11px;border-radius:8px;font-weight:700;font-size:12px}.qchip.running{border-color:var(--cyan);background:#123149}.empty{color:#617391;font-size:12px;padding:10px 0}.statelegend{display:flex;gap:12px;flex-wrap:wrap}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}.ready{background:var(--cyan)}.runningdot{background:var(--green)}.waiting{background:var(--amber)}.terminated{background:#8291ac}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap}th{text-align:left;color:#8296b8;font-size:10px;text-transform:uppercase;letter-spacing:.8px;font-weight:650;padding:10px 9px;border-bottom:1px solid var(--line)}td{padding:12px 9px;border-bottom:1px solid #202d43;font-size:12px}tr:last-child td{border-bottom:0}.pid{color:var(--cyan);font-weight:750}.tag{padding:4px 7px;border-radius:5px;font-size:10px;background:#23334d;color:#b8c9e5}.tag.RUNNING{background:#123d35;color:var(--green)}.tag.READY{background:#13364b;color:var(--cyan)}.tag.WAITING{background:#44351d;color:var(--amber)}.tag.TERMINATED{background:#273044;color:#b2bfd4}.locks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.lock{background:#0e1829;border:1px solid var(--line);border-radius:9px;padding:12px}.lock b{display:block;font-size:12px}.lock small{font-size:10px;color:var(--muted)}.lock .lockstate{margin-top:8px;color:var(--green);font-size:10px}.lock.locked{border-color:#795b32}.lock.locked .lockstate{color:var(--amber)}.logs{height:230px;overflow:auto;background:#0a1220;border:1px solid #202c41;border-radius:10px;padding:10px;font:11px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace}.logline{display:flex;gap:9px;border-bottom:1px solid #18243a;padding:4px 0}.logtime{color:#647c9f;min-width:61px}.logok{color:var(--green)}.logwarn{color:var(--amber)}.loginfo{color:var(--cyan)}.bottomgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{display:flex;flex-direction:column;gap:6px}.field label{color:var(--muted);font-size:11px}.field input,.field select{width:100%;padding:10px;border-radius:8px;background:#0b1526;border:1px solid #30415a;color:var(--text);outline:none}.field input:focus,.field select:focus{border-color:var(--cyan)}.formactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.balances{display:flex;flex-direction:column;gap:9px}.balance{display:flex;align-items:center;justify-content:space-between;background:#0d1728;border:1px solid #26354c;padding:11px 12px;border-radius:9px}.balance strong{font-size:12px}.balance small{display:block;color:var(--muted);font-size:10px}.money{font-weight:750;font-variant-numeric:tabular-nums}.footnote{color:#7084a3;font-size:11px;margin-top:5px}
+@media(max-width:1100px){.app{grid-template-columns:75px 1fr}.sidebar{padding:20px 10px}.brand{padding:0 8px 25px}.brandtext,.navlabel,.navtext,.sidefoot{display:none}.nav{justify-content:center;padding:13px 6px}.metrics{grid-template-columns:repeat(2,1fr)}.gridmain{grid-template-columns:1fr}.main{padding:20px}}
+@media(max-width:650px){.app{display:block}.sidebar{display:none}.main{padding:15px}.topbar{align-items:flex-start}.topbar h1{font-size:22px}.topright .pill{display:none}.metrics{gap:8px}.metric{padding:12px}.metricval{font-size:22px}.cpu{grid-template-columns:1fr 1fr}.bottomgrid{grid-template-columns:1fr}.locks{grid-template-columns:repeat(3,1fr)}.panel{padding:13px}.controls{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+ <div class="brand"><div class="logo">B</div><div class="brandtext"><strong>BANK OS</strong><small>Transaction simulator</small></div></div>
+ <div class="navlabel">WORKSPACE</div>
+ <div class="nav active"><span>▦</span><div class="navtext">Overview</div></div>
+ <div class="nav"><span>⇄</span><div class="navtext">Transactions</div></div>
+ <div class="nav"><span>◷</span><div class="navtext">Process manager</div></div>
+ <div class="nav"><span>⌘</span><div class="navtext">CPU scheduler</div></div>
+ <div class="nav"><span>▣</span><div class="navtext">Accounts & locks</div></div>
+ <div class="navlabel">SYSTEM</div>
+ <div class="nav"><span>▤</span><div class="navtext">Event logs</div></div>
+ <div class="nav"><span>⚙</span><div class="navtext">Configuration</div></div>
+ <div class="sidefoot"><span class="live"></span>Simulation engine ready<br><span style="margin-left:13px">Demo mode · Local data</span></div>
+</aside>
+<main class="main">
+ <header class="topbar"><div><div class="eyebrow">OPERATING SYSTEMS LAB / PROJECT 01</div><h1>Bank OS Simulator</h1><div class="sub">Transaction processing, scheduling & synchronization in real time.</div></div><div class="topright"><span class="pill"><span class="live"></span>ENGINE ONLINE</span><div class="avatar">MK</div></div></header>
+ <section class="metrics">
+  <div class="metric"><div class="metrichead">Total transactions <span class="metricicon">⇄</span></div><div class="metricval" id="mTotal">05</div><div class="trend">↗ Requests received</div></div>
+  <div class="metric"><div class="metrichead">Completed processes <span class="metricicon">✓</span></div><div class="metricval" id="mDone">00</div><div class="trend">Commit / rollback finished</div></div>
+  <div class="metric"><div class="metrichead">Avg. waiting time <span class="metricicon">◷</span></div><div class="metricval" id="mWait">—</div><div class="tiny">Simulation time units</div></div>
+  <div class="metric"><div class="metrichead">CPU utilization <span class="metricicon">▥</span></div><div class="metricval" id="mCpu">0%</div><div class="progress"><div id="cpuBar"></div></div></div>
+ </section>
+ <div class="gridmain">
+  <div>
+   <section class="panel">
+    <div class="panelhead"><div><h2>CPU & Round Robin Scheduler</h2><p>Time quantum controls each process time slice</p></div><span class="pill">ROUND ROBIN</span></div>
+    <div class="cpu">
+     <div class="cpuunit"><div class="cpurow"><span class="tiny">CPU CORE 01</span><span id="cpuStatus" class="status idle">IDLE</span></div><div class="cpurow" style="margin-top:9px"><b id="cpuPid">—</b><span class="tiny" id="cpuBurst">No active process</span></div><div class="progress"><div id="burstBar"></div></div><div class="tiny" id="cpuTask">Waiting for simulation</div></div>
+     <div class="cpuunit"><div class="cpurow"><span class="tiny">SCHEDULER CONFIG</span><span class="status">ACTIVE</span></div><div class="cpurow" style="margin-top:12px"><span class="tiny">Time quantum</span><b><span id="quantumLabel">2</span> <small style="font-size:11px;color:var(--muted)">units</small></b></div><input id="quantum" aria-label="Time quantum" type="range" min="1" max="5" value="2" style="width:100%;accent-color:var(--cyan);margin:10px 0"><div class="tiny">Each tick runs one time unit; unfinished processes return to the ready queue.</div></div>
+    </div>
+    <div style="margin-top:18px"><div class="panelhead"><h2>Ready queue</h2><span class="tiny" id="queueCount">0 processes</span></div><div class="queue" id="queue"><span class="empty">Queue is empty</span></div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;flex-wrap:wrap"><div class="statelegend"><span class="tiny"><i class="dot ready"></i>Ready</span><span class="tiny"><i class="dot runningdot"></i>Running</span><span class="tiny"><i class="dot waiting"></i>Waiting / lock</span><span class="tiny"><i class="dot terminated"></i>Terminated</span></div><div style="display:flex;gap:7px"><button id="stepBtn">▶ Step</button><button id="runBtn" class="primary">▶ Run simulation</button><button id="resetBtn" class="ghost">↻ Reset</button></div></div>
+   </section>
+   <section class="panel">
+    <div class="panelhead"><div><h2>Process Control Block (PCB)</h2><p>Each banking request is represented as an OS process</p></div><span class="tiny" id="processCount">5 records</span></div>
+    <div class="tablewrap"><table><thead><tr><th>PID</th><th>Transaction</th><th>Account(s)</th><th>State</th><th>CPU</th><th>Remaining</th></tr></thead><tbody id="processTable"></tbody></table></div>
+   </section>
+  </div>
+  <div>
+   <section class="panel">
+    <div class="panelhead"><div><h2>Account resource locks</h2><p>Mutex locks protect critical sections</p></div><span class="tiny">MUTEX</span></div>
+    <div class="locks" id="locks"></div>
+    <div class="footnote">Locks are held during account updates and released after commit or rollback.</div>
+   </section>
+   <section class="panel">
+    <div class="panelhead"><div><h2>System event log</h2><p>Scheduler, locks & database events</p></div><button class="ghost" id="clearLogs">Clear</button></div>
+    <div class="logs" id="logs" aria-live="polite"></div>
+   </section>
+   <section class="panel">
+    <div class="panelhead"><div><h2>Account balances</h2><p>Live simulated database state</p></div><span class="pill">DEMO DATA</span></div>
+    <div class="balances" id="balances"></div>
+   </section>
+  </div>
+ </div>
+ <div class="bottomgrid">
+  <section class="panel">
+   <div class="panelhead"><div><h2>Submit transaction</h2><p>Request → PID → ready queue → scheduler</p></div></div>
+   <div class="controls">
+    <div class="field"><label for="type">Transaction type</label><select id="type"><option>Deposit</option><option>Withdraw</option><option>Transfer</option></select></div>
+    <div class="field"><label for="amount">Amount (₹)</label><input id="amount" type="number" min="1" value="5000"></div>
+    <div class="field"><label for="from">Source account</label><select id="from"><option>A101</option><option>A102</option><option>A103</option></select></div>
+    <div class="field"><label for="to">Destination account</label><select id="to"><option>A102</option><option>A103</option><option>A101</option></select></div>
+   </div>
+   <div class="formactions"><button class="primary" id="addBtn">＋ Add transaction</button><button id="generateBtn">⚡ Generate 10</button></div>
+   <div class="footnote">Interactive frontend prototype. Balances and process data are local demo state, not connected to MySQL.</div>
+  </section>
+  <section class="panel">
+   <div class="panelhead"><div><h2>Scheduler statistics</h2><p>Performance indicators for the current run</p></div></div>
+   <div class="balances">
+    <div class="balance"><div><strong>Simulation clock</strong><small>Elapsed scheduler units</small></div><span class="money" id="statClock">0</span></div>
+    <div class="balance"><div><strong>Throughput</strong><small>Completed / elapsed units</small></div><span class="money" id="statThroughput">0.00</span></div>
+    <div class="balance"><div><strong>Successful transactions</strong><small>Committed to demo state</small></div><span class="money" id="statSuccess" style="color:var(--green)">0</span></div>
+    <div class="balance"><div><strong>Rejected / rolled back</strong><small>Validation or insufficient funds</small></div><span class="money" id="statFail" style="color:var(--red)">0</span></div>
+   </div>
+  </section>
+ </div>
+</main>
+</div>
+<script>
+const initialBalances={A101:50000,A102:35000,A103:22000};
+let balances={...initialBalances}, procs=[], logs=[], nextPid=1, clock=0, running=false, timer=null, completed=0, failed=0, busyLocks={}, totalCpu=0, runTicks=0;
+const $=id=>document.getElementById(id);
+const money=n=>'₹'+Number(n).toLocaleString('en-IN',{maximumFractionDigits:0});
+const pad=n=>String(n).padStart(2,'0');
+function log(pid,msg,type='info'){logs.unshift({time:clock,pid,msg,type});logs=logs.slice(0,80);renderLogs()}
+function makeProc(type,from,to,amount,burst){const p={pid:'T'+pad(nextPid++),type,from,to,amount,burst,remaining:burst,state:'READY',arrival:clock,first:null,completion:null,waiting:0,cpu:0,locked:[],phase:0};procs.push(p);log(p.pid,`PROCESS CREATED · ${type.toUpperCase()} ${money(amount)}`,'info');log(p.pid,'PCB initialized · state READY','info');}
+function addTransaction(type,from,to,amount,burst){if(!Number.isFinite(amount)||amount<=0){alert('Enter an amount greater than zero.');return}if(type==='Transfer'&&from===to){alert('Choose different source and destination accounts.');return}makeProc(type,from,to,amount,burst||Math.ceil(2+Math.random()*3));render()}
+function generate(n){const types=['Deposit','Withdraw','Transfer'],ids=Object.keys(balances);for(let i=0;i<n;i++){let type=types[Math.floor(Math.random()*3)],from=ids[Math.floor(Math.random()*3)],to=ids[Math.floor(Math.random()*3)];if(type==='Transfer'&&from===to)to=ids[(ids.indexOf(from)+1)%3];let amount=[1000,2000,3000,5000,8000][Math.floor(Math.random()*5)];makeProc(type,from,to,amount,2+Math.floor(Math.random()*4))}log('SYS',`${n} transaction requests generated and placed in ready queue`,'info');render()}
+function acquire(p){let resources=p.type==='Deposit'?[p.to]:p.type==='Withdraw'?[p.from]:[p.from,p.to].sort();let blocked=resources.find(a=>busyLocks[a]&&busyLocks[a]!==p.pid);if(blocked){p.state='WAITING';log(p.pid,`WAITING · ${blocked} locked by ${busyLocks[blocked]}`,'warn');return false}resources.forEach(a=>{busyLocks[a]=p.pid;p.locked.push(a)});log(p.pid,`LOCK ACQUIRED · ${resources.join(', ')}`,'info');return true}
+function release(p){p.locked.forEach(a=>{if(busyLocks[a]===p.pid)delete busyLocks[a]});if(p.locked.length)log(p.pid,`LOCK RELEASED · ${p.locked.join(', ')}`,'ok');p.locked=[]}
+function execute(p){if(p.phase===0){if(!acquire(p))return;p.phase=1;log(p.pid,'ENTER CRITICAL SECTION · database validation','info');}
+ if(p.phase===1){let ok=true,reason='';if(p.type==='Withdraw'||p.type==='Transfer'){if(balances[p.from]<p.amount){ok=false;reason='INSUFFICIENT FUNDS · rollback'}else balances[p.from]-=p.amount}
+ if(ok&&p.type==='Deposit')balances[p.to]+=p.amount;
+ if(ok&&p.type==='Transfer')balances[p.to]+=p.amount;
+ if(ok){p.state='TERMINATED';p.completion=clock+1;completed++;log(p.pid,`${p.type.toUpperCase()} · COMMIT successful`,'ok');}else{p.state='TERMINATED';p.completion=clock+1;failed++;log(p.pid,`ROLLBACK · ${reason}`,'warn')}
+ release(p);p.phase=2;
+ }}
+function step(){let ready=procs.filter(p=>p.state==='READY'||p.state==='WAITING');procs.filter(p=>p.state==='WAITING').forEach(p=>{p.state='READY'});let active=procs.find(p=>p.state==='RUNNING');if(active){active.state='READY';log(active.pid,'PREEMPTED · time quantum expired; back to ready queue','info')}
+ let queue=procs.filter(p=>p.state==='READY');if(!queue.length){if(procs.some(p=>p.state==='WAITING')){log('SYS','Lock wait detected; retrying waiting processes','warn');render();return false}render();return false}
+ const p=queue[0],q=+$('quantum').value;p.state='RUNNING';if(p.first===null)p.first=clock; if(p.remaining===p.burst)log(p.pid,`DISPATCHED BY ROUND ROBIN · quantum ${q}`,'info');
+ const slice=Math.min(q,p.remaining);for(let i=0;i<slice;i++){p.cpu++;totalCpu++;runTicks++;clock++;procs.filter(x=>x.state==='READY'&&x!==p).forEach(x=>x.waiting++);p.remaining--;if(p.phase===0){if(!acquire(p)){p.remaining=Math.max(0,p.remaining);break}p.phase=1;log(p.pid,'ENTER CRITICAL SECTION · database validation','info')}
+ if(p.remaining===0||i===slice-1){if(p.remaining===0){execute(p)}break}}
+ if(p.state==='RUNNING'&&p.remaining>0){p.state='READY';log(p.pid,`TIME SLICE COMPLETE · ${p.remaining} burst units remain`,'info')}
+ // retry lock waiters on later ticks
+ procs.filter(x=>x.state==='WAITING').forEach(x=>{x.state='READY'});
+ render();return procs.some(x=>x.state==='READY'||x.state==='WAITING'||x.state==='RUNNING')}
+function start(){if(running){stop();return}if(!procs.some(p=>p.state==='READY'||p.state==='WAITING'||p.state==='RUNNING')){log('SYS','No pending processes. Add or generate transactions first.','warn');return}running=true;$('runBtn').textContent='Ⅱ Pause simulation';timer=setInterval(()=>{let more=step();if(!more)stop()},650);$('runBtn').textContent='Ⅱ Pause simulation'}
+function stop(){running=false;if(timer)clearInterval(timer);timer=null;$('runBtn').textContent='▶ Run simulation'}
+function reset(){stop();balances={...initialBalances};procs=[];logs=[];nextPid=1;clock=0;completed=0;failed=0;busyLocks={};totalCpu=0;runTicks=0;
+[['Withdraw','A101','',10000,4],['Deposit','','A102',20000,3],['Transfer','A101','A102',5000,4],['Withdraw','A101','',15000,3],['Transfer','A102','A103',8000,5]].forEach(a=>makeProc(...a));log('SYS','Simulator initialized · Round Robin scheduler ready','ok');render()}
+function render(){const active=procs.find(p=>p.state==='RUNNING');$('mTotal').textContent=pad(procs.length);$('mDone').textContent=pad(completed+failed);let finished=procs.filter(p=>p.completion!==null);$('mWait').textContent=finished.length?(finished.reduce((s,p)=>s+p.waiting,0)/finished.length).toFixed(1):'—';const util=clock?Math.min(100,Math.round(totalCpu/clock*100)):0;$('mCpu').textContent=util+'%';$('cpuBar').style.width=util+'%';
+$('cpuStatus').textContent=active?'RUNNING':'IDLE';$('cpuStatus').className='status'+(active?'':' idle');$('cpuPid').textContent=active?active.pid:'—';$('cpuBurst').textContent=active?`${active.remaining} units left`:'No active process';$('cpuTask').textContent=active?`${active.type.toUpperCase()} · ${active.from||'—'} ${active.type==='Transfer'?'→ '+active.to:''}`:'Waiting for simulation';$('burstBar').style.width=active?((active.burst-active.remaining)/active.burst*100)+'%':'0%';$('quantumLabel').textContent=$('quantum').value;
+let ready=procs.filter(p=>p.state==='READY'||p.state==='WAITING');$('queueCount').textContent=ready.length+' processes';$('queue').innerHTML=ready.length?ready.map(p=>`<span class="qchip">${p.pid}<small style="color:var(--muted)"> · ${p.remaining}</small></span>`).join(''):'<span class="empty">Queue is empty — add a transaction to begin.</span>';
+$('processCount').textContent=procs.length+' records';$('processTable').innerHTML=procs.slice().reverse().map(p=>`<tr><td class="pid">${p.pid}</td><td>${p.type}</td><td>${p.type==='Deposit'?p.to:p.type==='Withdraw'?p.from:p.from+' → '+p.to}</td><td><span class="tag ${p.state}">${p.state}</span></td><td>${p.cpu}</td><td>${p.remaining}</td></tr>`).join('');
+$('locks').innerHTML=Object.keys(balances).map(a=>`<div class="lock ${busyLocks[a]?'locked':''}"><b>${a}</b><small>Account resource</small><div class="lockstate">${busyLocks[a]?'🔒 '+busyLocks[a]:'● AVAILABLE'}</div></div>`).join('');
+$('balances').innerHTML=Object.entries(balances).map(([a,b])=>`<div class="balance"><div><strong>${a}</strong><small>Demo account · Active</small></div><span class="money">${money(b)}</span></div>`).join('');
+$('statClock').textContent=clock;$('statThroughput').textContent=clock?(completed+failed)/clock .toFixed?.(2):'0.00';$('statThroughput').textContent=clock?((completed+failed)/clock).toFixed(2):'0.00';$('statSuccess').textContent=completed;$('statFail').textContent=failed;
+}
+function renderLogs(){$('logs').innerHTML=logs.map(l=>`<div class="logline"><span class="logtime">T+${pad(l.time)}</span><span class="${l.type==='ok'?'logok':l.type==='warn'?'logwarn':'loginfo'}">[${l.pid}] ${l.msg}</span></div>`).join('')||'<span class="empty">No events yet.</span>'}
+$('addBtn').onclick=()=>{const type=$('type').value;addTransaction(type,$('from').value,$('to').value,+$('amount').value)};
+$('generateBtn').onclick=()=>generate(10);$('stepBtn').onclick=()=>{if(running)stop();step()};$('runBtn').onclick=start;$('resetBtn').onclick=reset;$('clearLogs').onclick=()=>{logs=[];renderLogs()};$('quantum').oninput=()=>{$('quantumLabel').textContent=$('quantum').value};
+reset();
+</script>
+</body></html>
