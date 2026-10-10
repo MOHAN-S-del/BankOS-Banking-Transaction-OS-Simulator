@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bank OS Simulator | Integrated Fund & Transaction Management</title>
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">B</div>
+      <div class="brand-meta">
+        <h1>BANK OS</h1>
+        <span>KERNEL ENGINE</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="nav-section-title">SIMULATOR CORES</div>
+      <div class="nav-item active"><span>▦</span> <span>Mission Control</span></div>
+      <div class="nav-item" onclick="openComparisonModal()"><span>⇄</span> <span>Normal vs OS Mode</span></div>
+      <div class="nav-item" onclick="document.getElementById('pcbSection').scrollIntoView({behavior:'smooth'})"><span>◷</span> <span>Process Control Block</span></div>
+      <div class="nav-item" onclick="document.getElementById('lockSection').scrollIntoView({behavior:'smooth'})"><span>🔒</span> <span>Mutex Resource Locks</span></div>
+      <div class="nav-item" onclick="document.getElementById('dbSection').scrollIntoView({behavior:'smooth'})"><span>🗄</span> <span>MySQL Database</span></div>
+    </div>
+
+    <div>
+      <div class="nav-section-title">THEORETICAL LABELS</div>
+      <div class="nav-item" style="cursor:default"><span>⚙</span> <span>Round Robin (RR)</span></div>
+      <div class="nav-item" style="cursor:default"><span>☍</span> <span>ACID Transactions</span></div>
+      <div class="nav-item" style="cursor:default"><span>🛡</span> <span>Deadlock Prevention</span></div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="badge-live"><span class="dot-pulse"></span> <span id="dbStatusLabel">ENGINE ONLINE</span></div>
+      <p style="color:var(--text-dim); margin-top:4px;">C++ POSIX Kernel<br>MySQL 8.x Persistent DB</p>
+    </div>
+  </aside>
+
+  <!-- Main Content Space -->
+  <main class="main-content">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="page-title">
+        <span style="color:var(--cyan); font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase;">
+          B.Tech CSE Capstone Project · OS + DBMS
+        </span>
+        <h2>Bank OS Simulator: Mission Control</h2>
+        <p>Real-time visual simulation of banking transactions treated as scheduled operating system processes.</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="btnStep" class="btn" title="Execute single simulation clock tick">▶ Step Tick</button>
+        <button id="btnRun" class="btn btn-primary">▶ Run Engine</button>
+        <button id="btnReset" class="btn btn-danger">↻ Reset State</button>
+        <button class="btn btn-compare" onclick="openComparisonModal()">⇄ Compare Architecture</button>
+      </div>
+    </header>
+
+    <!-- Metrics Bar -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-header"><span>TOTAL TRANSACTIONS</span> <span>⇄</span></div>
+        <div class="metric-value" id="mTotal">05</div>
+        <div class="metric-footer">Converted to OS Processes</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header"><span>COMPLETED (COMMIT)</span> <span>✓</span></div>
+        <div class="metric-value" id="mDone" style="color:var(--green)">00</div>
+        <div class="metric-footer"><span id="mFailed">0</span> Rolled back (insufficient funds)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header"><span>AVG WAITING TIME</span> <span>◷</span></div>
+        <div class="metric-value" id="mWait">—</div>
+        <div class="metric-footer">Simulation clock ticks (WT)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header"><span>AVG TURNAROUND</span> <span>⏱</span></div>
+        <div class="metric-value" id="mTat">—</div>
+        <div class="metric-footer">TAT = Completion - Arrival</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header"><span>CPU UTILIZATION</span> <span>▥</span></div>
+        <div class="metric-value" id="mCpu" style="color:var(--cyan)">0%</div>
+        <div class="metric-footer">Throughput: <span id="mThroughput">0.00</span> procs/tick</div>
+      </div>
+    </section>
+
+    <!-- Two-Column Operational Panels -->
+    <div class="panels-layout">
+      <!-- Left Column: OS Core Visualization -->
+      <div>
+        <!-- CPU & Scheduler Panel -->
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>CPU Core 01 & Round Robin Scheduler</h3>
+              <p>Preemptive time slicing with dynamic Time Quantum preemption</p>
+            </div>
+            <span class="pill" id="quantumBadge">TIME QUANTUM: q = 2</span>
+          </div>
+
+          <div class="cpu-grid">
+            <div class="cpu-unit">
+              <div class="cpu-status-row">
+                <span style="font-size:11px; color:var(--text-muted); font-weight:700;">CPU CORE 01</span>
+                <span id="cpuStatusBadge" class="badge-status idle">IDLE</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <div class="cpu-active-pid" id="cpuPid">—</div>
+                <div style="font-size:12px; color:var(--text-muted);" id="cpuBurstLabel">No active process</div>
+              </div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="burstBar"></div>
+              </div>
+              <div style="font-size:11px; color:var(--text-muted);" id="cpuTaskDetails">
+                Awaiting process dispatch from Ready Queue
+              </div>
+            </div>
+
+            <div class="cpu-unit">
+              <div class="cpu-status-row">
+                <span style="font-size:11px; color:var(--text-muted); font-weight:700;">SCHEDULER CONFIGURATION</span>
+                <span class="pill" style="font-size:9px;">ALGORITHM: ROUND ROBIN</span>
+              </div>
+              <div>
+                <label for="quantumRange" style="font-size:11px; color:var(--text-muted);">Adjust Time Quantum ($q$ ticks):</label>
+                <div style="display:flex; align-items:center; gap:12px; margin-top:6px;">
+                  <input id="quantumRange" type="range" min="1" max="6" value="2" style="flex:1; accent-color:var(--cyan);">
+                  <strong style="font-size:16px; font-family:var(--font-mono); color:var(--cyan);" id="quantumVal">2</strong>
+                </div>
+              </div>
+              <div style="font-size:10px; color:var(--text-dim); line-height:1.4;">
+                Process executes for at most $q$ ticks before preemption, context switch, and return to tail of Ready Queue.
+              </div>
+            </div>
+          </div>
+
+          <!-- Ready Queue -->
+          <div style="margin-top:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:12px; font-weight:700; color:var(--text-muted);">READY QUEUE (FIFO DISPATCH ORDER)</span>
+              <span style="font-size:11px; color:var(--cyan);" id="queueLengthBadge">0 processes</span>
+            </div>
+            <div class="queue-container" id="readyQueueBox">
+              <span style="color:var(--text-dim); font-size:12px;">Ready queue is empty</span>
+            </div>
+          </div>
+
+          <!-- Gantt Timeline -->
+          <div style="margin-top:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:12px; font-weight:700; color:var(--text-muted);">CPU EXECUTION GANTT TIMELINE</span>
+              <span style="font-size:11px; color:var(--text-dim);">Clock: T+<span id="clockTickVal">0</span></span>
+            </div>
+            <div class="gantt-chart" id="ganttBox">
+              <div style="color:var(--text-dim); font-size:11px; padding:0 8px;">Simulation timeline will generate as CPU runs...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Process Control Block (PCB) Table -->
+        <section class="panel" id="pcbSection">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Process Control Block (PCB) Table</h3>
+              <p>Kernel data structure maintaining full state for every financial transaction</p>
+            </div>
+            <span class="pill" id="pcbCountBadge">5 PCBs ACTIVE</span>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>PID</th>
+                  <th>Transaction</th>
+                  <th>Route / Accounts</th>
+                  <th>Amount</th>
+                  <th>State</th>
+                  <th>Burst</th>
+                  <th>Remain</th>
+                  <th>Waiting (WT)</th>
+                  <th>Turnaround (TAT)</th>
+                  <th>Status / Audit</th>
+                </tr>
+              </thead>
+              <tbody id="pcbTableBody">
+                <!-- Dynamically populated via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Banking Resources & Synchronization -->
+      <div>
+        <!-- Mutex Lock Matrix -->
+        <section class="panel" id="lockSection">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Account Mutex Locks (Mutual Exclusion)</h3>
+              <p>Protects critical sections & prevents race conditions on shared balances</p>
+            </div>
+            <span class="pill">DEADLOCK PREVENTED</span>
+          </div>
+
+          <div class="lock-matrix" id="lockMatrixBox">
+            <!-- Dynamically populated -->
+          </div>
+
+          <div style="margin-top:12px; font-size:11px; color:var(--text-dim); line-height:1.5;">
+            🛡 <strong>Deadlock Prevention</strong>: Transfers lock accounts in strict lexicographical order: <code style="color:var(--cyan)">min(A, B) ➔ max(A, B)</code>, eliminating Coffman's circular wait condition.
+          </div>
+        </section>
+
+        <!-- Live Database Balances -->
+        <section class="panel" id="dbSection">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Persistent Account Balances</h3>
+              <p>Simulated MySQL relational database records with ACID guarantees</p>
+            </div>
+            <span class="pill" id="dbTypeBadge">InnoDB ENGINE</span>
+          </div>
+
+          <div class="balance-list" id="balanceListBox">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Transaction Submission Panel -->
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Submit Banking Transaction</h3>
+              <p>Translates financial intent into an OS Process with estimated CPU burst</p>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="txType">Transaction Type</label>
+              <select id="txType" class="form-select">
+                <option value="Deposit">Deposit (+ Credit)</option>
+                <option value="Withdraw">Withdraw (- Debit)</option>
+                <option value="Transfer" selected>Transfer (Atomic 2PC)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="txAmount">Amount (₹)</label>
+              <input id="txAmount" type="number" min="100" step="500" value="5000" class="form-input">
+            </div>
+
+            <div class="form-group">
+              <label for="txFrom">Source Account</label>
+              <select id="txFrom" class="form-select">
+                <option value="A101" selected>A101 (Aarav)</option>
+                <option value="A102">A102 (Diya)</option>
+                <option value="A103">A103 (Rohan)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="txTo">Destination Account</label>
+              <select id="txTo" class="form-select">
+                <option value="A102" selected>A102 (Diya)</option>
+                <option value="A103">A103 (Rohan)</option>
+                <option value="A101">A101 (Aarav)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button id="btnAddTx" class="btn btn-primary" style="flex:1;">＋ Create Process & Enqueue</button>
+            <button id="btnBatch10" class="btn">⚡ Batch 10</button>
+            <button id="btnBatch50" class="btn">⚡ Stress 50</button>
+          </div>
+        </section>
+
+        <!-- Kernel & System Event Logs -->
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>OS Kernel & Transaction Audit Stream</h3>
+              <p>Real-time system calls, lock acquisitions, and DB commits</p>
+            </div>
+            <button id="btnClearLogs" class="btn" style="padding:4px 8px; font-size:11px;">Clear</button>
+          </div>
+
+          <div class="kernel-logs" id="kernelLogBox">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Comparison Mode Modal -->
+<div class="modal-overlay" id="compareModal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div>
+        <h2 style="font-size:20px; font-weight:800; color:var(--text-main);">
+          Architectural Comparison: Normal Banking vs Bank OS
+        </h2>
+        <p style="color:var(--text-muted); font-size:12px; margin-top:2px;">
+          Demonstrating why naive web CRUD apps fail under high concurrency without OS process management.
+        </p>
+      </div>
+      <button class="btn" onclick="closeComparisonModal()">✕ Close</button>
+    </div>
+
+    <div style="background:var(--bg-surface-elevated); padding:14px; border-radius:var(--radius-md); border:1px solid var(--border-subtle); margin-bottom:16px;">
+      <strong style="color:var(--cyan);">Scenario:</strong> Account A101 starts with <strong style="color:var(--green)">₹50,000</strong>.
+      Two concurrent ATM transactions arrive at the same millisecond:
+      <span style="color:var(--text-main); font-family:var(--font-mono);">[T1: Withdraw ₹40,000]</span> and 
+      <span style="color:var(--text-main); font-family:var(--font-mono);">[T2: Withdraw ₹30,000]</span>.
+    </div>
+
+    <div class="comparison-grid">
+      <!-- Flawed Normal Banking -->
+      <div class="comparison-card flawed">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h4 style="color:var(--red); font-size:14px;">1. Standard Banking CRUD App</h4>
+          <span style="font-size:10px; background:var(--red-dark); color:var(--red); padding:3px 8px; border-radius:4px; font-weight:700;">RACE CONDITION</span>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">
+          Direct SQL execution without synchronization:
+        </p>
+        <ul style="font-size:11px; color:var(--text-muted); margin:10px 0 10px 18px; line-height:1.7;">
+          <li>T1 reads balance: <strong>₹50,000</strong> (Checks 50k >= 40k -> OK)</li>
+          <li>T2 reads balance simultaneously: <strong>₹50,000</strong> (Checks 50k >= 30k -> OK)</li>
+          <li>T1 debits ₹40,000 -> writes <strong>₹10,000</strong></li>
+          <li>T2 debits ₹30,000 -> writes <strong>₹20,000</strong> (or -₹20,000)</li>
+        </ul>
+        <div style="background:rgba(255, 23, 68, 0.1); border:1px solid var(--red); padding:10px; border-radius:8px; font-size:11px; color:var(--red);">
+          ❌ <strong>Result:</strong> ₹70,000 dispensed from a ₹50,000 account! Critical bank overdraft and lost updates.
+        </div>
+      </div>
+
+      <!-- Safe Bank OS Simulator -->
+      <div class="comparison-card safe">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h4 style="color:var(--green); font-size:14px;">2. Bank OS Simulator</h4>
+          <span style="font-size:10px; background:var(--green-dark); color:var(--green); padding:3px 8px; border-radius:4px; font-weight:700;">MUTUAL EXCLUSION</span>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">
+          OS Process Management + Round Robin + Mutex Locking:
+        </p>
+        <ul style="font-size:11px; color:var(--text-muted); margin:10px 0 10px 18px; line-height:1.7;">
+          <li>T1 scheduled on CPU -> <strong>Acquires Mutex Lock on A101</strong></li>
+          <li>T2 scheduled -> Attempts to access A101 -> <strong>Blocked to WAITING queue</strong> (yields CPU!)</li>
+          <li>T1 debits ₹40,000 -> Updates balance to <strong>₹10,000</strong> -> Commits -> <strong>Releases Lock</strong></li>
+          <li>T2 unblocks to READY queue -> Reads updated balance <strong>₹10,000</strong> -> Checks 10k < 30k -> <strong>ROLLBACK (Rejected)</strong></li>
+        </ul>
+        <div style="background:rgba(0, 230, 118, 0.1); border:1px solid var(--green); padding:10px; border-radius:8px; font-size:11px; color:var(--green);">
+          ✓ <strong>Result:</strong> Data consistency preserved. Final balance is safely ₹10,000. T2 correctly rejected for insufficient funds.
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:right;">
+      <button class="btn btn-primary" onclick="closeComparisonModal()">Got It, Back to Simulator</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
