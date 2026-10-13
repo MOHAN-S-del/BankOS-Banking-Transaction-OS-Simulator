@@ -1,7 +1,14 @@
+#if __has_include("common/types.hpp")
 #include "common/types.hpp"
 #include "storage/ledger_engine.hpp"
 #include "storage/wal.hpp"
 #include "concurrency/lock_manager.hpp"
+#else
+#include "../include/common/types.hpp"
+#include "../include/storage/ledger_engine.hpp"
+#include "../include/storage/wal.hpp"
+#include "../include/concurrency/lock_manager.hpp"
+#endif
 
 #include <cassert>
 #include <iostream>

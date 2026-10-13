@@ -2,3 +2,4 @@ build/
 adaptive_ledger_os
 *.o
 .DS_Store
+.cache/

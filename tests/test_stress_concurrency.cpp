@@ -1,3 +1,4 @@
+#if __has_include("common/types.hpp")
 #include "common/types.hpp"
 #include "storage/ledger_engine.hpp"
 #include "storage/wal.hpp"
@@ -12,6 +13,22 @@
 #include "scheduler/adaptive_scheduler.hpp"
 #include "workload/generator.hpp"
 #include "suite/benchmark_runner.hpp"
+#else
+#include "../include/common/types.hpp"
+#include "../include/storage/ledger_engine.hpp"
+#include "../include/storage/wal.hpp"
+#include "../include/concurrency/lock_manager.hpp"
+#include "../include/concurrency/token_bucket.hpp"
+#include "../include/concurrency/backoff.hpp"
+#include "../include/telemetry/sliding_window.hpp"
+#include "../include/telemetry/hysteresis.hpp"
+#include "../include/telemetry/metrics_sampler.hpp"
+#include "../include/scheduler/mlfq_queue.hpp"
+#include "../include/scheduler/aging_engine.hpp"
+#include "../include/scheduler/adaptive_scheduler.hpp"
+#include "../include/workload/generator.hpp"
+#include "../include/suite/benchmark_runner.hpp"
+#endif
 
 #include <cassert>
 #include <iostream>

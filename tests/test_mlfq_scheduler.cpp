@@ -1,6 +1,12 @@
+#if __has_include("common/types.hpp")
 #include "common/types.hpp"
 #include "scheduler/mlfq_queue.hpp"
 #include "scheduler/aging_engine.hpp"
+#else
+#include "../include/common/types.hpp"
+#include "../include/scheduler/mlfq_queue.hpp"
+#include "../include/scheduler/aging_engine.hpp"
+#endif
 #include <cassert>
 #include <iostream>
 #include <thread>

@@ -1,0 +1,37 @@
+[
+  {
+    "directory": "/Users/mohankumar/BankOS-Banking-Transaction-OS-Simulator",
+    "command": "clang++ -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude -c src/main.cpp -o build/main.o",
+    "file": "src/main.cpp"
+  },
+  {
+    "directory": "/Users/mohankumar/BankOS-Banking-Transaction-OS-Simulator",
+    "command": "clang++ -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude -c src/server/http_server.cpp -o build/http_server.o",
+    "file": "src/server/http_server.cpp"
+  },
+  {
+    "directory": "/Users/mohankumar/BankOS-Banking-Transaction-OS-Simulator",
+    "command": "clang++ -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude -c tests/test_mlfq_scheduler.cpp -o build/test_mlfq_scheduler.o",
+    "file": "tests/test_mlfq_scheduler.cpp"
+  },
+  {
+    "directory": "/Users/mohankumar/BankOS-Banking-Transaction-OS-Simulator",
+    "command": "clang++ -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude -c tests/test_telemetry_mdacc.cpp -o build/test_telemetry_mdacc.o",
+    "file": "tests/test_telemetry_mdacc.cpp"
+  },
+  {
+    "directory": "/Users/mohankumar/BankOS-Banking-Transaction-OS-Simulator",
+    "command": "clang++ -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude -c tests/test_lock_manager.cpp -o build/test_lock_manager.o",
+    "file": "tests/test_lock_manager.cpp"
+  },
+  {
+    "directory": "/Users/mohankumar/BankOS-Banking-Transaction-OS-Simulator",
+    "command": "clang++ -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude -c tests/test_acid_storage.cpp -o build/test_acid_storage.o",
+    "file": "tests/test_acid_storage.cpp"
+  },
+  {
+    "directory": "/Users/mohankumar/BankOS-Banking-Transaction-OS-Simulator",
+    "command": "clang++ -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude -c tests/test_stress_concurrency.cpp -o build/test_stress_concurrency.o",
+    "file": "tests/test_stress_concurrency.cpp"
+  }
+]

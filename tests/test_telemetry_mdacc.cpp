@@ -1,8 +1,16 @@
+#if __has_include("common/types.hpp")
 #include "common/types.hpp"
 #include "telemetry/sliding_window.hpp"
 #include "telemetry/hysteresis.hpp"
 #include "concurrency/token_bucket.hpp"
 #include "concurrency/backoff.hpp"
+#else
+#include "../include/common/types.hpp"
+#include "../include/telemetry/sliding_window.hpp"
+#include "../include/telemetry/hysteresis.hpp"
+#include "../include/concurrency/token_bucket.hpp"
+#include "../include/concurrency/backoff.hpp"
+#endif
 
 #include <cassert>
 #include <iostream>

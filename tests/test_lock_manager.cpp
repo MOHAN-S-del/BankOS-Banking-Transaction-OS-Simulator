@@ -1,5 +1,10 @@
+#if __has_include("common/types.hpp")
 #include "common/types.hpp"
 #include "concurrency/lock_manager.hpp"
+#else
+#include "../include/common/types.hpp"
+#include "../include/concurrency/lock_manager.hpp"
+#endif
 #include <cassert>
 #include <iostream>
 #include <thread>
