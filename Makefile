@@ -1,63 +1,63 @@
 CXX = clang++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -Iinclude -pthread
+CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pthread -Iinclude
 
-# Detect MySQL installation on macOS / Linux
-MYSQL_INCLUDE = /usr/local/mysql-8.4.10-macos15-arm64/include
-MYSQL_LIB = /usr/local/mysql-8.4.10-macos15-arm64/lib
+SRCS = src/main.cpp src/server/http_server.cpp
+TARGET = adaptive_ledger_os
 
-# Check if MySQL directory exists
-ifneq ($(wildcard $(MYSQL_INCLUDE)/mysql.h),)
-    CXXFLAGS += -DHAVE_MYSQL -I$(MYSQL_INCLUDE)
-    LDFLAGS += -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient
-else
-    # Check alternate Homebrew MySQL path
-    ifneq ($(wildcard /opt/homebrew/include/mysql/mysql.h),)
-        CXXFLAGS += -DHAVE_MYSQL -I/opt/homebrew/include/mysql
-        LDFLAGS += -L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -lmysqlclient
-    endif
-endif
+TEST_SRCS = tests/test_mlfq_scheduler.cpp \
+            tests/test_telemetry_mdacc.cpp \
+            tests/test_lock_manager.cpp \
+            tests/test_acid_storage.cpp \
+            tests/test_stress_concurrency.cpp
 
+TEST_BINS = build/test_mlfq_scheduler \
+            build/test_telemetry_mdacc \
+            build/test_lock_manager \
+            build/test_acid_storage \
+            build/test_stress_concurrency
 
-SRC = src/main.cpp \
-      src/db_manager.cpp \
-      src/process_manager.cpp \
-      src/lock_manager.cpp \
-      src/scheduler.cpp \
-      src/http_server.cpp \
-      src/bank_os_api.cpp
-
-OBJ = $(SRC:.cpp=.o)
-TARGET = bank_os_simulator
+.PHONY: all clean test benchmark run
 
 all: $(TARGET)
 
-$(TARGET): $(OBJ)
-	$(CXX) $(OBJ) -o $@ $(LDFLAGS)
+$(TARGET): $(SRCS)
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) $(SRCS) -o $(TARGET)
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+build/test_mlfq_scheduler: tests/test_mlfq_scheduler.cpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/test_mlfq_scheduler.cpp -o build/test_mlfq_scheduler
 
-clean:
-	rm -f $(OBJ) $(TARGET) test_scheduler test_deadlock test_atomicity
+build/test_telemetry_mdacc: tests/test_telemetry_mdacc.cpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/test_telemetry_mdacc.cpp -o build/test_telemetry_mdacc
 
-test: test_scheduler test_deadlock test_atomicity
-	@echo "================ RUNNING AUTOMATED UNIT TESTS ================"
-	./test_scheduler
-	./test_deadlock
-	./test_atomicity
-	@echo "================ ALL UNIT TESTS PASSED ======================="
+build/test_lock_manager: tests/test_lock_manager.cpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/test_lock_manager.cpp -o build/test_lock_manager
 
-test_scheduler: tests/test_scheduler.cpp src/process_manager.cpp src/scheduler.cpp src/lock_manager.cpp src/db_manager.cpp
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+build/test_acid_storage: tests/test_acid_storage.cpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/test_acid_storage.cpp -o build/test_acid_storage
 
-test_deadlock: tests/test_deadlock.cpp src/lock_manager.cpp src/db_manager.cpp
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+build/test_stress_concurrency: tests/test_stress_concurrency.cpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/test_stress_concurrency.cpp -o build/test_stress_concurrency
 
-test_atomicity: tests/test_atomicity.cpp src/db_manager.cpp
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+test: $(TEST_BINS)
+	@echo "=== RUNNING ALL UNIT & INTEGRATION TESTS ==="
+	@./build/test_mlfq_scheduler
+	@./build/test_telemetry_mdacc
+	@./build/test_lock_manager
+	@./build/test_acid_storage
+	@./build/test_stress_concurrency
+	@echo "=== ALL TESTS COMPLETED SUCCESSFULLY ==="
+
+benchmark: $(TARGET)
+	./$(TARGET) --benchmark
 
 run: $(TARGET)
 	./$(TARGET)
 
-.PHONY: all clean run test
-
+clean:
+	rm -rf build $(TARGET)

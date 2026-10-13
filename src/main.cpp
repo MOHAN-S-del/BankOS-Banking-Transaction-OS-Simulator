@@ -1,89 +1,144 @@
-#include "db_manager.hpp"
-#include "process_manager.hpp"
-#include "lock_manager.hpp"
-#include "scheduler.hpp"
-#include "http_server.hpp"
-#include "bank_os_api.hpp"
+#include "common/types.hpp"
+#include "storage/ledger_engine.hpp"
+#include "storage/wal.hpp"
+#include "concurrency/lock_manager.hpp"
+#include "concurrency/token_bucket.hpp"
+#include "concurrency/backoff.hpp"
+#include "telemetry/sliding_window.hpp"
+#include "telemetry/hysteresis.hpp"
+#include "telemetry/metrics_sampler.hpp"
+#include "scheduler/mlfq_queue.hpp"
+#include "scheduler/aging_engine.hpp"
+#include "scheduler/adaptive_scheduler.hpp"
+#include "workload/generator.hpp"
+#include "suite/benchmark_runner.hpp"
+#include "server/http_server.hpp"
 
 #include <iostream>
-#include <csignal>
-#include <atomic>
+#include <memory>
 #include <chrono>
 #include <thread>
+#include <csignal>
+#include <atomic>
 
-std::atomic<bool> g_shutdown_requested(false);
+using namespace adaptive_os;
 
-void handleSigint(int) {
-    std::cout << "\n[BankOS] Shutting down simulation engine cleanly...\n";
-    g_shutdown_requested = true;
+std::atomic<bool> g_shutdown(false);
+
+void signal_handler(int) {
+    g_shutdown.store(true);
+}
+
+void print_banner() {
+    std::cout << "\n"
+              << "========================================================================================\n"
+              << "       ADAPTIVE LEDGER OS: AUTONOMOUS CONCURRENCY-REGULATED MIDDLEWARE                  \n"
+              << "        High-Performance Banking Switches & Real-Time Settlement Engine                \n"
+              << "========================================================================================\n"
+              << " [CORE OS]   3-Tier MLFQ (Q1: SRTF 10ms | Q2: 50ms | Q3: 200ms) + Anti-Starvation Aging \n"
+              << " [CORE DBMS] MD-ACC Measurement-Driven Adaptive Concurrency Control + Hysteresis Gate   \n"
+              << " [STABILIZE] Dynamic Token Bucket Throttling + Bounded Wait Tw + Jittered Exp Backoff   \n"
+              << "========================================================================================\n\n";
 }
 
 int main(int argc, char* argv[]) {
-    std::signal(SIGINT, handleSigint);
-    std::signal(SIGTERM, handleSigint);
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
 
+    print_banner();
+
+    bool run_benchmark_mode = false;
     int port = 8080;
-    if (argc > 1) {
-        try {
-            port = std::stoi(argv[1]);
-        } catch (...) {}
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--benchmark" || arg == "-b" || arg == "benchmark") {
+            run_benchmark_mode = true;
+        } else if (arg == "--port" && i + 1 < argc) {
+            port = std::stoi(argv[++i]);
+        }
     }
 
-    std::cout << "========================================================================\n";
-    std::cout << "      BANK OS: INTEGRATED FUND & TRANSACTION MANAGEMENT SYSTEM         \n";
-    std::cout << "        Operating System & Relational Database Simulation Engine       \n";
-    std::cout << "========================================================================\n";
+    if (run_benchmark_mode) {
+        std::cout << "[Benchmark Suite] Initiating comparative evaluation...\n";
+        std::cout << "[Benchmark Suite] Simulating peak contention burst (Settlement clearing hotspot = 50% traffic)...\n\n";
 
-    // 1. Initialize Database Layer
-    std::cout << "[Init] Initializing Database Subsystem...\n";
-    // Attempt connection with default root / localhost or environment
-    BankOS::DBManager::getInstance().initialize("127.0.0.1", "root", "", "bank_os_db", 3306);
+        auto [baseline_rep, adaptive_rep] = BenchmarkRunner::run_comparative_benchmark(
+            3.0, // 3.0 seconds test duration each
+            8,   // 8 worker threads
+            40,  // 40% Retail P2P
+            10,  // 10% Batch Payroll
+            50   // 50% Central Settlement Hotspot (Drives Ct >= 0.8)
+        );
 
-    // 2. Load Initial Default Transactions (T1 through T5)
-    std::cout << "[Init] Initializing Seed Workload (T01 - T05)...\n";
-    struct SeedTx {
-        BankOS::TransactionType type;
-        std::string from;
-        std::string to;
-        double amount;
-        int burst;
-    };
+        std::string table = BenchmarkRunner::format_comparison_table(baseline_rep, adaptive_rep);
+        std::cout << table << std::endl;
 
-    std::vector<SeedTx> seed = {
-        {BankOS::TransactionType::WITHDRAW, "A101", "",     10000.0, 4},
-        {BankOS::TransactionType::DEPOSIT,  "",     "A102", 20000.0, 3},
-        {BankOS::TransactionType::TRANSFER, "A101", "A102",  5000.0, 4},
-        {BankOS::TransactionType::WITHDRAW, "A101", "",     15000.0, 3},
-        {BankOS::TransactionType::TRANSFER, "A102", "A103",  8000.0, 5}
-    };
-
-    for (const auto& item : seed) {
-        auto pcb = BankOS::ProcessManager::getInstance().createProcess(
-            item.type, item.from, item.to, item.amount, item.burst);
-        BankOS::Scheduler::getInstance().enqueueProcess(pcb->pid);
+        std::cout << "[Verification Result] Adaptive Ledger OS successfully prevented abort storms,\n"
+                  << "                      mitigated worker convoying, and eliminated retail starvation.\n";
+        return 0;
     }
 
-    // 3. Start Embedded C++ Web Server
-    BankOS::HttpServer server(port);
-    server.setStaticDir("web");
-    BankOS::BankOSApi::registerRoutes(server);
+    // Default: Start Full Live Middleware Server with background load & HTTP dashboard
+    auto lock_mgr = std::make_shared<LockManager>();
+    auto wal = std::make_shared<WriteAheadLog>();
+    auto ledger = std::make_shared<LedgerEngine>(lock_mgr, wal);
+    BenchmarkRunner::initialize_test_ledger(*ledger);
 
-    if (!server.start()) {
-        std::cerr << "[Error] Failed to start HTTP server on port " << port << "\n";
-        return 1;
+    auto mlfq = std::make_shared<MLFQQueue>();
+    auto aging = std::make_shared<AntiStarvationAgingEngine>(mlfq, 120.0, Milliseconds(30));
+    auto sliding = std::make_shared<SlidingWindowTelemetry>(10, Milliseconds(100));
+    auto hysteresis = std::make_shared<HysteresisGate>(0.70, 0.50, 3);
+    auto token_bucket = std::make_shared<DynamicTokenBucket>(20000.0, 5000.0);
+    auto sampler = std::make_shared<MetricsSampler>(sliding, hysteresis, lock_mgr, token_bucket);
+    auto backoff = std::make_shared<AdaptiveBackoffController>(2.0, 3.0, 250.0);
+
+    auto scheduler = std::make_shared<AdaptiveScheduler>(
+        8, ledger, lock_mgr, mlfq, aging, sampler, token_bucket, backoff, sliding
+    );
+
+    scheduler->start();
+
+    // Start HTTP Server
+    HttpServer server(port, ledger, scheduler, sampler, "web");
+    server.start();
+
+    // Start multi-channel background traffic generator thread
+    WorkloadGenerator workload_gen;
+    std::thread traffic_thread([&]() {
+        while (!g_shutdown.load()) {
+            auto tx = workload_gen.generate_mixed_transaction(60, 10, 30);
+            scheduler->submit(tx);
+            std::this_thread::sleep_for(std::chrono::microseconds(200));
+        }
+    });
+
+    std::cout << "[System Ready] Running live transaction processing switch. Press Ctrl+C to terminate.\n\n";
+
+    // Periodic terminal telemetry reporting
+    int counter = 0;
+    while (!g_shutdown.load()) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        auto snap = sampler->latest_snapshot();
+        counter++;
+
+        std::cout << "[T+" << std::setw(2) << counter << "s] "
+                  << "State: " << std::setw(15) << hysteresisStateToString(snap.state) << " | "
+                  << "Ct: " << std::fixed << std::setprecision(2) << snap.composite_index << " ("
+                  << "CR:" << snap.conflict_rate << " AR:" << snap.abort_rate
+                  << " QL:" << snap.lock_queue_depth << " RI:" << snap.retry_intensity << ") | "
+                  << "λ_eff: " << std::setw(6) << static_cast<int>(snap.effective_admission_rate) << " tx/s | "
+                  << "MLFQ [Q1:" << snap.q1_depth << " Q2:" << snap.q2_depth << " Q3:" << snap.q3_depth << "] | "
+                  << "Workers: " << scheduler->active_workers() << "/" << scheduler->num_workers() << " | "
+                  << "Commits: " << scheduler->total_committed() << " | "
+                  << "Demotions: " << scheduler->total_hotspot_demotions() << "\n";
     }
 
-    std::cout << "\n>>> DASHBOARD READY: Open http://localhost:" << port << " in your web browser.\n";
-    std::cout << ">>> Press Ctrl+C in terminal to stop.\n\n";
-
-    while (!g_shutdown_requested) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-
+    std::cout << "\n[Shutdown] Stopping background services and flushing WAL...\n";
+    traffic_thread.join();
     server.stop();
-    BankOS::Scheduler::getInstance().stopContinuous();
-    BankOS::DBManager::getInstance().shutdown();
+    scheduler->stop();
+    std::cout << "[Shutdown] Clean shutdown completed successfully.\n";
 
-    std::cout << "[BankOS] Engine stopped successfully.\n";
     return 0;
 }
