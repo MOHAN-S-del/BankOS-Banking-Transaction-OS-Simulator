@@ -236,6 +236,147 @@ public:
         return oss.str();
     }
 
+    /**
+     * Complete live simulation state for /api/state polling endpoint:
+     * - Active Process Control Blocks table
+     * - Visual MLFQ queues (Queue 1 and Queue 2 process IDs)
+     * - CPU execution window (currently RUNNING process)
+     * - Metrics panel: TPS, Abort Rate, Contention Score, Commits, Rollbacks
+     * - Comparison Mode toggle status
+     */
+    std::string get_state_json() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        std::ostringstream oss;
+        oss << "{"
+            << "\"tick\":" << current_tick_ << ","
+            << "\"tps\":" << current_tps_.load() << ","
+            << "\"abort_rate\":" << middleware_->abort_rate() << ","
+            << "\"contention_score\":\"" << contentionLevelToString(middleware_->contention_level()) << "\","
+            << "\"conflict_rate\":" << middleware_->conflict_rate() << ","
+            << "\"total_aborts\":" << middleware_->total_aborts() << ","
+            << "\"total_completed\":" << total_completed_ << ","
+            << "\"total_failed\":" << total_failed_ << ","
+            << "\"total_commits\":" << mysql_storage_->total_commits() << ","
+            << "\"total_rollbacks\":" << mysql_storage_->total_rollbacks() << ","
+            << "\"deadlocks_prevented\":" << lock_manager_->deadlocks_prevented() << ","
+            << "\"aging_promotions\":" << total_aging_promotions_ << ","
+            << "\"aging_threshold\":" << aging_threshold_ << ","
+            << "\"time_quantum\":" << time_quantum_ << ","
+            << "\"total_workload\":" << workload_.size() << ","
+            << "\"comparison_mode\":" << (middleware_->is_mdacc_enabled() ? "true" : "false") << ","
+            << "\"mode_name\":\"" << (middleware_->is_mdacc_enabled() ? "Adaptive OS Ledger" : "Standard Execution") << "\","
+            << "\"running\":";
+
+        if (running_pid_ != -1 && all_pcbs_.find(running_pid_) != all_pcbs_.end()) {
+            oss << all_pcbs_[running_pid_].to_json();
+        } else {
+            oss << "null";
+        }
+
+        // MLFQ Queue 1: Process IDs moving through Q1 (SRTF)
+        oss << ",\"queue_1\":[";
+        for (size_t i = 0; i < std::min<size_t>(q1_ready_pids_.size(), 50); ++i) {
+            if (i > 0) oss << ",";
+            oss << q1_ready_pids_[i];
+        }
+        oss << "],\"queue_1_pcbs\":[";
+        for (size_t i = 0; i < std::min<size_t>(q1_ready_pids_.size(), 20); ++i) {
+            if (i > 0) oss << ",";
+            oss << all_pcbs_[q1_ready_pids_[i]].to_json();
+        }
+
+        // MLFQ Queue 2: Process IDs moving through Q2 (Round Robin)
+        oss << "],\"queue_2\":[";
+        for (size_t i = 0; i < std::min<size_t>(q2_ready_pids_.size(), 50); ++i) {
+            if (i > 0) oss << ",";
+            oss << q2_ready_pids_[i];
+        }
+        oss << "],\"queue_2_pcbs\":[";
+        for (size_t i = 0; i < std::min<size_t>(q2_ready_pids_.size(), 20); ++i) {
+            if (i > 0) oss << ",";
+            oss << all_pcbs_[q2_ready_pids_[i]].to_json();
+        }
+
+        // Blocked / Waiting Process IDs
+        oss << "],\"waiting\":[";
+        for (size_t i = 0; i < std::min<size_t>(waiting_pids_.size(), 50); ++i) {
+            if (i > 0) oss << ",";
+            oss << waiting_pids_[i];
+        }
+        oss << "],\"waiting_pcbs\":[";
+        for (size_t i = 0; i < std::min<size_t>(waiting_pids_.size(), 20); ++i) {
+            if (i > 0) oss << ",";
+            oss << all_pcbs_[waiting_pids_[i]].to_json();
+        }
+
+        // Active Process Control Blocks Table
+        // (RUNNING + Top of Q1 + Top of Q2 + Top of Waiting + Recent Terminated)
+        oss << "],\"active_pcbs\":[";
+        bool first_pcb = true;
+        if (running_pid_ != -1 && all_pcbs_.find(running_pid_) != all_pcbs_.end()) {
+            oss << all_pcbs_[running_pid_].to_json();
+            first_pcb = false;
+        }
+
+        for (size_t i = 0; i < std::min<size_t>(q1_ready_pids_.size(), 12); ++i) {
+            if (!first_pcb) oss << ",";
+            first_pcb = false;
+            oss << all_pcbs_[q1_ready_pids_[i]].to_json();
+        }
+
+        for (size_t i = 0; i < std::min<size_t>(q2_ready_pids_.size(), 8); ++i) {
+            if (!first_pcb) oss << ",";
+            first_pcb = false;
+            oss << all_pcbs_[q2_ready_pids_[i]].to_json();
+        }
+
+        for (size_t i = 0; i < std::min<size_t>(waiting_pids_.size(), 8); ++i) {
+            if (!first_pcb) oss << ",";
+            first_pcb = false;
+            oss << all_pcbs_[waiting_pids_[i]].to_json();
+        }
+
+        if (transitions_.size() > 0) {
+            size_t added = 0;
+            for (int i = static_cast<int>(transitions_.size()) - 1; i >= 0 && added < 8; --i) {
+                int pid = transitions_[i].pid;
+                if (all_pcbs_.find(pid) != all_pcbs_.end()) {
+                    const auto& pcb = all_pcbs_[pid];
+                    if (pcb.state == ProcessState::TERMINATED || pcb.state == ProcessState::TERMINATED_FAILED) {
+                        if (!first_pcb) oss << ",";
+                        first_pcb = false;
+                        oss << pcb.to_json();
+                        added++;
+                    }
+                }
+            }
+        }
+
+        oss << "],\"metrics\":{"
+            << "\"tps\":" << current_tps_.load() << ","
+            << "\"abort_rate\":" << middleware_->abort_rate() << ","
+            << "\"contention_score\":\"" << contentionLevelToString(middleware_->contention_level()) << "\","
+            << "\"conflict_rate\":" << middleware_->conflict_rate() << ","
+            << "\"total_aborts\":" << middleware_->total_aborts() << ","
+            << "\"total_completed\":" << total_completed_ << ","
+            << "\"total_failed\":" << total_failed_ << ","
+            << "\"total_commits\":" << mysql_storage_->total_commits() << ","
+            << "\"total_rollbacks\":" << mysql_storage_->total_rollbacks() << ","
+            << "\"deadlocks_prevented\":" << lock_manager_->deadlocks_prevented() << ","
+            << "\"aging_promotions\":" << total_aging_promotions_ << ","
+            << "\"q1_count\":" << q1_ready_pids_.size() << ","
+            << "\"q2_count\":" << q2_ready_pids_.size() << ","
+            << "\"waiting_count\":" << waiting_pids_.size() << ","
+            << "\"comparison_mode\":" << (middleware_->is_mdacc_enabled() ? "true" : "false") << ","
+            << "\"mode_name\":\"" << (middleware_->is_mdacc_enabled() ? "Adaptive OS Ledger" : "Standard Execution") << "\""
+            << "}}";
+
+        return oss.str();
+    }
+
+    void set_tps(double tps) { current_tps_.store(tps); }
+    double get_current_tps() const { return current_tps_.load(); }
+
     int current_tick() const { return current_tick_; }
     uint64_t total_completed() const { return total_completed_; }
     uint64_t total_failed() const { return total_failed_; }
@@ -639,6 +780,7 @@ private:
     uint64_t total_failed_;
     uint64_t total_turnaround_time_;
     uint64_t total_waiting_time_;
+    std::atomic<double> current_tps_{0.0};
 
     mutable std::mutex mtx_;
     std::shared_ptr<Middleware> middleware_;

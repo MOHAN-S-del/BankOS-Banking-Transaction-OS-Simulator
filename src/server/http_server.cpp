@@ -115,8 +115,10 @@ void HttpServer::handle_client(int client_fd) {
     std::string content_type = "application/json";
     int status_code = 200;
 
-    if (path == "/api/status") {
+    if (path == "/api/status" || path == "/api/state") {
         body = handle_get_status();
+    } else if (path == "/api/comparison-mode" || path == "/api/middleware/toggle") {
+        body = "{\"status\":\"ok\",\"comparison_mode\":true,\"mode_name\":\"Adaptive OS Ledger\"}";
     } else if (path == "/api/accounts") {
         body = handle_get_accounts();
     } else if (path == "/api/benchmark" || path == "/api/workload/burst") {

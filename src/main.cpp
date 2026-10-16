@@ -110,6 +110,11 @@ int main(int argc, char* argv[]) {
         res.set_content(scheduler->get_status_json(), "application/json");
     });
 
+    // Requirement 2: /api/state polling endpoint (polled every 500ms by frontend)
+    svr.Get("/api/state", [scheduler](const httplib::Request&, httplib::Response& res) {
+        res.set_content(scheduler->get_state_json(), "application/json");
+    });
+
     svr.Get("/api/transitions", [scheduler](const httplib::Request&, httplib::Response& res) {
         res.set_content(scheduler->get_recent_transitions_json(100), "application/json");
     });
@@ -122,6 +127,22 @@ int main(int argc, char* argv[]) {
         scheduler->export_transitions_to_json("state_transitions.json", 50000);
         res.set_content("{\"status\":\"exported\",\"file\":\"state_transitions.json\"}", "application/json");
     });
+
+    // Requirement 3: Comparison Mode POST endpoints (Standard Execution vs Adaptive OS Ledger)
+    auto handle_mode_toggle = [scheduler](const httplib::Request& req, httplib::Response& res) {
+        if (req.body.find("standard") != std::string::npos || req.body.find("\"adaptive\":false") != std::string::npos || req.body.find("enabled=0") != std::string::npos || req.body.find("false") != std::string::npos) {
+            scheduler->set_comparison_mode(false);
+        } else if (req.body.find("adaptive") != std::string::npos || req.body.find("\"adaptive\":true") != std::string::npos || req.body.find("enabled=1") != std::string::npos || req.body.find("true") != std::string::npos) {
+            scheduler->set_comparison_mode(true);
+        } else {
+            scheduler->middleware()->toggle_mode();
+        }
+        res.set_content(scheduler->get_state_json(), "application/json");
+    };
+
+    svr.Post("/api/comparison-mode", handle_mode_toggle);
+    svr.Get("/api/comparison-mode", handle_mode_toggle);
+    svr.Post("/api/mode/toggle", handle_mode_toggle);
 
     // Persistent MySQL Storage REST API endpoints
     svr.Get("/api/db/status", [scheduler](const httplib::Request&, httplib::Response& res) {
@@ -155,15 +176,8 @@ int main(int argc, char* argv[]) {
         res.set_content(scheduler->middleware()->to_json(), "application/json");
     });
 
-    svr.Get("/api/middleware/toggle", [scheduler](const httplib::Request&, httplib::Response& res) {
-        scheduler->middleware()->toggle_mode();
-        res.set_content(scheduler->middleware()->to_json(), "application/json");
-    });
-
-    svr.Post("/api/middleware/toggle", [scheduler](const httplib::Request&, httplib::Response& res) {
-        scheduler->middleware()->toggle_mode();
-        res.set_content(scheduler->middleware()->to_json(), "application/json");
-    });
+    svr.Get("/api/middleware/toggle", handle_mode_toggle);
+    svr.Post("/api/middleware/toggle", handle_mode_toggle);
 
     svr.Get("/api/middleware/mode", [scheduler](const httplib::Request& req, httplib::Response& res) {
         auto pos = req.path.find("enabled=");
@@ -172,7 +186,7 @@ int main(int argc, char* argv[]) {
             bool en = (val == "1" || val == "true");
             scheduler->set_comparison_mode(en);
         }
-        res.set_content(scheduler->middleware()->to_json(), "application/json");
+        res.set_content(scheduler->get_state_json(), "application/json");
     });
 
     svr.Post("/api/middleware/mode", [scheduler](const httplib::Request& req, httplib::Response& res) {
@@ -182,7 +196,7 @@ int main(int argc, char* argv[]) {
             bool en = (val == "1" || val == "true");
             scheduler->set_comparison_mode(en);
         }
-        res.set_content(scheduler->middleware()->to_json(), "application/json");
+        res.set_content(scheduler->get_state_json(), "application/json");
     });
 
     // Run HTTP server in background thread
@@ -245,6 +259,7 @@ int main(int argc, char* argv[]) {
         uint64_t cur_completed = scheduler->total_completed();
         double tps = elapsed_sec > 0 ? static_cast<double>(cur_completed - prev_completed) / elapsed_sec : 0.0;
         prev_completed = cur_completed;
+        scheduler->set_tps(tps);
 
         auto mw = scheduler->middleware();
         bool mdacc = mw->is_mdacc_enabled();

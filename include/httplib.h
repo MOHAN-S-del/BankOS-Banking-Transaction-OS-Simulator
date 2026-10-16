@@ -20,6 +20,7 @@ struct Request {
     std::string method;
     std::string path;
     std::map<std::string, std::string> headers;
+    std::string body;
 };
 
 struct Response {
@@ -136,6 +137,12 @@ private:
         Request req;
         req.method = method;
         req.path = path;
+
+        std::string raw_req(buffer, bytes_read);
+        auto header_end = raw_req.find("\r\n\r\n");
+        if (header_end != std::string::npos) {
+            req.body = raw_req.substr(header_end + 4);
+        }
 
         Response res;
 
