@@ -1195,3 +1195,107 @@ body {
 .state-WAITING { background: rgba(245, 158, 11, 0.2); color: var(--amber); }
 .state-TERMINATED { background: rgba(100, 116, 139, 0.2); color: var(--text-muted); }
 
+/* MD-ACC & Comparison Mode Styles */
+.mode-toggle-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mode-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.btn-mode-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid var(--emerald);
+    color: var(--emerald);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    transition: all 0.25s ease;
+}
+
+.btn-mode-toggle:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+}
+
+.btn-mode-toggle.mode-baseline {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--crimson);
+    color: var(--crimson);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+}
+
+.btn-mode-toggle.mode-baseline:hover {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+}
+
+.mode-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: currentColor;
+    box-shadow: 0 0 8px currentColor;
+    animation: pulse 1.5s infinite;
+}
+
+.score-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    font-family: var(--font-mono);
+}
+
+.score-low {
+    background: rgba(16, 185, 129, 0.18);
+    color: var(--emerald);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.score-medium {
+    background: rgba(245, 158, 11, 0.18);
+    color: var(--amber);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.score-high {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--crimson);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    animation: pulse 1.2s infinite;
+}
+
+.tag-backoff {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--amber);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.tag-abort {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--crimson);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+

@@ -74,6 +74,11 @@ struct ProcessControlBlock {
     int start_time{-1};                        // Tick when first dispatched to CPU
     int completion_time{-1};                   // Tick when finished (TERMINATED)
 
+    // MD-ACC Middleware and Exponential Backoff metadata
+    int retry_count{0};                        // Number of retries/conflicts encountered
+    int backoff_remaining{0};                  // Remaining ticks in exponential backoff wait-state
+    int abort_count{0};                        // Number of times transaction aborted under baseline
+
     // Helper to format required locks as JSON array string
     std::string locks_to_json() const {
         std::ostringstream oss;
@@ -100,6 +105,9 @@ struct ProcessControlBlock {
             << "\"queue2_ticks\":" << queue2_ticks << ","
             << "\"current_queue\":" << current_queue << ","
             << "\"aged_promoted\":" << (aged_promoted ? "true" : "false") << ","
+            << "\"retry_count\":" << retry_count << ","
+            << "\"backoff_remaining\":" << backoff_remaining << ","
+            << "\"abort_count\":" << abort_count << ","
             << "\"start_time\":" << start_time << ","
             << "\"completion_time\":" << completion_time << ","
             << "\"required_locks\":" << locks_to_json()

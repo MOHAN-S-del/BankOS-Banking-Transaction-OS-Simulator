@@ -34,6 +34,12 @@
             </div>
 
             <div class="header-status">
+                <div class="mode-toggle-group">
+                    <button class="btn btn-mode-toggle" id="btnModeToggle" title="Toggle between MD-ACC (Exponential Backoff) and Baseline (Direct DB Collisions)">
+                        <span class="mode-indicator" id="modeIndicator"></span>
+                        <span id="modeToggleText">MODE: MD-ACC ACTIVE</span>
+                    </button>
+                </div>
                 <div class="status-badge" id="simStatusBadge">
                     <span class="status-dot"></span>
                     <span id="simStatusText">STATE: RUNNING</span>
@@ -49,6 +55,70 @@
                 </button>
             </div>
         </header>
+
+        <!-- MD-ACC Telemetry & Adaptive Concurrency Control Row -->
+        <section class="metrics-row" style="margin-bottom: 20px;">
+            <!-- Contention Score -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">CONTENTION SCORE</span>
+                    <span class="formula-tag">Every 100 Ticks</span>
+                </div>
+                <div class="metric-value-container" style="align-items: center; margin-top: 4px;">
+                    <span class="score-badge score-low" id="valContentionBadge">LOW</span>
+                </div>
+                <div class="metric-footer">
+                    <span>Composite score based on conflict rate &amp; queue</span>
+                </div>
+            </div>
+
+            <!-- Conflict Rate -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">CONFLICT RATE</span>
+                    <span class="formula-tag">Account Collisions</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-amber" id="valConflictRate">0.0%</span>
+                </div>
+                <div class="index-bar-track">
+                    <div class="index-bar-fill" id="barConflict" style="width: 0%; background: linear-gradient(90deg, #f59e0b, #ef4444);"></div>
+                </div>
+                <div class="metric-footer">
+                    <span id="valQueueLen">Queue Depth: 0 processes</span>
+                </div>
+            </div>
+
+            <!-- Abort Rate & Storm Impact -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">ABORT STORM IMPACT</span>
+                    <span class="formula-tag">Baseline 2PL/OCC vs MD-ACC</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-crimson" id="valAbortRate">0.0%</span>
+                    <span class="metric-unit" id="valTotalAbortsUnit">(0 aborts)</span>
+                </div>
+                <div class="metric-footer">
+                    <span id="valAbortDesc">MD-ACC eliminates abort storms via backoff</span>
+                </div>
+            </div>
+
+            <!-- Real-Time TPS & Backoffs -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">REAL-TIME THROUGHPUT</span>
+                    <span class="formula-tag">TPS</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-cyan" id="valTps">0</span>
+                    <span class="metric-unit">tx/s</span>
+                </div>
+                <div class="metric-footer">
+                    <span id="valTotalBackoffs">Backoffs Applied: 0 delays</span>
+                </div>
+            </div>
+        </section>
 
         <!-- Metric KPI Cards -->
         <section class="metrics-row">

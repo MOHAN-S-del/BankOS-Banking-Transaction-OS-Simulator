@@ -2,6 +2,7 @@
 
 #include "pcb.hpp"
 #include "state_transition.hpp"
+#include "middleware.hpp"
 #include <vector>
 #include <deque>
 #include <unordered_set>
@@ -16,18 +17,19 @@
 namespace bank_sim {
 
 /**
- * Multi-Level Feedback Queue (MLFQ) Scheduler
+ * Multi-Level Feedback Queue (MLFQ) Scheduler with MD-ACC Middleware
  *
  * Architecture:
  * - Queue 1: High Priority, Shortest Remaining Time First (SRTF) for interactive UPI & ATM.
  * - Queue 2: Low Priority, Round Robin (RR) with time slice quantum for batch Salary.
  * - Aging Mechanism: Promotes Salary processes from Q2 to Q1 if they wait > X ticks.
  * - Resource Locking: Bounded 2PL concurrency locking with WAITING state.
+ * - MD-ACC Middleware: Conflict tracking, 100-tick contention scoring, and Exponential Backoff.
  * - State Transition Logging: Logs lifecycle events to memory and JSON file.
  */
 class MLFQScheduler {
 public:
-    MLFQScheduler(int aging_threshold = 50, int time_quantum = 5)
+    MLFQScheduler(int aging_threshold = 50, int time_quantum = 5, bool mdacc_enabled = true)
         : aging_threshold_(aging_threshold),
           time_quantum_(time_quantum),
           current_tick_(0),
@@ -37,7 +39,8 @@ public:
           total_aging_promotions_(0),
           total_completed_(0),
           total_turnaround_time_(0),
-          total_waiting_time_(0) {}
+          total_waiting_time_(0),
+          middleware_(std::make_shared<Middleware>(mdacc_enabled)) {}
 
     /**
      * Load the workload into the scheduler.
@@ -64,6 +67,9 @@ public:
         transitions_.clear();
         total_aging_promotions_ = 0;
         total_completed_ = 0;
+        if (middleware_) {
+            middleware_->reset();
+        }
     }
 
     /**
@@ -156,7 +162,13 @@ public:
             << "\"time_quantum\":" << time_quantum_ << ","
             << "\"total_workload\":" << workload_.size() << ","
             << "\"avg_turnaround_time\":" << (total_completed_ > 0 ? static_cast<double>(total_turnaround_time_) / total_completed_ : 0.0) << ","
-            << "\"avg_waiting_time\":" << (total_completed_ > 0 ? static_cast<double>(total_waiting_time_) / total_completed_ : 0.0)
+            << "\"avg_waiting_time\":" << (total_completed_ > 0 ? static_cast<double>(total_waiting_time_) / total_completed_ : 0.0) << ","
+            << "\"mdacc_enabled\":" << (middleware_->is_mdacc_enabled() ? "true" : "false") << ","
+            << "\"contention_score\":\"" << contentionLevelToString(middleware_->contention_level()) << "\","
+            << "\"conflict_rate\":" << middleware_->conflict_rate() << ","
+            << "\"abort_rate\":" << middleware_->abort_rate() << ","
+            << "\"total_aborts\":" << middleware_->total_aborts() << ","
+            << "\"total_backoffs\":" << middleware_->total_backoffs_applied()
             << "}";
         return oss.str();
     }
@@ -214,9 +226,30 @@ public:
     int aging_threshold() const { return aging_threshold_; }
     void set_aging_threshold(int val) { aging_threshold_ = val; }
 
+    // MD-ACC Middleware Accessors
+    std::shared_ptr<Middleware> middleware() const { return middleware_; }
+    void set_comparison_mode(bool mdacc_enabled) { middleware_->set_mdacc_enabled(mdacc_enabled); }
+    bool is_mdacc_enabled() const { return middleware_->is_mdacc_enabled(); }
+    uint64_t total_aborts() const { return middleware_->total_aborts(); }
+    double conflict_rate() const { return middleware_->conflict_rate(); }
+    double abort_rate() const { return middleware_->abort_rate(); }
+
 private:
     bool step_tick_unlocked() {
         current_tick_++;
+
+        // 0. Update Middleware telemetry (queue length & 100-tick contention recalculation)
+        int current_queue_len = static_cast<int>(q1_ready_pids_.size() + q2_ready_pids_.size() + waiting_pids_.size());
+        middleware_->tick(current_tick_, current_queue_len);
+
+        // Process backoff countdown for waiting processes
+        for (int pid : waiting_pids_) {
+            auto& pcb = all_pcbs_[pid];
+            if (pcb.backoff_remaining > 0) {
+                pcb.backoff_remaining--;
+            }
+        }
+        wake_up_waiting_processes();
 
         // 1. Admit newly arrived processes from workload
         while (next_arrival_idx_ < workload_.size() && 
@@ -359,6 +392,8 @@ private:
      * Queue 2: Round Robin (FIFO)
      */
     int select_next_process() {
+        int qlen = static_cast<int>(q1_ready_pids_.size() + q2_ready_pids_.size() + waiting_pids_.size());
+
         // First check Queue 1 (SRTF)
         if (!q1_ready_pids_.empty()) {
             // Find process with shortest remaining burst time that can acquire locks
@@ -379,15 +414,20 @@ private:
                 int pid = *best_it;
                 q1_ready_pids_.erase(best_it);
                 acquire_locks(all_pcbs_[pid]);
+                middleware_->intercept(all_pcbs_[pid], false, qlen);
 
                 // Move any processes in Q1 that conflict with acquired locks to WAITING
                 std::deque<int> remaining_q1;
                 for (int ready_pid : q1_ready_pids_) {
-                    if (!can_acquire_locks(all_pcbs_[ready_pid])) {
-                        auto& p = all_pcbs_[ready_pid];
+                    auto& p = all_pcbs_[ready_pid];
+                    if (!can_acquire_locks(p)) {
+                        int backoff = middleware_->intercept(p, true, qlen);
                         p.state = ProcessState::WAITING;
-                        record_transition(p.pid, p.type, ProcessState::READY, ProcessState::WAITING,
-                                          "Contending lock held by running process; transitioned to WAITING");
+                        p.backoff_remaining = backoff;
+                        std::string reason = middleware_->is_mdacc_enabled()
+                            ? ("MD-ACC intercepted: Account locked; exponential backoff applied (" + std::to_string(backoff) + " ticks)")
+                            : ("Baseline OCC conflict: Hit DB directly, transaction aborted (abort #" + std::to_string(p.abort_count) + ")");
+                        record_transition(p.pid, p.type, ProcessState::READY, ProcessState::WAITING, reason);
                         waiting_pids_.push_back(ready_pid);
                     } else {
                         remaining_q1.push_back(ready_pid);
@@ -398,14 +438,18 @@ private:
                 return pid;
             }
 
-            // If Q1 candidates could not acquire locks, move conflicting candidate to WAITING
+            // If Q1 candidates could not acquire locks, move front candidate to WAITING
             if (!q1_ready_pids_.empty()) {
                 int blocked_pid = q1_ready_pids_.front();
                 q1_ready_pids_.pop_front();
                 auto& pcb = all_pcbs_[blocked_pid];
+                int backoff = middleware_->intercept(pcb, true, qlen);
                 pcb.state = ProcessState::WAITING;
-                record_transition(pcb.pid, pcb.type, ProcessState::READY, ProcessState::WAITING,
-                                  "Blocked waiting for account locks");
+                pcb.backoff_remaining = backoff;
+                std::string reason = middleware_->is_mdacc_enabled()
+                    ? ("MD-ACC intercepted: Account locked; exponential backoff applied (" + std::to_string(backoff) + " ticks)")
+                    : ("Baseline OCC conflict: Hit DB directly, transaction aborted (abort #" + std::to_string(pcb.abort_count) + ")");
+                record_transition(pcb.pid, pcb.type, ProcessState::READY, ProcessState::WAITING, reason);
                 waiting_pids_.push_back(blocked_pid);
             }
         }
@@ -418,15 +462,20 @@ private:
 
             if (can_acquire_locks(pcb)) {
                 acquire_locks(pcb);
+                middleware_->intercept(pcb, false, qlen);
 
                 // Move any conflicting Q2 processes to WAITING
                 std::deque<int> remaining_q2;
                 for (int ready_pid : q2_ready_pids_) {
-                    if (!can_acquire_locks(all_pcbs_[ready_pid])) {
-                        auto& p = all_pcbs_[ready_pid];
+                    auto& p = all_pcbs_[ready_pid];
+                    if (!can_acquire_locks(p)) {
+                        int backoff = middleware_->intercept(p, true, qlen);
                         p.state = ProcessState::WAITING;
-                        record_transition(p.pid, p.type, ProcessState::READY, ProcessState::WAITING,
-                                          "Contending lock held by running process; transitioned to WAITING");
+                        p.backoff_remaining = backoff;
+                        std::string reason = middleware_->is_mdacc_enabled()
+                            ? ("MD-ACC intercepted: Account locked; exponential backoff applied (" + std::to_string(backoff) + " ticks)")
+                            : ("Baseline OCC conflict: Hit DB directly, transaction aborted (abort #" + std::to_string(p.abort_count) + ")");
+                        record_transition(p.pid, p.type, ProcessState::READY, ProcessState::WAITING, reason);
                         waiting_pids_.push_back(ready_pid);
                     } else {
                         remaining_q2.push_back(ready_pid);
@@ -437,9 +486,13 @@ private:
                 return pid;
             } else {
                 // Transition to WAITING
+                int backoff = middleware_->intercept(pcb, true, qlen);
                 pcb.state = ProcessState::WAITING;
-                record_transition(pcb.pid, pcb.type, ProcessState::READY, ProcessState::WAITING,
-                                  "Blocked waiting for account locks");
+                pcb.backoff_remaining = backoff;
+                std::string reason = middleware_->is_mdacc_enabled()
+                    ? ("MD-ACC intercepted: Account locked; exponential backoff applied (" + std::to_string(backoff) + " ticks)")
+                    : ("Baseline OCC conflict: Hit DB directly, transaction aborted (abort #" + std::to_string(pcb.abort_count) + ")");
+                record_transition(pcb.pid, pcb.type, ProcessState::READY, ProcessState::WAITING, reason);
                 waiting_pids_.push_back(pid);
             }
         }
@@ -472,18 +525,31 @@ private:
         std::vector<int> remaining_waiting;
         for (int pid : waiting_pids_) {
             auto& pcb = all_pcbs_[pid];
-            if (can_acquire_locks(pcb)) {
-                // Move back to READY
+            if (!middleware_->is_mdacc_enabled()) {
+                // Baseline OCC/2PL: Transactions ignore backoff delay and immediately re-enter READY queue
+                // This causes transactions to hit the DB directly, producing high abort rates!
                 pcb.state = ProcessState::READY;
                 record_transition(pcb.pid, pcb.type, ProcessState::WAITING, ProcessState::READY,
-                                  "Account locks acquired; returned to ready queue");
+                                  "Baseline OCC: Re-entered READY queue immediately (no backoff delay)");
                 if (pcb.current_queue == 1) {
                     q1_ready_pids_.push_back(pid);
                 } else {
                     q2_ready_pids_.push_back(pid);
                 }
             } else {
-                remaining_waiting.push_back(pid);
+                // MD-ACC Mode: Must wait until exponential backoff expires AND locks are free
+                if (pcb.backoff_remaining <= 0 && can_acquire_locks(pcb)) {
+                    pcb.state = ProcessState::READY;
+                    record_transition(pcb.pid, pcb.type, ProcessState::WAITING, ProcessState::READY,
+                                      "MD-ACC backoff elapsed and locks available; returned to READY queue");
+                    if (pcb.current_queue == 1) {
+                        q1_ready_pids_.push_back(pid);
+                    } else {
+                        q2_ready_pids_.push_back(pid);
+                    }
+                } else {
+                    remaining_waiting.push_back(pid);
+                }
             }
         }
         waiting_pids_ = std::move(remaining_waiting);
@@ -521,6 +587,7 @@ private:
     uint64_t total_waiting_time_;
 
     mutable std::mutex mtx_;
+    std::shared_ptr<Middleware> middleware_;
 };
 
 } // namespace bank_sim

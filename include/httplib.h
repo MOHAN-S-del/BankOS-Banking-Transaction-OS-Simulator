@@ -53,6 +53,11 @@ public:
         return *this;
     }
 
+    Server& Post(const std::string& pattern, Handler handler) {
+        post_handlers_[pattern] = std::move(handler);
+        return *this;
+    }
+
     bool set_mount_point(const std::string& mount_point, const std::string& dir) {
         mount_point_ = mount_point;
         base_dir_ = dir;
@@ -141,15 +146,25 @@ private:
             path_without_query = path.substr(0, query_pos);
         }
 
-        auto it = get_handlers_.find(path_without_query);
-        if (it != get_handlers_.end()) {
-            it->second(req, res);
-        } else if (!base_dir_.empty()) {
-            // Serve static file
-            serve_file(path_without_query, res);
+        if (method == "POST") {
+            auto it = post_handlers_.find(path_without_query);
+            if (it != post_handlers_.end()) {
+                it->second(req, res);
+            } else {
+                res.status = 404;
+                res.set_content("{\"error\":\"Not Found\"}", "application/json");
+            }
         } else {
-            res.status = 404;
-            res.set_content("{\"error\":\"Not Found\"}", "application/json");
+            auto it = get_handlers_.find(path_without_query);
+            if (it != get_handlers_.end()) {
+                it->second(req, res);
+            } else if (!base_dir_.empty()) {
+                // Serve static file
+                serve_file(path_without_query, res);
+            } else {
+                res.status = 404;
+                res.set_content("{\"error\":\"Not Found\"}", "application/json");
+            }
         }
 
         std::ostringstream response;
@@ -200,6 +215,7 @@ private:
     std::string mount_point_;
     std::string base_dir_;
     std::map<std::string, Handler> get_handlers_;
+    std::map<std::string, Handler> post_handlers_;
 };
 
 } // namespace httplib

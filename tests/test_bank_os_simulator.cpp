@@ -236,6 +236,146 @@ void test_state_transitions_json_export() {
     std::cout << "  -> Passed: State transitions JSON exported and verified!\n";
 }
 
+void test_middleware_metrics_and_contention_score() {
+    std::cout << "[Test] Running test_middleware_metrics_and_contention_score...\n";
+    Middleware mw(true);
+    assert(mw.is_mdacc_enabled() == true);
+    assert(mw.contention_level() == ContentionLevel::LOW);
+
+    // Simulate 20 requests with 10 conflicts (50% conflict rate) and queue length 40
+    ProcessControlBlock pcb;
+    pcb.pid = 42;
+    for (int i = 0; i < 20; ++i) {
+        bool conflict = (i % 2 == 0); // 10 conflicts, 10 non-conflicts
+        mw.intercept(pcb, conflict, 40);
+    }
+
+    // Tick 99: contention score should not have updated yet
+    mw.tick(99, 40);
+    assert(mw.contention_level() == ContentionLevel::LOW);
+
+    // Tick 100: composite contention score recalculated
+    mw.tick(100, 40);
+    assert(mw.contention_level() == ContentionLevel::HIGH);
+    assert(mw.conflict_rate() == 0.5);
+
+    std::string json = mw.to_json();
+    assert(json.find("\"contention_level\":\"HIGH\"") != std::string::npos);
+    assert(json.find("\"mdacc_enabled\":true") != std::string::npos);
+
+    std::cout << "  -> Passed: Real-time telemetry tracked and composite contention score HIGH calculated at 100 ticks!\n";
+}
+
+void test_exponential_backoff_algorithm() {
+    std::cout << "[Test] Running test_exponential_backoff_algorithm...\n";
+    Middleware mw(true);
+    // Force HIGH contention
+    ProcessControlBlock dummy;
+    dummy.pid = 1;
+    for (int i = 0; i < 10; ++i) mw.intercept(dummy, true, 50);
+    mw.force_calculate_score(100);
+    assert(mw.contention_level() == ContentionLevel::HIGH);
+
+    ProcessControlBlock tx;
+    tx.pid = 300; // 300 % 3 = 0 jitter
+    tx.retry_count = 0;
+
+    // Retry 1: power = 1 -> backoff = 2 * (1 << 1) + 0 = 4 ticks
+    int b1 = mw.intercept(tx, true, 20);
+    assert(tx.retry_count == 1);
+    assert(b1 == 4);
+    assert(tx.backoff_remaining == 4);
+
+    // Retry 2: power = 2 -> backoff = 2 * (1 << 2) + 0 = 8 ticks
+    int b2 = mw.intercept(tx, true, 20);
+    assert(tx.retry_count == 2);
+    assert(b2 == 8);
+    assert(tx.backoff_remaining == 8);
+
+    // Retry 3: power = 3 -> backoff = 2 * (1 << 3) + 0 = 16 ticks
+    int b3 = mw.intercept(tx, true, 20);
+    assert(tx.retry_count == 3);
+    assert(b3 == 16);
+    assert(tx.backoff_remaining == 16);
+
+    assert(mw.total_backoffs_applied() == 3);
+    std::cout << "  -> Passed: Exponential Backoff verified: Backoff delays grew exponentially [4 -> 8 -> 16 ticks]!\n";
+}
+
+void test_comparison_mode_baseline_vs_mdacc() {
+    std::cout << "[Test] Running test_comparison_mode_baseline_vs_mdacc...\n";
+
+    // 1. Baseline Mode: MD-ACC disabled (Baseline 2PL/OCC)
+    // Transactions hit DB directly without backoff, producing intentional aborts!
+    MLFQScheduler baseline_sched(50, 5, /*mdacc_enabled=*/false);
+    assert(baseline_sched.is_mdacc_enabled() == false);
+
+    std::vector<ProcessControlBlock> baseline_workload;
+    ProcessControlBlock b1;
+    b1.pid = 1;
+    b1.type = TransactionType::UPI;
+    b1.arrival_time = 1;
+    b1.burst_time = 6;
+    b1.required_locks = {777, 888};
+
+    ProcessControlBlock b2;
+    b2.pid = 2;
+    b2.type = TransactionType::UPI;
+    b2.arrival_time = 1;
+    b2.burst_time = 6;
+    b2.required_locks = {777, 999}; // Contends on account 777!
+
+    baseline_workload.push_back(b1);
+    baseline_workload.push_back(b2);
+
+    baseline_sched.load_workload(baseline_workload);
+
+    // Run baseline for 5 ticks
+    for (int t = 0; t < 5; ++t) {
+        baseline_sched.step_tick();
+    }
+
+    // In Baseline mode, b2 repeatedly hits the DB directly and incurs intentional aborts!
+    assert(baseline_sched.total_aborts() > 0);
+    std::cout << "  -> Baseline Mode: Direct DB collisions caused " 
+              << baseline_sched.total_aborts() << " intentional transaction aborts!\n";
+
+    // 2. MD-ACC Mode: MD-ACC enabled
+    // Middleware throttles traffic and applies backoff wait-state, avoiding abort storms!
+    MLFQScheduler mdacc_sched(50, 5, /*mdacc_enabled=*/true);
+    assert(mdacc_sched.is_mdacc_enabled() == true);
+
+    std::vector<ProcessControlBlock> mdacc_workload;
+    ProcessControlBlock m1;
+    m1.pid = 10;
+    m1.type = TransactionType::UPI;
+    m1.arrival_time = 1;
+    m1.burst_time = 6;
+    m1.required_locks = {777, 888};
+
+    ProcessControlBlock m2;
+    m2.pid = 20;
+    m2.type = TransactionType::UPI;
+    m2.arrival_time = 1;
+    m2.burst_time = 6;
+    m2.required_locks = {777, 999};
+
+    mdacc_workload.push_back(m1);
+    mdacc_workload.push_back(m2);
+
+    mdacc_sched.load_workload(mdacc_workload);
+
+    for (int t = 0; t < 5; ++t) {
+        mdacc_sched.step_tick();
+    }
+
+    // In MD-ACC mode, transactions are safely delayed by backoff, with 0 aborts!
+    assert(mdacc_sched.total_aborts() == 0);
+    std::cout << "  -> MD-ACC Mode: Middleware throttled traffic and delayed colliding transactions with 0 aborts!\n";
+
+    std::cout << "  -> Passed: Comparison Mode toggle verified between Baseline (high aborts) and MD-ACC (adaptive backoff)!\n";
+}
+
 int main() {
     std::cout << "========================================================\n";
     std::cout << "   BANK TRANSACTION OS SIMULATOR (MLFQ) TEST SUITE     \n";
@@ -248,6 +388,9 @@ int main() {
     test_anti_starvation_aging_mechanism();
     test_concurrency_lock_arbitration();
     test_state_transitions_json_export();
+    test_middleware_metrics_and_contention_score();
+    test_exponential_backoff_algorithm();
+    test_comparison_mode_baseline_vs_mdacc();
 
     std::cout << "\n[SUCCESS] All Bank OS Simulator MLFQ tests passed!\n\n";
     return 0;
