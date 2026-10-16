@@ -174,6 +174,42 @@ async function fetchSimulationStatus() {
         // Backoffs Applied
         document.getElementById('valTotalBackoffs').innerText = `Backoffs Applied: ${(s.total_backoffs || 0).toLocaleString()} delays`;
 
+        // 7. MySQL Persistent Storage & Deadlock Prevention Telemetry
+        const dbBadge = document.getElementById('valDbBadge');
+        if (dbBadge) {
+            if (s.mysql_connected) {
+                dbBadge.innerText = 'MYSQL X DEVAPI CONNECTED';
+                dbBadge.className = 'db-status-badge db-connected';
+            } else {
+                dbBadge.innerText = 'TRANSACTIONAL ACID ENGINE';
+                dbBadge.className = 'db-status-badge db-fallback';
+            }
+        }
+
+        const commits = s.total_commits || 0;
+        const rollbacks = s.total_rollbacks !== undefined ? s.total_rollbacks : (s.failed_count || 0);
+        const deadlocksPrev = s.deadlocks_prevented || 0;
+
+        const valDbCommits = document.getElementById('valDbCommits');
+        if (valDbCommits) valDbCommits.innerText = commits.toLocaleString();
+
+        const valDbRollbacks = document.getElementById('valDbRollbacks');
+        if (valDbRollbacks) valDbRollbacks.innerText = rollbacks.toLocaleString();
+
+        const valFailedPctUnit = document.getElementById('valFailedPctUnit');
+        if (valFailedPctUnit) {
+            const fPct = total > 0 ? ((rollbacks / total) * 100).toFixed(2) : '0.00';
+            valFailedPctUnit.innerText = `(${fPct}%)`;
+        }
+
+        const valDbQueries = document.getElementById('valDbQueries');
+        if (valDbQueries) {
+            valDbQueries.innerText = `ACID Transactions: ${(commits + rollbacks).toLocaleString()} processed`;
+        }
+
+        const valDeadlocksPrev = document.getElementById('valDeadlocksPrev');
+        if (valDeadlocksPrev) valDeadlocksPrev.innerText = deadlocksPrev.toLocaleString();
+
     } catch (e) {
         // network retry
     }

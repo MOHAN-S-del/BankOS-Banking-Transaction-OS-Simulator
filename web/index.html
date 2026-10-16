@@ -185,6 +185,68 @@
             </div>
         </section>
 
+        <!-- MySQL Persistent Storage & Deadlock Prevention Row -->
+        <section class="metrics-row" style="margin-bottom: 20px;">
+            <!-- MySQL Storage Engine -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">MYSQL PERSISTENT STORAGE</span>
+                    <span class="formula-tag">X DevAPI / InnoDB</span>
+                </div>
+                <div class="metric-value-container" style="align-items: center; margin-top: 6px;">
+                    <span class="db-status-badge db-connected" id="valDbBadge">MYSQL CONNECTED</span>
+                </div>
+                <div class="metric-footer">
+                    <span id="valDbQueries">Queries: 0 executed</span>
+                </div>
+            </div>
+
+            <!-- Total Commits -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">MYSQL COMMITS</span>
+                    <span class="formula-tag">ACID Committed</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-emerald" id="valDbCommits">0</span>
+                    <span class="metric-unit">commits</span>
+                </div>
+                <div class="metric-footer">
+                    <span>Persistent ledger balance updates</span>
+                </div>
+            </div>
+
+            <!-- Rollbacks / Terminated Failed -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">ROLLBACKS (FAILED)</span>
+                    <span class="formula-tag">TERMINATED_FAILED</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-crimson" id="valDbRollbacks">0</span>
+                    <span class="metric-unit" id="valFailedPctUnit">(0.0%)</span>
+                </div>
+                <div class="metric-footer">
+                    <span id="valRollbackDesc">Insufficient funds auto-rollback</span>
+                </div>
+            </div>
+
+            <!-- Deadlocks Prevented -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">DEADLOCKS PREVENTED</span>
+                    <span class="formula-tag">Strict Lock Ordering</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-purple" id="valDeadlocksPrev">0</span>
+                    <span class="metric-unit">prevented</span>
+                </div>
+                <div class="metric-footer">
+                    <span id="valOrderedAcq">min(ID_1, ID_2) locked first</span>
+                </div>
+            </div>
+        </section>
+
         <!-- Running Process Banner -->
         <section class="glass-card cpu-running-card" id="cpuRunningCard">
             <div class="cpu-header">

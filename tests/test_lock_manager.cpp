@@ -90,11 +90,54 @@ void test_concurrency_and_queue_depth() {
     std::cout << "  -> Passed: Lock queue depth and hotspot identification verified!\n";
 }
 
+void test_strict_lock_ordering_deadlock_prevention() {
+    std::cout << "[Test] Running test_strict_lock_ordering_deadlock_prevention...\n";
+    LockManager mgr;
+
+    // Concurrently execute reciprocal transfers:
+    // Thread 1: 500 -> 600
+    // Thread 2: 600 -> 500 (reversed order)
+    // Strict lock ordering guarantees min(500, 600) is locked first, preventing circular wait!
+    std::atomic<int> completed(0);
+    const int N = 300;
+
+    std::thread t1([&]() {
+        for (int i = 0; i < N; ++i) {
+            bool conflict = false;
+            bool ok = mgr.acquire_transfer_locks(500, 600, 101, Milliseconds(100), conflict);
+            assert(ok);
+            std::this_thread::yield();
+            mgr.release_transfer_locks(500, 600, 101);
+            completed.fetch_add(1);
+        }
+    });
+
+    std::thread t2([&]() {
+        for (int i = 0; i < N; ++i) {
+            bool conflict = false;
+            // 600 -> 500: sender ID > receiver ID
+            bool ok = mgr.acquire_transfer_locks(600, 500, 202, Milliseconds(100), conflict);
+            assert(ok);
+            std::this_thread::yield();
+            mgr.release_transfer_locks(600, 500, 202);
+            completed.fetch_add(1);
+        }
+    });
+
+    t1.join();
+    t2.join();
+
+    assert(completed.load() == N * 2);
+    std::cout << "  -> Passed: " << completed.load() 
+              << " concurrent reciprocal transfers completed without deadlocks (strict lock ordering enforced)!\n";
+}
+
 int main() {
     std::cout << "=== RUNNING LOCK MANAGER TEST SUITE ===\n";
     test_lock_acquire_and_release();
     test_bounded_wait_timeout();
     test_concurrency_and_queue_depth();
+    test_strict_lock_ordering_deadlock_prevention();
     std::cout << "=== ALL LOCK MANAGER TESTS PASSED! ===\n\n";
     return 0;
 }

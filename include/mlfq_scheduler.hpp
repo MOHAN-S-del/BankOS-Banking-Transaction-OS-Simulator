@@ -3,6 +3,8 @@
 #include "pcb.hpp"
 #include "state_transition.hpp"
 #include "middleware.hpp"
+#include "lock_manager.hpp"
+#include "mysql_storage.hpp"
 #include <vector>
 #include <deque>
 #include <unordered_set>
@@ -17,19 +19,21 @@
 namespace bank_sim {
 
 /**
- * Multi-Level Feedback Queue (MLFQ) Scheduler with MD-ACC Middleware
+ * Multi-Level Feedback Queue (MLFQ) Scheduler with MD-ACC Middleware & MySQL Storage
  *
  * Architecture:
  * - Queue 1: High Priority, Shortest Remaining Time First (SRTF) for interactive UPI & ATM.
  * - Queue 2: Low Priority, Round Robin (RR) with time slice quantum for batch Salary.
  * - Aging Mechanism: Promotes Salary processes from Q2 to Q1 if they wait > X ticks.
- * - Resource Locking: Bounded 2PL concurrency locking with WAITING state.
+ * - Resource Locking: Strict Lock Ordering Deadlock Prevention (min(from, to) locked first).
  * - MD-ACC Middleware: Conflict tracking, 100-tick contention scoring, and Exponential Backoff.
+ * - Persistent MySQL Storage: Executes transfers and rolls back on insufficient funds (TERMINATED_FAILED).
  * - State Transition Logging: Logs lifecycle events to memory and JSON file.
  */
 class MLFQScheduler {
 public:
-    MLFQScheduler(int aging_threshold = 50, int time_quantum = 5, bool mdacc_enabled = true)
+    MLFQScheduler(int aging_threshold = 50, int time_quantum = 5, bool mdacc_enabled = true,
+                  std::shared_ptr<MySQLStorage> mysql_storage = nullptr)
         : aging_threshold_(aging_threshold),
           time_quantum_(time_quantum),
           current_tick_(0),
@@ -38,9 +42,12 @@ public:
           running_quantum_used_(0),
           total_aging_promotions_(0),
           total_completed_(0),
+          total_failed_(0),
           total_turnaround_time_(0),
           total_waiting_time_(0),
-          middleware_(std::make_shared<Middleware>(mdacc_enabled)) {}
+          middleware_(std::make_shared<Middleware>(mdacc_enabled)),
+          lock_manager_(std::make_shared<LockManager>()),
+          mysql_storage_(mysql_storage ? mysql_storage : std::make_shared<MySQLStorage>()) {}
 
     /**
      * Load the workload into the scheduler.
@@ -67,8 +74,12 @@ public:
         transitions_.clear();
         total_aging_promotions_ = 0;
         total_completed_ = 0;
+        total_failed_ = 0;
         if (middleware_) {
             middleware_->reset();
+        }
+        if (lock_manager_) {
+            lock_manager_->reset();
         }
     }
 
@@ -157,6 +168,11 @@ public:
             << "\"q2_size\":" << q2_ready_pids_.size() << ","
             << "\"waiting_size\":" << waiting_pids_.size() << ","
             << "\"completed_count\":" << total_completed_ << ","
+            << "\"failed_count\":" << total_failed_ << ","
+            << "\"total_rollbacks\":" << mysql_storage_->total_rollbacks() << ","
+            << "\"total_commits\":" << mysql_storage_->total_commits() << ","
+            << "\"deadlocks_prevented\":" << lock_manager_->deadlocks_prevented() << ","
+            << "\"mysql_connected\":" << (mysql_storage_->is_connected() ? "true" : "false") << ","
             << "\"aging_promotions\":" << total_aging_promotions_ << ","
             << "\"aging_threshold\":" << aging_threshold_ << ","
             << "\"time_quantum\":" << time_quantum_ << ","
@@ -222,9 +238,14 @@ public:
 
     int current_tick() const { return current_tick_; }
     uint64_t total_completed() const { return total_completed_; }
+    uint64_t total_failed() const { return total_failed_; }
     uint64_t total_aging_promotions() const { return total_aging_promotions_; }
     int aging_threshold() const { return aging_threshold_; }
     void set_aging_threshold(int val) { aging_threshold_ = val; }
+
+    // LockManager & MySQL Storage Accessors
+    std::shared_ptr<LockManager> lock_manager() const { return lock_manager_; }
+    std::shared_ptr<MySQLStorage> mysql_storage() const { return mysql_storage_; }
 
     // MD-ACC Middleware Accessors
     std::shared_ptr<Middleware> middleware() const { return middleware_; }
@@ -339,14 +360,31 @@ private:
 
             // Check if process finished
             if (pcb.burst_time <= 0) {
-                // TERMINATED
-                pcb.state = ProcessState::TERMINATED;
                 pcb.completion_time = current_tick_;
-                record_transition(pcb.pid, pcb.type, ProcessState::RUNNING, ProcessState::TERMINATED,
-                                  "Transaction execution completed");
+
+                // Requirement 5: Execute persistent MySQL transfer & rollback on insufficient funds
+                std::string error_msg;
+                bool success = true;
+                if (pcb.amount > 0 && pcb.from_account > 0 && pcb.to_account > 0) {
+                    success = mysql_storage_->execute_transfer(pcb.pid, pcb.from_account, pcb.to_account, pcb.amount, error_msg);
+                }
+
+                if (!success) {
+                    // Aborted on insufficient funds -> rollback MySQL state & update PCB to TERMINATED_FAILED
+                    pcb.state = ProcessState::TERMINATED_FAILED;
+                    pcb.failure_reason = error_msg;
+                    total_failed_++;
+                    record_transition(pcb.pid, pcb.type, ProcessState::RUNNING, ProcessState::TERMINATED_FAILED,
+                                      "MySQL Transaction Rollback: " + error_msg);
+                } else {
+                    // Committed successfully
+                    pcb.state = ProcessState::TERMINATED;
+                    total_completed_++;
+                    record_transition(pcb.pid, pcb.type, ProcessState::RUNNING, ProcessState::TERMINATED,
+                                      "Transaction execution completed & committed to MySQL");
+                }
 
                 release_locks(pcb);
-                total_completed_++;
                 total_turnaround_time_ += (pcb.completion_time - pcb.arrival_time);
                 total_waiting_time_ += pcb.wait_time;
 
@@ -502,7 +540,7 @@ private:
 
     bool can_acquire_locks(const ProcessControlBlock& pcb) const {
         for (int acc_id : pcb.required_locks) {
-            if (locked_accounts_.find(acc_id) != locked_accounts_.end()) {
+            if (lock_manager_->is_locked(acc_id) || locked_accounts_.find(acc_id) != locked_accounts_.end()) {
                 return false;
             }
         }
@@ -510,12 +548,27 @@ private:
     }
 
     void acquire_locks(const ProcessControlBlock& pcb) {
+        if (pcb.from_account > 0 && pcb.to_account > 0) {
+            // Strict lock ordering: smaller Account ID first
+            lock_manager_->try_acquire_transfer_locks(pcb.from_account, pcb.to_account, pcb.pid);
+        } else {
+            for (int acc_id : pcb.required_locks) {
+                lock_manager_->try_acquire_lock(acc_id, pcb.pid);
+            }
+        }
         for (int acc_id : pcb.required_locks) {
             locked_accounts_.insert(acc_id);
         }
     }
 
     void release_locks(const ProcessControlBlock& pcb) {
+        if (pcb.from_account > 0 && pcb.to_account > 0) {
+            lock_manager_->release_transfer_locks(pcb.from_account, pcb.to_account, pcb.pid);
+        } else {
+            for (int acc_id : pcb.required_locks) {
+                lock_manager_->release_lock(acc_id, pcb.pid);
+            }
+        }
         for (int acc_id : pcb.required_locks) {
             locked_accounts_.erase(acc_id);
         }
@@ -583,11 +636,14 @@ private:
     // Performance Metrics
     uint64_t total_aging_promotions_;
     uint64_t total_completed_;
+    uint64_t total_failed_;
     uint64_t total_turnaround_time_;
     uint64_t total_waiting_time_;
 
     mutable std::mutex mtx_;
     std::shared_ptr<Middleware> middleware_;
+    std::shared_ptr<LockManager> lock_manager_;
+    std::shared_ptr<MySQLStorage> mysql_storage_;
 };
 
 } // namespace bank_sim

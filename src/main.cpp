@@ -31,8 +31,10 @@ void print_banner() {
               << " [AGING]     Starvation Prevention: Promotes Salary processes to Q1 when waiting > X ticks \n"
               << " [MD-ACC]    Measurement-Driven Adaptive Concurrency Control Middleware Layer            \n"
               << " [BACKOFF]   Exponential Backoff (B_0 * 2^retry) wait-state under HIGH contention      \n"
+              << " [STORAGE]   MySQL Persistent Storage (X DevAPI) with Transaction Rollbacks (ACID)       \n"
+              << " [DEADLOCK]  Strict Lock Ordering (min(from, to) locked first) Deadlock Prevention      \n"
               << " [COMPARE]   Comparison Mode: Baseline (High Aborts) vs MD-ACC (Adaptive Throttling)    \n"
-              << " [METRICS]   Live Dynamic Terminal Telemetry: Conflict Rate, Abort Rate, TPS            \n"
+              << " [METRICS]   Live Dynamic Terminal Telemetry: Conflict Rate, Commits, Rollbacks, TPS     \n"
               << " [HTTP API]  cpp-httplib Server exposing live state transitions and metrics             \n"
               << "========================================================================================\n\n";
 }
@@ -49,6 +51,7 @@ int main(int argc, char* argv[]) {
     size_t total_requests = 176000;
     bool fast_headless = false;
     bool mdacc_enabled = true; // MD-ACC enabled by default; --baseline disables it
+    MySQLConfig db_cfg = MySQLConfig::from_env();
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -64,17 +67,31 @@ int main(int argc, char* argv[]) {
             mdacc_enabled = false;
         } else if (arg == "--mdacc") {
             mdacc_enabled = true;
+        } else if (arg == "--db-host" && i + 1 < argc) {
+            db_cfg.host = argv[++i];
+        } else if (arg == "--db-port" && i + 1 < argc) {
+            db_cfg.port = std::stoi(argv[++i]);
+        } else if (arg == "--db-user" && i + 1 < argc) {
+            db_cfg.user = argv[++i];
+        } else if (arg == "--db-password" && i + 1 < argc) {
+            db_cfg.password = argv[++i];
+        } else if (arg == "--db-name" && i + 1 < argc) {
+            db_cfg.database = argv[++i];
         }
     }
 
     std::cout << "[Config] Mode: " << (mdacc_enabled ? "MD-ACC (Adaptive Backoff)" : "BASELINE (Direct DB / 2PL OCC)") << "\n";
+    std::cout << "[Config] Database Target: " << db_cfg.user << "@" << db_cfg.host << ":" << db_cfg.port << "/" << db_cfg.database << "\n";
 
-    // 1. Generate 176,000 bursty banking transactions as OS processes
+    // 1. Initialize Persistent MySQL Storage
+    auto mysql_storage = std::make_shared<MySQLStorage>(db_cfg);
+
+    // 2. Generate 176,000 bursty banking transactions as OS processes
     WorkloadGenerator generator;
     auto workload = generator.generate_workload(total_requests, 10000);
 
-    // 2. Instantiate and load MLFQ Scheduler with MD-ACC Middleware
-    auto scheduler = std::make_shared<MLFQScheduler>(aging_threshold, time_quantum, mdacc_enabled);
+    // 3. Instantiate and load MLFQ Scheduler with MD-ACC Middleware and MySQL Storage
+    auto scheduler = std::make_shared<MLFQScheduler>(aging_threshold, time_quantum, mdacc_enabled, mysql_storage);
     scheduler->load_workload(std::move(workload));
 
     if (fast_headless) {
@@ -84,7 +101,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    // 3. Setup cpp-httplib Server
+    // 4. Setup cpp-httplib Server
     httplib::Server svr;
     svr.set_mount_point("/", "web");
 
@@ -104,6 +121,33 @@ int main(int argc, char* argv[]) {
     svr.Get("/api/export", [scheduler](const httplib::Request&, httplib::Response& res) {
         scheduler->export_transitions_to_json("state_transitions.json", 50000);
         res.set_content("{\"status\":\"exported\",\"file\":\"state_transitions.json\"}", "application/json");
+    });
+
+    // Persistent MySQL Storage REST API endpoints
+    svr.Get("/api/db/status", [scheduler](const httplib::Request&, httplib::Response& res) {
+        auto db = scheduler->mysql_storage();
+        std::ostringstream oss;
+        oss << "{"
+            << "\"connected\":" << (db->is_connected() ? "true" : "false") << ","
+            << "\"total_queries\":" << db->total_queries() << ","
+            << "\"total_commits\":" << db->total_commits() << ","
+            << "\"total_rollbacks\":" << db->total_rollbacks()
+            << "}";
+        res.set_content(oss.str(), "application/json");
+    });
+
+    // Lock Manager REST API endpoints
+    svr.Get("/api/lockmanager/status", [scheduler](const httplib::Request&, httplib::Response& res) {
+        auto lm = scheduler->lock_manager();
+        std::ostringstream oss;
+        oss << "{"
+            << "\"total_attempts\":" << lm->total_attempts() << ","
+            << "\"total_conflicts\":" << lm->total_conflicts() << ","
+            << "\"total_timeouts\":" << lm->total_timeouts() << ","
+            << "\"ordered_acquisitions\":" << lm->total_ordered_acquisitions() << ","
+            << "\"deadlocks_prevented\":" << lm->deadlocks_prevented()
+            << "}";
+        res.set_content(oss.str(), "application/json");
     });
 
     // MD-ACC Middleware & Comparison Mode REST API endpoints
@@ -146,7 +190,7 @@ int main(int argc, char* argv[]) {
         svr.listen("0.0.0.0", port);
     });
 
-    // 4. Background Simulation Worker Thread
+    // 5. Background Simulation Worker Thread
     std::atomic<bool> sim_paused(false);
     std::atomic<int> sim_speed_delay_us(1000); // 1ms delay per tick
 
@@ -185,7 +229,7 @@ int main(int argc, char* argv[]) {
               << "[Logging] Periodic state transition snapshots writing to state_transitions.json\n"
               << "Press Ctrl+C to terminate simulation.\n\n";
 
-    // Periodic terminal monitoring log: dynamic TPS, Abort Rate, Conflict Rate, Contention Score
+    // Periodic terminal monitoring log: dynamic TPS, Abort Rate, Conflict Rate, Contention Score, Commits, Rollbacks
     int counter = 0;
     uint64_t prev_completed = 0;
     auto prev_time = std::chrono::steady_clock::now();
@@ -208,8 +252,12 @@ int main(int argc, char* argv[]) {
         std::string lvl_str = contentionLevelToString(lvl);
         double conflict_pct = mw->conflict_rate() * 100.0;
         double abort_pct = mw->abort_rate() * 100.0;
-        uint64_t total_aborts = mw->total_aborts();
-        uint64_t total_backoffs = mw->total_backoffs_applied();
+
+        auto db = scheduler->mysql_storage();
+        auto lm = scheduler->lock_manager();
+        uint64_t total_commits = db->total_commits();
+        uint64_t total_rollbacks = db->total_rollbacks();
+        uint64_t deadlocks_prevented = lm->deadlocks_prevented();
 
         // Terminal ANSI color formatting
         std::string mode_tag = mdacc ? "\033[1;32m[MD-ACC ENABLED]\033[0m" : "\033[1;31m[BASELINE 2PL/OCC]\033[0m";
@@ -219,8 +267,10 @@ int main(int argc, char* argv[]) {
                   << "Mode: " << mode_tag << " | "
                   << "Score: " << score_color << std::setw(6) << lvl_str << "\033[0m | "
                   << "Conflict: " << std::fixed << std::setprecision(1) << std::setw(4) << conflict_pct << "% | "
-                  << "Abort Rate: " << std::fixed << std::setprecision(1) << std::setw(4) << abort_pct << "% (" << total_aborts << " abs) | "
-                  << "Backoffs: " << std::setw(5) << total_backoffs << " | "
+                  << "Abort: " << std::fixed << std::setprecision(1) << std::setw(4) << abort_pct << "% | "
+                  << "Commits: \033[1;32m" << total_commits << "\033[0m | "
+                  << "Rollbacks: \033[1;31m" << total_rollbacks << "\033[0m | "
+                  << "Deadlocks Prev: \033[1;35m" << deadlocks_prevented << "\033[0m | "
                   << "TPS: \033[1;36m" << std::fixed << std::setprecision(0) << std::setw(5) << tps << " tx/s\033[0m | "
                   << "Done: " << std::setw(6) << cur_completed << "/" << total_requests << "\n";
 

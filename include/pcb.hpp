@@ -34,11 +34,12 @@ inline TransactionType stringToTransactionType(const std::string& str) {
  * Standard OS Process States
  */
 enum class ProcessState {
-    NEW,        // Created but not yet arrived or admitted into ready queues
-    READY,      // Ready in MLFQ queue waiting for CPU dispatch
-    RUNNING,    // Currently executing on CPU
-    WAITING,    // Blocked waiting for required account lock acquisition
-    TERMINATED  // Execution completed and locks released
+    NEW,               // Created but not yet arrived or admitted into ready queues
+    READY,             // Ready in MLFQ queue waiting for CPU dispatch
+    RUNNING,           // Currently executing on CPU
+    WAITING,           // Blocked waiting for required account lock acquisition
+    TERMINATED,        // Execution completed and locks released
+    TERMINATED_FAILED  // Aborted/rolled back (e.g. insufficient funds)
 };
 
 inline std::string processStateToString(ProcessState state) {
@@ -48,6 +49,7 @@ inline std::string processStateToString(ProcessState state) {
         case ProcessState::RUNNING: return "RUNNING";
         case ProcessState::WAITING: return "WAITING";
         case ProcessState::TERMINATED: return "TERMINATED";
+        case ProcessState::TERMINATED_FAILED: return "TERMINATED_FAILED";
         default: return "UNKNOWN";
     }
 }
@@ -64,6 +66,12 @@ struct ProcessControlBlock {
     int arrival_time{0};                       // Simulation tick when request arrives
     int burst_time{0};                         // Remaining CPU burst time (ticks)
     std::vector<int> required_locks{};         // Account IDs needed before execution
+
+    // Financial Transaction Metadata for Persistent Storage
+    int from_account{0};                       // Source Account ID
+    int to_account{0};                         // Destination Account ID
+    double amount{0.0};                        // Transfer amount
+    std::string failure_reason{""};            // Rollback reason if TERMINATED_FAILED
 
     // Supplementary scheduling and accounting metadata
     int total_burst_time{0};                   // Initial allocated burst time
@@ -101,6 +109,10 @@ struct ProcessControlBlock {
             << "\"arrival_time\":" << arrival_time << ","
             << "\"burst_time\":" << burst_time << ","
             << "\"total_burst_time\":" << total_burst_time << ","
+            << "\"from_account\":" << from_account << ","
+            << "\"to_account\":" << to_account << ","
+            << "\"amount\":" << amount << ","
+            << "\"failure_reason\":\"" << failure_reason << "\","
             << "\"wait_time\":" << wait_time << ","
             << "\"queue2_ticks\":" << queue2_ticks << ","
             << "\"current_queue\":" << current_queue << ","

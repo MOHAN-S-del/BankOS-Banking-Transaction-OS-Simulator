@@ -41,10 +41,10 @@ public:
         // Salary: 10 to 30 ticks (batch multi-account processing)
         std::uniform_int_distribution<int> salary_burst_dist(10, 30);
 
-        // Account IDs for locks
-        std::uniform_int_distribution<int> retail_acc_dist(1000, 1999);
-        std::uniform_int_distribution<int> corp_acc_dist(2000, 2019);
-        std::uniform_int_distribution<int> atm_reserve_dist(5000, 5009);
+        // Account IDs for locks matching schema.sql
+        std::uniform_int_distribution<int> retail_acc_dist(1001, 1008);
+        std::uniform_int_distribution<int> corp_acc_dist(2001, 2002);
+        std::uniform_int_distribution<int> atm_reserve_dist(5001, 5002);
 
         // Bursty arrival generation:
         // Create 20 distinct burst peak clusters across the simulation timeline
@@ -78,8 +78,18 @@ public:
 
                 // UPI requires 2 retail account locks (Sender & Receiver)
                 int sender = retail_acc_dist(rng_);
+                // Intentionally route some transactions to low-balance accounts (1005, 1008) to test rollbacks
+                if (pcb.pid % 30 == 0) sender = 1005;
+                else if (pcb.pid % 45 == 0) sender = 1008;
+
                 int receiver = retail_acc_dist(rng_);
                 while (receiver == sender) receiver = retail_acc_dist(rng_);
+
+                pcb.from_account = sender;
+                pcb.to_account = receiver;
+                pcb.amount = 100.0 + (pcb.pid % 500); // 100 to 600 INR
+
+                // Strict Deadlock Prevention: always lock smaller Account ID first
                 pcb.required_locks = {std::min(sender, receiver), std::max(sender, receiver)};
 
             } else if (type_val == 1) {
@@ -89,16 +99,29 @@ public:
 
                 // ATM requires user account lock + ATM hardware cash vault lock
                 int user_acc = retail_acc_dist(rng_);
+                if (pcb.pid % 50 == 0) user_acc = 1008;
                 int atm_vault = atm_reserve_dist(rng_);
-                pcb.required_locks = {user_acc, atm_vault};
+
+                pcb.from_account = user_acc;
+                pcb.to_account = atm_vault;
+                pcb.amount = 500.0 + (pcb.pid % 2500); // 500 to 3000 INR
+
+                // Strict Deadlock Prevention: smaller Account ID first
+                pcb.required_locks = {std::min(user_acc, atm_vault), std::max(user_acc, atm_vault)};
 
             } else {
                 pcb.type = TransactionType::SALARY;
                 pcb.burst_time = salary_burst_dist(rng_);
                 pcb.current_queue = 2; // Queue 2 (Round Robin)
 
-                // Salary requires corporate treasury account lock + multiple employee account locks
+                // Salary requires corporate treasury account lock + employee accounts
                 int corp = corp_acc_dist(rng_);
+                int emp_primary = retail_acc_dist(rng_);
+
+                pcb.from_account = corp;
+                pcb.to_account = emp_primary;
+                pcb.amount = 25000.0 + (pcb.pid % 15000); // 25,000 to 40,000 INR
+
                 pcb.required_locks.push_back(corp);
                 int emp_count = 3 + (pcb.pid % 4); // 3 to 6 employee accounts
                 for (int e = 0; e < emp_count; ++e) {
@@ -107,6 +130,7 @@ public:
                         pcb.required_locks.push_back(emp);
                     }
                 }
+                // Strict Deadlock Prevention: sort all required locks in ascending order
                 std::sort(pcb.required_locks.begin(), pcb.required_locks.end());
             }
 

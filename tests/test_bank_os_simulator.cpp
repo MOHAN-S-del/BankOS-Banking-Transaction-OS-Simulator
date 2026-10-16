@@ -6,6 +6,8 @@
 #include <iostream>
 #include <cassert>
 #include <fstream>
+#include <thread>
+#include <atomic>
 
 using namespace bank_sim;
 
@@ -376,6 +378,129 @@ void test_comparison_mode_baseline_vs_mdacc() {
     std::cout << "  -> Passed: Comparison Mode toggle verified between Baseline (high aborts) and MD-ACC (adaptive backoff)!\n";
 }
 
+void test_strict_lock_ordering_deadlock_prevention() {
+    std::cout << "[Test] Running test_strict_lock_ordering_deadlock_prevention...\n";
+    LockManager lock_mgr;
+
+    // Simulate 2 concurrent threads executing reciprocal transfers:
+    // Thread 1: Account 1001 -> Account 1002
+    // Thread 2: Account 1002 -> Account 1001 (sender is larger ID!)
+    //
+    // Under naive locking (lock From then To):
+    // Thread 1 locks 1001, waits for 1002.
+    // Thread 2 locks 1002, waits for 1001.
+    // DEADLOCK (Circular wait).
+    //
+    // Under Strict Lock Ordering:
+    // min(1001, 1002) = 1001 is locked first by BOTH threads.
+    // Circular wait condition is mathematically denied.
+
+    std::atomic<bool> t1_done(false);
+    std::atomic<bool> t2_done(false);
+    std::atomic<int> completed_transfers(0);
+
+    const int iterations = 500;
+
+    std::thread t1([&]() {
+        for (int i = 0; i < iterations; ++i) {
+            bool conflict = false;
+            // Transfer 1001 -> 1002
+            bool acquired = lock_mgr.acquire_transfer_locks(1001, 1002, /*pid=*/1, std::chrono::milliseconds(200), conflict);
+            assert(acquired);
+            std::this_thread::yield();
+            lock_mgr.release_transfer_locks(1001, 1002, /*pid=*/1);
+            completed_transfers.fetch_add(1);
+        }
+        t1_done.store(true);
+    });
+
+    std::thread t2([&]() {
+        for (int i = 0; i < iterations; ++i) {
+            bool conflict = false;
+            // Reciprocal Transfer: 1002 -> 1001 (sender is larger ID!)
+            bool acquired = lock_mgr.acquire_transfer_locks(1002, 1001, /*pid=*/2, std::chrono::milliseconds(200), conflict);
+            assert(acquired);
+            std::this_thread::yield();
+            lock_mgr.release_transfer_locks(1002, 1001, /*pid=*/2);
+            completed_transfers.fetch_add(1);
+        }
+        t2_done.store(true);
+    });
+
+    t1.join();
+    t2.join();
+
+    assert(completed_transfers.load() == iterations * 2);
+    assert(lock_mgr.deadlocks_prevented() >= static_cast<uint64_t>(iterations));
+    assert(lock_mgr.total_ordered_acquisitions() >= static_cast<uint64_t>(iterations * 2));
+
+    std::cout << "  -> Passed: " << completed_transfers.load() 
+              << " concurrent reciprocal transfers completed without deadlock! (" 
+              << lock_mgr.deadlocks_prevented() << " circular deadlocks prevented by strict lock ordering)\n";
+}
+
+void test_mysql_transaction_rollback_insufficient_funds() {
+    std::cout << "[Test] Running test_mysql_transaction_rollback_insufficient_funds...\n";
+    auto storage = std::make_shared<MySQLStorage>();
+
+    // Initial balances:
+    // Seed account 1005 has balance 300.00
+    // Seed account 1001 has balance 50000.00
+    assert(storage->get_balance(1005) == 300.00);
+    double initial_sender_balance = storage->get_balance(1005);
+    double initial_receiver_balance = storage->get_balance(1001);
+
+    // 1. Direct Storage Transfer Rollback Test:
+    // Attempt transfer of 800.00 from account 1005 (which only has 300.00!)
+    std::string err_msg;
+    bool success = storage->execute_transfer(9999, 1005, 1001, 800.00, err_msg);
+    assert(!success);
+    assert(err_msg.find("Insufficient funds") != std::string::npos);
+
+    // Verify MySQL state was rolled back: balances unchanged!
+    assert(storage->get_balance(1005) == initial_sender_balance);
+    assert(storage->get_balance(1001) == initial_receiver_balance);
+    assert(storage->total_rollbacks() >= 1);
+
+    // 2. Full MLFQ Scheduler Integration Test:
+    // Load a process into MLFQ with insufficient funds and verify state transition to TERMINATED_FAILED
+    MLFQScheduler scheduler(50, 5, true, storage);
+
+    std::vector<ProcessControlBlock> list;
+    ProcessControlBlock pcb;
+    pcb.pid = 777;
+    pcb.type = TransactionType::UPI;
+    pcb.arrival_time = 1;
+    pcb.burst_time = 1; // 1 tick to finish immediately
+    pcb.total_burst_time = 1;
+    pcb.from_account = 1005;
+    pcb.to_account = 1001;
+    pcb.amount = 1200.00; // Exceeds balance of 300.00!
+    pcb.required_locks = {1001, 1005};
+
+    list.push_back(pcb);
+    scheduler.load_workload(list);
+
+    // Step 2 ticks to admit, dispatch, and execute
+    scheduler.step_tick(); // Arrives, admitted to Q1
+    scheduler.step_tick(); // Dispatched to RUNNING, burst finishes, triggers transfer execution
+
+    // Verify scheduler stats
+    assert(scheduler.total_failed() == 1);
+    assert(scheduler.total_completed() == 0);
+
+    // Verify state transitions log contains TERMINATED_FAILED
+    auto json_transitions = scheduler.get_recent_transitions_json(10);
+    assert(json_transitions.find("TERMINATED_FAILED") != std::string::npos);
+    assert(json_transitions.find("Insufficient funds") != std::string::npos);
+
+    // Verify account balance remained intact (Rollback preserved ACID invariants)
+    assert(storage->get_balance(1005) == initial_sender_balance);
+    assert(storage->get_balance(1001) == initial_receiver_balance);
+
+    std::cout << "  -> Passed: Insufficient funds triggered MySQL ROLLBACK and updated PCB state to TERMINATED_FAILED!\n";
+}
+
 int main() {
     std::cout << "========================================================\n";
     std::cout << "   BANK TRANSACTION OS SIMULATOR (MLFQ) TEST SUITE     \n";
@@ -391,6 +516,8 @@ int main() {
     test_middleware_metrics_and_contention_score();
     test_exponential_backoff_algorithm();
     test_comparison_mode_baseline_vs_mdacc();
+    test_strict_lock_ordering_deadlock_prevention();
+    test_mysql_transaction_rollback_insufficient_funds();
 
     std::cout << "\n[SUCCESS] All Bank OS Simulator MLFQ tests passed!\n\n";
     return 0;

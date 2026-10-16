@@ -86,6 +86,44 @@ public:
         }
     }
 
+    // Strict Lock Ordering Deadlock Prevention for Transfers:
+    // Always lock the smaller Account ID first, regardless of sender/receiver.
+    bool acquire_transfer_locks(AccountId from_acc, AccountId to_acc, TxId tx_id, 
+                                Milliseconds timeout, bool& was_conflict) {
+        AccountId first_id = std::min(from_acc, to_acc);
+        AccountId second_id = std::max(from_acc, to_acc);
+
+        bool c1 = false;
+        if (!acquire_lock(first_id, tx_id, timeout, c1)) {
+            was_conflict = c1;
+            return false;
+        }
+
+        if (first_id == second_id) {
+            was_conflict = c1;
+            return true;
+        }
+
+        bool c2 = false;
+        if (!acquire_lock(second_id, tx_id, timeout, c2)) {
+            release_lock(first_id, tx_id);
+            was_conflict = true;
+            return false;
+        }
+
+        was_conflict = (c1 || c2);
+        return true;
+    }
+
+    void release_transfer_locks(AccountId from_acc, AccountId to_acc, TxId tx_id) {
+        AccountId first_id = std::min(from_acc, to_acc);
+        AccountId second_id = std::max(from_acc, to_acc);
+        if (first_id != second_id) {
+            release_lock(second_id, tx_id);
+        }
+        release_lock(first_id, tx_id);
+    }
+
     // Telemetry helpers
     uint64_t total_attempts() const { return total_lock_attempts_.load(std::memory_order_relaxed); }
     uint64_t total_conflicts() const { return total_conflicts_.load(std::memory_order_relaxed); }
