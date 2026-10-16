@@ -24,7 +24,31 @@ struct SRTFComparator {
 
 class MLFQQueue {
 public:
-    MLFQQueue() : stopped_(false) {}
+    MLFQQueue()
+        : stopped_(false),
+          q1_quantum_ms_(10),
+          q2_quantum_ms_(50),
+          q3_quantum_ms_(200) {}
+
+    // Configure dynamic tier quanta for proactive allocation
+    void set_tier_quanta(Milliseconds q1, Milliseconds q2, Milliseconds q3) {
+        q1_quantum_ms_.store(q1.count(), std::memory_order_relaxed);
+        q2_quantum_ms_.store(q2.count(), std::memory_order_relaxed);
+        q3_quantum_ms_.store(q3.count(), std::memory_order_relaxed);
+    }
+
+    Milliseconds get_tier_quantum(QueueTier tier) const {
+        switch (tier) {
+            case QueueTier::Q1_HIGH_INTERACTIVE:
+                return Milliseconds(q1_quantum_ms_.load(std::memory_order_relaxed));
+            case QueueTier::Q2_MED_STANDARD:
+                return Milliseconds(q2_quantum_ms_.load(std::memory_order_relaxed));
+            case QueueTier::Q3_LOW_BATCH:
+                return Milliseconds(q3_quantum_ms_.load(std::memory_order_relaxed));
+            default:
+                return Milliseconds(10);
+        }
+    }
 
     // Enqueue transaction into its specified tier
     void push(std::shared_ptr<Transaction> tx) {
@@ -32,6 +56,7 @@ public:
         if (stopped_) return;
 
         tx->set_last_scheduled_time(HighResClock::now());
+        tx->set_allocated_quantum(get_tier_quantum(tx->current_tier()));
 
         switch (tx->current_tier()) {
             case QueueTier::Q1_HIGH_INTERACTIVE:
@@ -228,6 +253,11 @@ private:
 
     // Tier 3: Low Priority Batch (FIFO)
     std::deque<std::shared_ptr<Transaction>> q3_;
+
+    // Configurable MLFQ Priority Quotas
+    std::atomic<int64_t> q1_quantum_ms_;
+    std::atomic<int64_t> q2_quantum_ms_;
+    std::atomic<int64_t> q3_quantum_ms_;
 };
 
 } // namespace adaptive_os

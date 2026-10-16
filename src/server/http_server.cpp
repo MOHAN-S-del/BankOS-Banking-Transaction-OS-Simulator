@@ -1,4 +1,5 @@
 #include "server/http_server.hpp"
+#include "workload/generator.hpp"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -120,6 +121,8 @@ void HttpServer::handle_client(int client_fd) {
         body = handle_get_accounts();
     } else if (path == "/api/benchmark" || path == "/api/workload/burst") {
         body = handle_run_benchmark();
+    } else if (path.rfind("/api/workload/spike", 0) == 0) {
+        body = handle_trigger_spike(path);
     } else {
         // Serve static web UI
         if (path == "/" || path.empty()) {
@@ -174,7 +177,72 @@ std::string HttpServer::handle_get_status() {
         << "\"q2_depth\":" << snap.q2_depth << ","
         << "\"q3_depth\":" << snap.q3_depth << ","
         << "\"bounded_wait_tw_ms\":" << sampler_->bounded_wait_timeout().count() << ","
-        << "\"avg_latency_ms\":" << snap.avg_latency_ms
+        << "\"avg_latency_ms\":" << snap.avg_latency_ms << ","
+        << "\"predicted_contention\":" << snap.predicted_contention << ","
+        << "\"forecast_horizon_ms\":" << snap.forecast_horizon_ms << ","
+        << "\"proactive_policy_mode\":\"" << snap.proactive_policy_mode << "\","
+        << "\"anticipated_regime\":\"" << snap.anticipated_regime << "\","
+        << "\"proactive_interventions\":" << snap.proactive_interventions << ","
+        << "\"q1_preallocated_quota\":" << snap.q1_preallocated_quota << ","
+        << "\"q3_quantum_allocated_ms\":" << snap.q3_quantum_allocated_ms
+        << "}";
+    return oss.str();
+}
+
+std::string HttpServer::handle_trigger_spike(const std::string& path) {
+    WorkloadGenerator gen;
+    std::string spike_type = "upi_peak";
+    auto pos = path.find("type=");
+    if (pos != std::string::npos) {
+        spike_type = path.substr(pos + 5);
+        auto amp_pos = spike_type.find('&');
+        if (amp_pos != std::string::npos) {
+            spike_type = spike_type.substr(0, amp_pos);
+        }
+    }
+
+    if (spike_type == "salary_clearing") {
+        // Trigger corporate payroll batch clearing burst (Q3 multi-account disbursement)
+        for (int i = 0; i < 40; ++i) {
+            auto tx = gen.generate_batch_payroll(18); // 1-to-18 multi-account disbursement
+            scheduler_->submit(tx);
+        }
+    } else if (spike_type == "settlement_hotspot") {
+        // Trigger high contention on Central Settlement Reserve account
+        for (int i = 0; i < 80; ++i) {
+            auto tx = gen.generate_settlement_hotspot();
+            scheduler_->submit(tx);
+        }
+    } else if (spike_type == "reset") {
+        scheduler_->reset_counters();
+        sampler_->reset();
+    } else { // default or "upi_peak"
+        // Trigger high-velocity UPI retail payment surge
+        for (int i = 0; i < 150; ++i) {
+            auto tx = gen.generate_retail_p2p();
+            scheduler_->submit(tx);
+        }
+    }
+
+    // Force an immediate sample and ML inference tick
+    auto snap = sampler_->sample_step(scheduler_->mlfq()->q1_size(),
+                                      scheduler_->mlfq()->q2_size(),
+                                      scheduler_->mlfq()->q3_size(),
+                                      scheduler_->active_workers(),
+                                      scheduler_->aging_engine()->total_migrations(),
+                                      scheduler_->total_hotspot_demotions(),
+                                      scheduler_->mlfq(),
+                                      scheduler_->aging_engine());
+
+    std::ostringstream oss;
+    oss << "{"
+        << "\"status\":\"ok\","
+        << "\"spike_type\":\"" << spike_type << "\","
+        << "\"predicted_contention\":" << snap.predicted_contention << ","
+        << "\"proactive_policy_mode\":\"" << snap.proactive_policy_mode << "\","
+        << "\"anticipated_regime\":\"" << snap.anticipated_regime << "\","
+        << "\"q1_preallocated_quota\":" << snap.q1_preallocated_quota << ","
+        << "\"q3_quantum_allocated_ms\":" << snap.q3_quantum_allocated_ms
         << "}";
     return oss.str();
 }

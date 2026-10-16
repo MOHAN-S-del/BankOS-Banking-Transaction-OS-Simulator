@@ -1,193 +1,208 @@
-// Adaptive Ledger OS Web Client
+// BankOS: Banking Transaction OS Simulator Client
+
+let isPaused = false;
 
 document.addEventListener('DOMContentLoaded', () => {
-    const btnRunBenchmark = document.getElementById('btnRunBenchmark');
-    const benchmarkStatus = document.getElementById('benchmarkStatus');
+    const btnPauseResume = document.getElementById('btnPauseResume');
+    const btnExportJson = document.getElementById('btnExportJson');
 
-    // Start live polling loop
-    setInterval(fetchSystemStatus, 800);
-    fetchSystemStatus();
+    // Poll status & queues regularly
+    setInterval(fetchSimulationStatus, 400);
+    setInterval(fetchQueuesAndRunning, 600);
+    setInterval(fetchTransitions, 800);
 
-    // Hook benchmark button
-    btnRunBenchmark.addEventListener('click', async () => {
-        btnRunBenchmark.disabled = true;
-        btnRunBenchmark.innerHTML = `<span>Simulating Peak Burst...</span>`;
-        benchmarkStatus.innerText = 'Running Comparative Stress Benchmark (Ct >= 0.8)...';
-        benchmarkStatus.style.color = '#00f2fe';
+    fetchSimulationStatus();
+    fetchQueuesAndRunning();
+    fetchTransitions();
+
+    // Hook Pause/Resume
+    btnPauseResume.addEventListener('click', async () => {
+        isPaused = !isPaused;
+        const endpoint = isPaused ? '/api/control/pause' : '/api/control/resume';
+        btnPauseResume.innerText = isPaused ? 'Resume Simulation' : 'Pause Simulation';
+        
+        const badge = document.getElementById('simStatusBadge');
+        const badgeText = document.getElementById('simStatusText');
+        if (isPaused) {
+            badge.classList.add('high-contention');
+            badgeText.innerText = 'STATE: PAUSED';
+        } else {
+            badge.classList.remove('high-contention');
+            badgeText.innerText = 'STATE: RUNNING';
+        }
 
         try {
-            const res = await fetch('/api/benchmark');
+            await fetch(endpoint);
+        } catch (e) {
+            console.error(e);
+        }
+    });
+
+    // Hook Export JSON
+    btnExportJson.addEventListener('click', async () => {
+        btnExportJson.disabled = true;
+        btnExportJson.innerHTML = `<span>Saving JSON...</span>`;
+        try {
+            const res = await fetch('/api/export');
             const data = await res.json();
-            updateBenchmarkTable(data);
-            benchmarkStatus.innerText = 'Benchmark Completed Successfully!';
-            benchmarkStatus.style.color = '#10b981';
+            alert(`State transitions successfully dumped to ${data.file}!`);
         } catch (err) {
-            console.error('Benchmark failed', err);
-            benchmarkStatus.innerText = 'Benchmark error: ' + err.message;
-            benchmarkStatus.style.color = '#ef4444';
+            alert('Export error: ' + err.message);
         } finally {
-            btnRunBenchmark.disabled = false;
-            btnRunBenchmark.innerHTML = `
+            btnExportJson.disabled = false;
+            btnExportJson.innerHTML = `
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
-                <span>Run Verification Benchmark</span>
+                <span>Save state_transitions.json</span>
             `;
         }
     });
 });
 
-async function fetchSystemStatus() {
+async function fetchSimulationStatus() {
     try {
         const res = await fetch('/api/status');
         if (!res.ok) return;
-        const data = await res.json();
-        renderStatus(data);
-    } catch (err) {
-        // Silently retry on next tick
+        const s = await res.json();
+
+        // 1. Tick
+        document.getElementById('valTick').innerText = (s.tick || 0).toLocaleString();
+
+        // 2. Completed / 176,000
+        const completed = s.completed_count || 0;
+        const total = s.total_workload || 176000;
+        document.getElementById('valCompleted').innerText = completed.toLocaleString();
+        const pct = Math.min(100, (completed / Math.max(1, total)) * 100);
+        document.getElementById('barProgress').style.width = pct + '%';
+        document.getElementById('valProgressPct').innerText = `${pct.toFixed(2)}% of workload completed`;
+
+        // 3. Aging Promotions
+        document.getElementById('valAgingPromotions').innerText = (s.aging_promotions || 0).toLocaleString();
+
+        // 4. Turnaround & Wait
+        document.getElementById('valAvgTurnaround').innerText = Number(s.avg_turnaround_time || 0).toFixed(1);
+        document.getElementById('valAvgWaitText').innerText = `Avg Wait Time: ${Number(s.avg_waiting_time || 0).toFixed(1)} ticks`;
+
+        // 5. Counts
+        document.getElementById('q1CountPill').innerText = `${s.q1_size || 0} Ready (SRTF)`;
+        document.getElementById('q2CountPill').innerText = `${s.q2_size || 0} Ready (RR)`;
+        document.getElementById('waitingCountPill').innerText = `${s.waiting_size || 0} Blocked`;
+
+    } catch (e) {
+        // network retry
     }
 }
 
-function renderStatus(s) {
-    // 1. Composite Contention Index Ct
-    const valCt = document.getElementById('valCt');
-    const barCt = document.getElementById('barCt');
-    if (valCt && barCt) {
-        const ctFixed = Number(s.composite_index).toFixed(2);
-        valCt.innerText = ctFixed;
-        const pct = Math.min(100, s.composite_index * 100);
-        barCt.style.width = pct + '%';
+async function fetchQueuesAndRunning() {
+    try {
+        const res = await fetch('/api/queues');
+        if (!res.ok) return;
+        const q = await res.json();
 
-        if (s.composite_index >= 0.70) {
-            valCt.style.color = '#ef4444';
-        } else if (s.composite_index >= 0.40) {
-            valCt.style.color = '#f59e0b';
+        // 1. Active Running PCB
+        const cpuCard = document.getElementById('cpuRunningCard');
+        const runningBadge = document.getElementById('runningBadge');
+        const runningDesc = document.getElementById('runningDesc');
+        const runningDetails = document.getElementById('runningDetails');
+
+        if (q.running) {
+            const p = q.running;
+            runningBadge.innerText = `PID ${p.pid} [RUNNING]`;
+            runningBadge.className = 'running-pcb-badge';
+            runningDesc.innerText = `Executing ${p.type} transaction (${p.burst_time} ticks remaining)`;
+            runningDetails.style.display = 'grid';
+
+            document.getElementById('runPid').innerText = p.pid;
+            document.getElementById('runType').innerText = p.type;
+            document.getElementById('runQueue').innerText = p.current_queue === 1 ? 'Q1 (SRTF)' : 'Q2 (Round Robin)';
+            document.getElementById('runBurst').innerText = `${p.burst_time} / ${p.total_burst_time} ticks`;
+            document.getElementById('runLocks').innerText = (p.required_locks && p.required_locks.length) ? p.required_locks.join(', ') : 'None';
         } else {
-            valCt.style.color = '#10b981';
+            runningBadge.innerText = 'CPU IDLE';
+            runningBadge.className = 'running-pcb-badge';
+            runningBadge.style.color = '#94a3b8';
+            runningDesc.innerText = 'No ready process with free locks currently available';
+            runningDetails.style.display = 'none';
         }
+
+        // 2. Queue 1 (SRTF)
+        renderProcessList('q1ProcessList', q.q1, 'Queue 1 is currently empty');
+
+        // 3. Queue 2 (Round Robin)
+        renderProcessList('q2ProcessList', q.q2, 'Queue 2 is currently empty', true);
+
+        // 4. Waiting List
+        renderProcessList('waitingProcessList', q.waiting, 'No processes currently blocked on locks');
+
+    } catch (e) {
+        // retry
     }
-
-    // 2. Admission Rate lambda_eff
-    const valLambda = document.getElementById('valLambdaEff');
-    if (valLambda) {
-        valLambda.innerText = Math.round(s.effective_admission_rate).toLocaleString();
-    }
-
-    // 3. Bounded Wait Tw
-    const valTw = document.getElementById('valTw');
-    if (valTw) {
-        valTw.innerText = Number(s.bounded_wait_tw_ms).toFixed(1);
-    }
-
-    // 4. Committed Transactions
-    const valCommitted = document.getElementById('valCommitted');
-    const valAbortedText = document.getElementById('valAbortedText');
-    if (valCommitted) {
-        valCommitted.innerText = (s.total_committed || 0).toLocaleString();
-    }
-    if (valAbortedText) {
-        valAbortedText.innerText = `${s.total_aborted || 0} aborts | ${s.total_retries || 0} retries`;
-    }
-
-    // 5. Hysteresis Badge & Steps
-    const badge = document.getElementById('hysteresisStatusBadge');
-    const badgeText = document.getElementById('hysteresisStatusText');
-    const stepNormal = document.getElementById('hStepNormal');
-    const stepElevated = document.getElementById('hStepElevated');
-    const stepHigh = document.getElementById('hStepHigh');
-
-    if (badge && badgeText) {
-        badge.className = 'status-badge';
-        stepNormal?.classList.remove('active-step', 'active-high');
-        stepElevated?.classList.remove('active-step', 'active-high');
-        stepHigh?.classList.remove('active-step', 'active-high');
-
-        if (s.hysteresis_state === 'HIGH_CONTENTION') {
-            badge.classList.add('high-contention');
-            badgeText.innerText = 'STATE: HIGH_CONTENTION (Ct >= 0.7)';
-            stepHigh?.classList.add('active-high');
-        } else if (s.hysteresis_state === 'ELEVATED') {
-            badge.classList.add('elevated');
-            badgeText.innerText = 'STATE: ELEVATED (Stabilizing)';
-            stepElevated?.classList.add('active-step');
-        } else {
-            badgeText.innerText = 'STATE: NORMAL';
-            stepNormal?.classList.add('active-step');
-        }
-    }
-
-    // 6. MLFQ Queues (Q1, Q2, Q3)
-    const barQ1 = document.getElementById('barQ1');
-    const barQ2 = document.getElementById('barQ2');
-    const barQ3 = document.getElementById('barQ3');
-    const countQ1 = document.getElementById('countQ1');
-    const countQ2 = document.getElementById('countQ2');
-    const countQ3 = document.getElementById('countQ3');
-
-    if (countQ1) countQ1.innerText = `${s.q1_depth} pending`;
-    if (countQ2) countQ2.innerText = `${s.q2_depth} pending`;
-    if (countQ3) countQ3.innerText = `${s.q3_depth} pending`;
-
-    if (barQ1) barQ1.style.width = Math.min(100, s.q1_depth * 8) + '%';
-    if (barQ2) barQ2.style.width = Math.min(100, s.q2_depth * 8) + '%';
-    if (barQ3) barQ3.style.width = Math.min(100, s.q3_depth * 8) + '%';
-
-    // 7. Diagnostics
-    const workerStatus = document.getElementById('workerStatus');
-    if (workerStatus) {
-        workerStatus.innerText = `Active Workers: ${s.active_workers} / ${s.num_workers}`;
-    }
-
-    const valAgingMig = document.getElementById('valAgingMig');
-    const valHotspotDem = document.getElementById('valHotspotDem');
-    const valThrottled = document.getElementById('valThrottled');
-    if (valAgingMig) valAgingMig.innerText = (s.starvation_migrations || 0).toLocaleString();
-    if (valHotspotDem) valHotspotDem.innerText = (s.total_hotspot_demotions || 0).toLocaleString();
-    if (valThrottled) valThrottled.innerText = (s.total_throttled || 0).toLocaleString();
-
-    // 8. Telemetry breakdown gauges
-    updateGauge('valCr', 'barCr', s.conflict_rate);
-    updateGauge('valAr', 'barAr', s.abort_rate);
-    updateGauge('valQl', 'barQl', s.lock_queue_depth);
-    updateGauge('valRi', 'barRi', s.retry_intensity);
 }
 
-function updateGauge(textId, barId, val) {
-    const elText = document.getElementById(textId);
-    const elBar = document.getElementById(barId);
-    if (elText) elText.innerText = Number(val || 0).toFixed(2);
-    if (elBar) elBar.style.width = Math.min(100, (val || 0) * 100) + '%';
+function renderProcessList(containerId, list, emptyText, showAging = false) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!list || list.length === 0) {
+        container.innerHTML = `<div class="empty-placeholder">${emptyText}</div>`;
+        return;
+    }
+
+    let html = '';
+    for (const p of list) {
+        const typeClass = p.type === 'UPI' ? 'tag-upi' : (p.type === 'ATM' ? 'tag-atm' : 'tag-salary');
+        const agedTag = p.aged_promoted ? `<span class="tag-aged">AGED PROMOTED</span>` : '';
+        const agingInfo = (showAging && p.queue2_ticks !== undefined) ? `<span class="locks-indicator">Age: ${p.queue2_ticks}/50</span>` : '';
+        const locksStr = p.required_locks && p.required_locks.length ? `Locks: [${p.required_locks.join(', ')}]` : '';
+
+        html += `
+            <div class="pcb-card">
+                <div class="pcb-left">
+                    <span class="pcb-pid">#${p.pid}</span>
+                    <span class="tx-badge ${typeClass}">${p.type}</span>
+                    ${agedTag}
+                </div>
+                <div class="pcb-right">
+                    ${agingInfo}
+                    <span class="burst-indicator">${p.burst_time} ticks rem</span>
+                    <span class="locks-indicator">${locksStr}</span>
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
 }
 
-function updateBenchmarkTable(data) {
-    const b = data.baseline;
-    const a = data.adaptive;
+async function fetchTransitions() {
+    try {
+        const res = await fetch('/api/transitions');
+        if (!res.ok) return;
+        const list = await res.json();
 
-    document.getElementById('benchBaseTps').innerText = `${Math.round(b.throughput_tps)} tx/s`;
-    document.getElementById('benchAdapTps').innerText = `${Math.round(a.throughput_tps)} tx/s`;
-    const tpsGain = Math.round(((a.throughput_tps - b.throughput_tps) / Math.max(1, b.throughput_tps)) * 100);
-    document.getElementById('benchDiffTps').innerText = `+${tpsGain}% Throughput Gain`;
+        const tbody = document.getElementById('transitionsTableBody');
+        if (!tbody || !list || list.length === 0) return;
 
-    document.getElementById('benchBaseAbort').innerText = `${b.abort_rate_percent.toFixed(1)}% (Abort Storm)`;
-    document.getElementById('benchAdapAbort').innerText = `${a.abort_rate_percent.toFixed(1)}% (Regulated)`;
-    const abortDiff = (b.abort_rate_percent - a.abort_rate_percent).toFixed(1);
-    document.getElementById('benchDiffAbort').innerText = `-${abortDiff}% Aborts Mitigated`;
-
-    document.getElementById('benchBaseP50').innerText = `${b.p50_latency_ms.toFixed(1)} ms`;
-    document.getElementById('benchAdapP50').innerText = `${a.p50_latency_ms.toFixed(1)} ms`;
-    document.getElementById('benchDiffP50').innerText = `Stabilized`;
-
-    document.getElementById('benchBaseP95').innerText = `${b.p95_latency_ms.toFixed(1)} ms`;
-    document.getElementById('benchAdapP95').innerText = `${a.p95_latency_ms.toFixed(1)} ms`;
-    document.getElementById('benchDiffP95').innerText = `Tail Latency Tamed`;
-
-    document.getElementById('benchBaseP99').innerText = `${b.p99_latency_ms.toFixed(1)} ms`;
-    document.getElementById('benchAdapP99').innerText = `${a.p99_latency_ms.toFixed(1)} ms`;
-    document.getElementById('benchDiffP99').innerText = `Convoy Eliminated`;
-
-    document.getElementById('benchBaseRetail').innerText = `${b.retail_p95_ms.toFixed(1)} ms (Starvation)`;
-    document.getElementById('benchAdapRetail').innerText = `${a.retail_p95_ms.toFixed(1)} ms (MLFQ Q1)`;
-
-    document.getElementById('benchBaseSettle').innerText = `${b.settlement_p95_ms.toFixed(1)} ms (Contention)`;
-    document.getElementById('benchAdapSettle').innerText = `${a.settlement_p95_ms.toFixed(1)} ms (Demoted Tw)`;
+        let html = '';
+        // Render in reverse chronological order (newest on top)
+        for (let i = list.length - 1; i >= 0; --i) {
+            const t = list[i];
+            const typeClass = t.type === 'UPI' ? 'tag-upi' : (t.type === 'ATM' ? 'tag-atm' : 'tag-salary');
+            html += `
+                <tr>
+                    <td style="color: var(--cyan); font-weight: 700;">T+${t.tick}</td>
+                    <td style="font-weight: 700;">#${t.pid}</td>
+                    <td><span class="tx-badge ${typeClass}">${t.type}</span></td>
+                    <td><span class="state-badge state-${t.from_state}">${t.from_state}</span></td>
+                    <td><span class="state-badge state-${t.to_state}">${t.to_state}</span></td>
+                    <td style="color: var(--text-secondary);">${t.reason}</td>
+                </tr>
+            `;
+        }
+        tbody.innerHTML = html;
+    } catch (e) {
+        // retry
+    }
 }

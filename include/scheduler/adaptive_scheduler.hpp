@@ -117,6 +117,12 @@ public:
     uint64_t total_hotspot_demotions() const { return total_hotspot_demotions_.load(std::memory_order_relaxed); }
     uint64_t context_switches() const { return estimated_context_switches_.load(std::memory_order_relaxed); }
 
+    // Accessors
+    std::shared_ptr<MetricsSampler> sampler() const { return sampler_; }
+    std::shared_ptr<MLFQQueue> mlfq() const { return mlfq_; }
+    std::shared_ptr<AntiStarvationAgingEngine> aging_engine() const { return aging_engine_; }
+    std::shared_ptr<DynamicTokenBucket> token_bucket() const { return token_bucket_; }
+
     void reset_counters() {
         total_submitted_.store(0, std::memory_order_relaxed);
         total_committed_.store(0, std::memory_order_relaxed);
@@ -135,11 +141,13 @@ private:
             std::this_thread::sleep_for(Milliseconds(20));
             if (!running_.load(std::memory_order_relaxed)) break;
 
-            // 1. Telemetry sampling step
+            // 1. Telemetry sampling step with proactive ML & MLFQ quota pre-allocation
             sampler_->sample_step(mlfq_->q1_size(), mlfq_->q2_size(), mlfq_->q3_size(),
                                   active_workers_count_.load(std::memory_order_relaxed),
                                   aging_engine_->total_migrations(),
-                                  total_hotspot_demotions_.load(std::memory_order_relaxed));
+                                  total_hotspot_demotions_.load(std::memory_order_relaxed),
+                                  mlfq_,
+                                  aging_engine_);
 
             // 2. Hotspot Demotion Feedback:
             // Check identified hot accounts from LockManager
@@ -175,6 +183,16 @@ private:
 
         // Bounded lock waiting Tw = 2 * AvgLatency from dynamic sampler
         Milliseconds tw = sampler_->bounded_wait_timeout();
+        auto alloc = sampler_->proactive_quota_manager()->current_allocation();
+        if (tx->current_tier() == QueueTier::Q3_LOW_BATCH) {
+            tw = std::min(tw, alloc.q3_quantum_ms);
+            tx->set_allocated_quantum(alloc.q3_quantum_ms);
+        } else if (tx->current_tier() == QueueTier::Q1_HIGH_INTERACTIVE) {
+            tx->set_allocated_quantum(alloc.q1_quantum_ms);
+        } else {
+            tx->set_allocated_quantum(alloc.q2_quantum_ms);
+        }
+
         bool had_conflict = false;
 
         bool success = ledger_->execute_transaction(tx, tw, had_conflict);

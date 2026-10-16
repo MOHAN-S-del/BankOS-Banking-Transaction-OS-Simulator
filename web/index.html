@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Adaptive Ledger OS — Banking Switch Middleware Dashboard</title>
-    <meta name="description" content="Autonomous Concurrency-Regulated and CPU-Scheduled Transaction Processing Middleware for Banking Switches">
+    <title>BankOS: Banking Transaction OS Simulator — MLFQ CPU Scheduler</title>
+    <meta name="description" content="Multi-Level Feedback Queue (MLFQ) Transaction Processing OS Simulator with SRTF, Round Robin, and Anti-Starvation Aging">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,310 +22,218 @@
                 <div class="brand-logo">
                     <span class="logo-pulse"></span>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                        <polyline points="2 17 12 22 22 17"></polyline>
-                        <polyline points="2 12 12 17 22 12"></polyline>
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
                     </svg>
                 </div>
                 <div class="brand-text">
-                    <h1>ADAPTIVE LEDGER OS</h1>
-                    <span class="brand-subtitle">Autonomous Concurrency-Regulated & MLFQ Scheduled Banking Switch</span>
+                    <h1>BANK TRANSACTION OS SIMULATOR</h1>
+                    <span class="brand-subtitle">Multi-Level Feedback Queue (MLFQ) Scheduler &bull; 176,000 Banking Processes</span>
                 </div>
             </div>
 
             <div class="header-status">
-                <div class="status-badge" id="hysteresisStatusBadge">
+                <div class="status-badge" id="simStatusBadge">
                     <span class="status-dot"></span>
-                    <span id="hysteresisStatusText">STATE: NORMAL</span>
+                    <span id="simStatusText">STATE: RUNNING</span>
                 </div>
-                <button class="btn btn-primary" id="btnRunBenchmark">
+                <button class="btn btn-secondary" id="btnPauseResume">Pause Simulation</button>
+                <button class="btn btn-primary" id="btnExportJson">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
-                    <span>Run Verification Benchmark</span>
+                    <span>Save state_transitions.json</span>
                 </button>
             </div>
         </header>
 
-        <!-- Main Grid -->
-        <main class="dashboard-grid">
-            <!-- Top Metric Cards -->
-            <section class="metrics-row">
-                <!-- Composite Contention Index (Ct) -->
-                <div class="glass-card metric-card primary-highlight">
-                    <div class="card-header">
-                        <span class="card-title">COMPOSITE CONTENTION INDEX</span>
-                        <span class="formula-tag">C<sub>t</sub></span>
-                    </div>
-                    <div class="metric-value-container">
-                        <span class="metric-huge" id="valCt">0.00</span>
-                        <div class="index-bar-track">
-                            <div class="index-bar-fill" id="barCt" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="metric-footer">
-                        <span>C<sub>t</sub> = 0.30·CR + 0.30·AR + 0.20·QL + 0.20·RI</span>
-                    </div>
+        <!-- Metric KPI Cards -->
+        <section class="metrics-row">
+            <!-- Current Tick -->
+            <div class="glass-card metric-card primary-highlight">
+                <div class="card-header">
+                    <span class="card-title">SIMULATION CLOCK</span>
+                    <span class="formula-tag">Tick</span>
                 </div>
-
-                <!-- Effective Admission Rate -->
-                <div class="glass-card metric-card">
-                    <div class="card-header">
-                        <span class="card-title">EFFECTIVE ADMISSION RATE</span>
-                        <span class="formula-tag">&lambda;<sub>eff</sub></span>
-                    </div>
-                    <div class="metric-value-container">
-                        <span class="metric-huge text-cyan" id="valLambdaEff">--</span>
-                        <span class="metric-unit">tx / sec</span>
-                    </div>
-                    <div class="metric-footer">
-                        <span>Dynamic Token Bucket: &lambda;<sub>max</sub> &times; (1 - C<sub>t</sub>)</span>
-                    </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge" id="valTick">0</span>
                 </div>
-
-                <!-- Bounded Wait Timeout Tw -->
-                <div class="glass-card metric-card">
-                    <div class="card-header">
-                        <span class="card-title">BOUNDED WAIT TIMEOUT</span>
-                        <span class="formula-tag">T<sub>w</sub></span>
-                    </div>
-                    <div class="metric-value-container">
-                        <span class="metric-huge text-amber" id="valTw">--</span>
-                        <span class="metric-unit">ms</span>
-                    </div>
-                    <div class="metric-footer">
-                        <span>Wait-vs-Abort: T<sub>w</sub> = 2 &times; AvgLatency</span>
-                    </div>
+                <div class="metric-footer">
+                    <span>Discrete CPU scheduler ticks</span>
                 </div>
-
-                <!-- Total Committed Transactions -->
-                <div class="glass-card metric-card">
-                    <div class="card-header">
-                        <span class="card-title">COMMITTED TRANSACTIONS</span>
-                        <span class="formula-tag">ACID</span>
-                    </div>
-                    <div class="metric-value-container">
-                        <span class="metric-huge text-emerald" id="valCommitted">0</span>
-                        <span class="metric-unit">commits</span>
-                    </div>
-                    <div class="metric-footer">
-                        <span id="valAbortedText">0 aborts | 0 retries</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Middle Section: 3-Tier MLFQ Scheduler & Telemetry Breakdown -->
-            <div class="two-col-layout">
-                <!-- 3-Tier MLFQ CPU Scheduler Visualizer -->
-                <section class="glass-card scheduler-panel">
-                    <div class="panel-header">
-                        <div class="panel-title-group">
-                            <h2>Core OS Layer: Hybrid MLFQ Scheduler</h2>
-                            <p>Fixed Worker Pool processing transactions from 3-Tier priority queues</p>
-                        </div>
-                        <div class="worker-pill">
-                            <span class="worker-icon">&#9881;</span>
-                            <span id="workerStatus">Active Workers: 0 / 8</span>
-                        </div>
-                    </div>
-
-                    <div class="mlfq-lanes">
-                        <!-- Queue 1 -->
-                        <div class="mlfq-lane tier-1">
-                            <div class="lane-header">
-                                <div class="lane-tag tag-q1">QUEUE 1</div>
-                                <span class="lane-name">High Priority / Interactive</span>
-                                <span class="lane-quantum">Quantum: 10ms (SRTF)</span>
-                            </div>
-                            <div class="lane-bar-wrapper">
-                                <div class="lane-bar" id="barQ1" style="width: 0%"></div>
-                                <span class="lane-count" id="countQ1">0 pending</span>
-                            </div>
-                            <div class="lane-desc">Fast micro-payments & balance lookups. Shortest Remaining Time First.</div>
-                        </div>
-
-                        <!-- Queue 2 -->
-                        <div class="mlfq-lane tier-2">
-                            <div class="lane-header">
-                                <div class="lane-tag tag-q2">QUEUE 2</div>
-                                <span class="lane-name">Medium Priority / Standard</span>
-                                <span class="lane-quantum">Quantum: 50ms (FIFO)</span>
-                            </div>
-                            <div class="lane-bar-wrapper">
-                                <div class="lane-bar" id="barQ2" style="width: 0%"></div>
-                                <span class="lane-count" id="countQ2">0 pending</span>
-                            </div>
-                            <div class="lane-desc">Standard interbank transfers requiring multi-account coordination.</div>
-                        </div>
-
-                        <!-- Queue 3 -->
-                        <div class="mlfq-lane tier-3">
-                            <div class="lane-header">
-                                <div class="lane-tag tag-q3">QUEUE 3</div>
-                                <span class="lane-name">Low Priority / Batch Jobs</span>
-                                <span class="lane-quantum">Quantum: 200ms (FIFO)</span>
-                            </div>
-                            <div class="lane-bar-wrapper">
-                                <div class="lane-bar" id="barQ3" style="width: 0%"></div>
-                                <span class="lane-count" id="countQ3">0 pending</span>
-                            </div>
-                            <div class="lane-desc">Bulk payroll batches with high read/write operation count.</div>
-                        </div>
-                    </div>
-
-                    <div class="scheduler-diagnostics">
-                        <div class="diag-item">
-                            <span class="diag-label">Anti-Starvation Migrations (Q3 &rarr; Q1):</span>
-                            <span class="diag-val text-cyan" id="valAgingMig">0</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">Hotspot Demotions (Anti-Convoy):</span>
-                            <span class="diag-val text-amber" id="valHotspotDem">0</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">Throttled By Admission Gate:</span>
-                            <span class="diag-val text-crimson" id="valThrottled">0</span>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Core DBMS Layer: MD-ACC Real-Time Telemetry Sampler -->
-                <section class="glass-card telemetry-panel">
-                    <div class="panel-header">
-                        <div class="panel-title-group">
-                            <h2>Core DBMS Layer: MD-ACC Telemetry</h2>
-                            <p>Real-Time sliding-window telemetry components</p>
-                        </div>
-                        <span class="window-pill">Sliding Window: 10 &times; 100ms</span>
-                    </div>
-
-                    <div class="telemetry-grid">
-                        <div class="telemetry-gauge">
-                            <div class="gauge-header">
-                                <span>Conflict Rate (&circ;CR<sub>t</sub>)</span>
-                                <span class="gauge-value" id="valCr">0.00</span>
-                            </div>
-                            <div class="gauge-track">
-                                <div class="gauge-fill fill-amber" id="barCr" style="width: 0%"></div>
-                            </div>
-                            <span class="gauge-sub">Weight: 30% in C<sub>t</sub></span>
-                        </div>
-
-                        <div class="telemetry-gauge">
-                            <div class="gauge-header">
-                                <span>Abort / Rollback Rate (&circ;AR<sub>t</sub>)</span>
-                                <span class="gauge-value" id="valAr">0.00</span>
-                            </div>
-                            <div class="gauge-track">
-                                <div class="gauge-fill fill-crimson" id="barAr" style="width: 0%"></div>
-                            </div>
-                            <span class="gauge-sub">Weight: 30% in C<sub>t</sub></span>
-                        </div>
-
-                        <div class="telemetry-gauge">
-                            <div class="gauge-header">
-                                <span>Lock Queue Depth (&circ;QL<sub>t</sub>)</span>
-                                <span class="gauge-value" id="valQl">0.00</span>
-                            </div>
-                            <div class="gauge-track">
-                                <div class="gauge-fill fill-purple" id="barQl" style="width: 0%"></div>
-                            </div>
-                            <span class="gauge-sub">Weight: 20% in C<sub>t</sub></span>
-                        </div>
-
-                        <div class="telemetry-gauge">
-                            <div class="gauge-header">
-                                <span>Retry Intensity (&circ;RI<sub>t</sub>)</span>
-                                <span class="gauge-value" id="valRi">0.00</span>
-                            </div>
-                            <div class="gauge-track">
-                                <div class="gauge-fill fill-blue" id="barRi" style="width: 0%"></div>
-                            </div>
-                            <span class="gauge-sub">Weight: 20% in C<sub>t</sub></span>
-                        </div>
-                    </div>
-
-                    <div class="hysteresis-explainer">
-                        <h4>Hysteresis Gate State Engine:</h4>
-                        <div class="hysteresis-steps">
-                            <span class="h-step active-step" id="hStepNormal">NORMAL (C<sub>t</sub> &lt; 0.50)</span>
-                            <span class="h-arrow">&rarr;</span>
-                            <span class="h-step" id="hStepElevated">ELEVATED</span>
-                            <span class="h-arrow">&rarr;</span>
-                            <span class="h-step" id="hStepHigh">HIGH_CONTENTION (C<sub>t</sub> &ge; 0.70 &times; 3)</span>
-                        </div>
-                    </div>
-                </section>
             </div>
 
-            <!-- Bottom Section: Verification Benchmark Comparison (Baseline vs Adaptive OS) -->
-            <section class="glass-card benchmark-section" id="benchmarkSection">
+            <!-- Total Completed -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">TERMINATED PROCESSES</span>
+                    <span class="formula-tag">176K Total</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-emerald" id="valCompleted">0</span>
+                    <span class="metric-unit">/ 176,000</span>
+                </div>
+                <div class="index-bar-track">
+                    <div class="index-bar-fill" id="barProgress" style="width: 0%"></div>
+                </div>
+                <div class="metric-footer">
+                    <span id="valProgressPct">0.0% of workload completed</span>
+                </div>
+            </div>
+
+            <!-- Aging Promotions -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">AGING PROMOTIONS</span>
+                    <span class="formula-tag">Q2 &rarr; Q1</span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-amber" id="valAgingPromotions">0</span>
+                    <span class="metric-unit">promoted</span>
+                </div>
+                <div class="metric-footer">
+                    <span>Starvation prevented (Threshold X = 50 ticks)</span>
+                </div>
+            </div>
+
+            <!-- Latency / Turnaround -->
+            <div class="glass-card metric-card">
+                <div class="card-header">
+                    <span class="card-title">AVG TURNAROUND TIME</span>
+                    <span class="formula-tag">T<sub>turnaround</sub></span>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-huge text-cyan" id="valAvgTurnaround">0.0</span>
+                    <span class="metric-unit">ticks</span>
+                </div>
+                <div class="metric-footer">
+                    <span id="valAvgWaitText">Avg Wait Time: 0.0 ticks</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Running Process Banner -->
+        <section class="glass-card cpu-running-card" id="cpuRunningCard">
+            <div class="cpu-header">
+                <div class="cpu-title-group">
+                    <span class="cpu-icon">&#9881;</span>
+                    <div>
+                        <h3>CPU Core Dispatcher: Active RUNNING Process</h3>
+                        <p id="runningDesc">Waiting for next ready process...</p>
+                    </div>
+                </div>
+                <div class="running-pcb-badge" id="runningBadge">IDLE</div>
+            </div>
+            <div class="running-details" id="runningDetails" style="display: none;">
+                <div class="detail-col">
+                    <span class="detail-label">Process ID:</span>
+                    <strong class="detail-val" id="runPid">--</strong>
+                </div>
+                <div class="detail-col">
+                    <span class="detail-label">Tx Type:</span>
+                    <strong class="detail-val text-cyan" id="runType">--</strong>
+                </div>
+                <div class="detail-col">
+                    <span class="detail-label">Origin Queue:</span>
+                    <strong class="detail-val" id="runQueue">--</strong>
+                </div>
+                <div class="detail-col">
+                    <span class="detail-label">Remaining Burst:</span>
+                    <strong class="detail-val text-amber" id="runBurst">--</strong>
+                </div>
+                <div class="detail-col">
+                    <span class="detail-label">Held Locks:</span>
+                    <strong class="detail-val text-purple" id="runLocks">--</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- MLFQ Queues Visualization Grid -->
+        <div class="two-col-layout">
+            <!-- Queue 1: High Priority SRTF -->
+            <section class="glass-card queue-panel">
                 <div class="panel-header">
                     <div class="panel-title-group">
-                        <h2>Verification Suite: Baseline vs Adaptive Ledger OS</h2>
-                        <p>High Contention Stress Test (Shared Settlement Hotspot = 50% traffic, C<sub>t</sub> &ge; 0.8)</p>
+                        <div class="title-with-badge">
+                            <h2>Queue 1: High Priority (SRTF)</h2>
+                            <span class="badge-srtf">Shortest Remaining Time First</span>
+                        </div>
+                        <p>Interactive UPI &amp; ATM transactions + Promoted Salary processes</p>
                     </div>
-                    <div class="benchmark-status" id="benchmarkStatus">Ready to run</div>
+                    <span class="queue-count-pill" id="q1CountPill">0 Ready</span>
                 </div>
 
-                <div class="benchmark-table-wrapper">
-                    <table class="benchmark-table">
-                        <thead>
-                            <tr>
-                                <th>METRIC</th>
-                                <th>BASELINE (2PL / FIFO POOL)</th>
-                                <th>ADAPTIVE LEDGER OS</th>
-                                <th>ARCHITECTURAL ADVANTAGE</th>
-                            </tr>
-                        </thead>
-                        <tbody id="benchmarkTableBody">
-                            <tr>
-                                <td>Commit Throughput</td>
-                                <td id="benchBaseTps">--</td>
-                                <td id="benchAdapTps" class="highlight-emerald">--</td>
-                                <td id="benchDiffTps" class="gain-badge">--</td>
-                            </tr>
-                            <tr>
-                                <td>Abort / Rollback Rate</td>
-                                <td id="benchBaseAbort">--</td>
-                                <td id="benchAdapAbort" class="highlight-emerald">--</td>
-                                <td id="benchDiffAbort" class="gain-badge">--</td>
-                            </tr>
-                            <tr>
-                                <td>P50 Latency</td>
-                                <td id="benchBaseP50">--</td>
-                                <td id="benchAdapP50">--</td>
-                                <td id="benchDiffP50">--</td>
-                            </tr>
-                            <tr>
-                                <td>P95 Latency</td>
-                                <td id="benchBaseP95">--</td>
-                                <td id="benchAdapP95" class="highlight-emerald">--</td>
-                                <td id="benchDiffP95" class="gain-badge">--</td>
-                            </tr>
-                            <tr>
-                                <td>P99 Tail Latency</td>
-                                <td id="benchBaseP99">--</td>
-                                <td id="benchAdapP99" class="highlight-emerald">--</td>
-                                <td id="benchDiffP99" class="gain-badge">--</td>
-                            </tr>
-                            <tr>
-                                <td>Retail Micro-Payment P95</td>
-                                <td id="benchBaseRetail">-- (Starved behind batch)</td>
-                                <td id="benchAdapRetail" class="highlight-emerald">-- (Protected by MLFQ Q1)</td>
-                                <td class="gain-badge text-emerald">NO STARVATION</td>
-                            </tr>
-                            <tr>
-                                <td>Settlement Hotspot P95</td>
-                                <td id="benchBaseSettle">-- (Lock Explosion)</td>
-                                <td id="benchAdapSettle" class="highlight-emerald">-- (Bounded Tw + Backoff)</td>
-                                <td class="gain-badge text-emerald">CONVOY MITIGATED</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="process-cards-container" id="q1ProcessList">
+                    <div class="empty-placeholder">Queue 1 is currently empty</div>
                 </div>
             </section>
-        </main>
+
+            <!-- Queue 2: Low Priority Round Robin -->
+            <section class="glass-card queue-panel">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <div class="title-with-badge">
+                            <h2>Queue 2: Low Priority (Round Robin)</h2>
+                            <span class="badge-rr">Quantum: 5 ticks &bull; Aging X: 50 ticks</span>
+                        </div>
+                        <p>Batch Corporate Salary Processing with Anti-Starvation Aging</p>
+                    </div>
+                    <span class="queue-count-pill" id="q2CountPill">0 Ready</span>
+                </div>
+
+                <div class="process-cards-container" id="q2ProcessList">
+                    <div class="empty-placeholder">Queue 2 is currently empty</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Waiting & Concurrency Locks Panel -->
+        <section class="glass-card waiting-panel">
+            <div class="panel-header">
+                <div class="panel-title-group">
+                    <h2>Blocked Processes (WAITING on Account Locks)</h2>
+                    <p>Transactions paused until contending 2PL account locks are released</p>
+                </div>
+                <span class="queue-count-pill pill-amber" id="waitingCountPill">0 Blocked</span>
+            </div>
+            <div class="process-cards-container horizontal-scroll" id="waitingProcessList">
+                <div class="empty-placeholder">No processes currently blocked on locks</div>
+            </div>
+        </section>
+
+        <!-- Live State Transitions Log Feed -->
+        <section class="glass-card transitions-panel">
+            <div class="panel-header">
+                <div class="panel-title-group">
+                    <h2>Real-Time State Transitions Feed</h2>
+                    <p>Capturing lifecycle state changes: NEW &rarr; READY &rarr; RUNNING &rarr; WAITING &rarr; TERMINATED</p>
+                </div>
+                <span class="log-indicator">Live Polling</span>
+            </div>
+
+            <div class="transitions-table-wrapper">
+                <table class="transitions-table">
+                    <thead>
+                        <tr>
+                            <th>TICK</th>
+                            <th>PID</th>
+                            <th>TYPE</th>
+                            <th>FROM STATE</th>
+                            <th>TO STATE</th>
+                            <th>TRANSITION REASON</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transitionsTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--text-muted);">Waiting for transitions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 
     <script src="app.js"></script>

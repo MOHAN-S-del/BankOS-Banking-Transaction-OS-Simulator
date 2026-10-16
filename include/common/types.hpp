@@ -154,6 +154,15 @@ struct TelemetrySnapshot {
     double throughput_tps{0.0};
     uint64_t starvation_migrations{0};
     uint64_t hotspot_demotions{0};
+
+    // Predictive Machine Learning & Proactive MLFQ Quotas
+    double predicted_contention{0.0};
+    double forecast_horizon_ms{30.0};
+    std::string proactive_policy_mode{"BASELINE_STABLE"};
+    std::string anticipated_regime{"NORMAL_RETAIL"};
+    uint64_t proactive_interventions{0};
+    double q1_preallocated_quota{50.0};
+    double q3_quantum_allocated_ms{200.0};
 };
 
 // Benchmark Summary Report

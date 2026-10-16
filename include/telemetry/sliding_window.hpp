@@ -10,6 +10,7 @@ namespace adaptive_os {
 
 struct WindowBucket {
     uint64_t total_tx_attempts{0};
+    uint64_t batch_tx_count{0};
     uint64_t conflict_events{0};
     uint64_t abort_events{0};
     uint64_t retry_events{0};
@@ -26,10 +27,13 @@ public:
           current_bucket_idx_(0), last_rotate_time_(HighResClock::now()),
           buckets_(window_buckets) {}
 
-    void record_tx_attempt() {
+    void record_tx_attempt(bool is_batch = false) {
         std::lock_guard<std::mutex> lock(mtx_);
         check_and_rotate();
         buckets_[current_bucket_idx_].total_tx_attempts++;
+        if (is_batch) {
+            buckets_[current_bucket_idx_].batch_tx_count++;
+        }
     }
 
     void record_conflict() {
@@ -64,14 +68,15 @@ public:
         buckets_[current_bucket_idx_].latency_samples++;
     }
 
-    // Compute composite contention index Ct
-    // Ct = 0.30 * CR_hat + 0.30 * AR_hat + 0.20 * QL_hat + 0.20 * RI_hat
-    void compute_metrics(double& cr_hat, double& ar_hat, double& ql_hat, double& ri_hat,
-                         double& composite_c_t, double& avg_latency_ms) {
+    // Compute composite contention index Ct and extended ML features
+    void compute_extended_metrics(double& cr_hat, double& ar_hat, double& ql_hat, double& ri_hat,
+                                  double& composite_c_t, double& avg_latency_ms,
+                                  float& arrival_velocity, float& batch_ratio) {
         std::lock_guard<std::mutex> lock(mtx_);
         check_and_rotate();
 
         uint64_t total_attempts = 0;
+        uint64_t total_batches = 0;
         uint64_t total_conflicts = 0;
         uint64_t total_aborts = 0;
         uint64_t total_retries = 0;
@@ -80,8 +85,14 @@ public:
         double total_lat_sum = 0.0;
         uint64_t total_lat_samples = 0;
 
-        for (const auto& b : buckets_) {
+        uint64_t recent_attempts = 0;
+        uint64_t prior_attempts = 0;
+        size_t half_window = num_buckets_ / 2;
+
+        for (size_t i = 0; i < num_buckets_; ++i) {
+            const auto& b = buckets_[i];
             total_attempts += b.total_tx_attempts;
+            total_batches += b.batch_tx_count;
             total_conflicts += b.conflict_events;
             total_aborts += b.abort_events;
             total_retries += b.retry_events;
@@ -89,10 +100,17 @@ public:
             total_qd_samples += b.queue_depth_samples;
             total_lat_sum += b.sum_latency_ms;
             total_lat_samples += b.latency_samples;
+
+            // Velocity: compare latest half vs older half
+            if ((i >= current_bucket_idx_ && i < current_bucket_idx_ + half_window) ||
+                (current_bucket_idx_ + half_window >= num_buckets_ && i < (current_bucket_idx_ + half_window) % num_buckets_)) {
+                recent_attempts += b.total_tx_attempts;
+            } else {
+                prior_attempts += b.total_tx_attempts;
+            }
         }
 
         // 1. Normalized Conflict Rate (CR_hat)
-        // Ratio of conflict events to total attempts (normalized to [0, 1])
         if (total_attempts > 0) {
             cr_hat = std::min(1.0, static_cast<double>(total_conflicts) / static_cast<double>(total_attempts));
         } else {
@@ -107,7 +125,6 @@ public:
         }
 
         // 3. Lock Queue Depth (QL_hat)
-        // Average lock wait queue depth normalized against scaling factor (e.g. 10.0 queue depth = 1.0)
         constexpr double MAX_EXPECTED_QUEUE_DEPTH = 10.0;
         if (total_qd_samples > 0) {
             double avg_qd = static_cast<double>(total_qd_sum) / static_cast<double>(total_qd_samples);
@@ -117,7 +134,6 @@ public:
         }
 
         // 4. Retry Intensity (RI_hat)
-        // Ratio of retries to total transactions normalized against a factor of 2.0
         if (total_attempts > 0) {
             double retry_ratio = static_cast<double>(total_retries) / static_cast<double>(total_attempts);
             ri_hat = std::min(1.0, retry_ratio / 2.0);
@@ -135,6 +151,29 @@ public:
         } else {
             avg_latency_ms = 5.0; // Default floor
         }
+
+        // Batch ratio for predictive feature vector
+        if (total_attempts > 0) {
+            batch_ratio = std::clamp(static_cast<float>(total_batches) / static_cast<float>(total_attempts), 0.0f, 1.0f);
+        } else {
+            batch_ratio = 0.0f;
+        }
+
+        // Arrival velocity: rate of change
+        if (prior_attempts > 0) {
+            float vel = static_cast<float>(recent_attempts) / static_cast<float>(prior_attempts);
+            arrival_velocity = std::clamp(vel / 2.5f, 0.0f, 1.0f);
+        } else if (recent_attempts > 0) {
+            arrival_velocity = 0.5f;
+        } else {
+            arrival_velocity = 0.0f;
+        }
+    }
+
+    void compute_metrics(double& cr_hat, double& ar_hat, double& ql_hat, double& ri_hat,
+                         double& composite_c_t, double& avg_latency_ms) {
+        float vel = 0.0f, batch = 0.0f;
+        compute_extended_metrics(cr_hat, ar_hat, ql_hat, ri_hat, composite_c_t, avg_latency_ms, vel, batch);
     }
 
 private:

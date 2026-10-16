@@ -36,6 +36,7 @@ private:
     std::string handle_get_status();
     std::string handle_get_accounts();
     std::string handle_run_benchmark();
+    std::string handle_trigger_spike(const std::string& path);
     std::string serve_static_file(const std::string& path);
 
     int port_;

@@ -1,5 +1,8 @@
 build/
 adaptive_ledger_os
+bank_os_sim
+state_transitions.json
+test_state_transitions.json
 *.o
 .DS_Store
 .cache/
