@@ -220,39 +220,57 @@ public:
     }
 
     /**
-     * Export all recorded state transitions to a JSON file.
+     * Export all recorded state transitions to both MySQL database and JSON file.
+     * Persists snapshot in AuditExports and StateTransitionAudits tables.
      */
-    void export_transitions_to_json(const std::string& filename, size_t max_records = 50000) {
+    size_t export_audit_to_database_and_file(const std::string& filename, size_t max_records, int& out_export_id) {
         std::lock_guard<std::mutex> lock(mtx_);
-        std::ofstream file(filename);
-        if (!file.is_open()) {
-            std::cerr << "[MLFQScheduler] Failed to open " << filename << " for writing\n";
-            return;
-        }
+        out_export_id = 0;
 
-        file << "{\n";
-        file << "  \"simulation_summary\": {\n";
-        file << "    \"total_ticks\": " << current_tick_ << ",\n";
-        file << "    \"total_completed\": " << total_completed_ << ",\n";
-        file << "    \"aging_promotions\": " << total_aging_promotions_ << ",\n";
-        file << "    \"aging_threshold_ticks\": " << aging_threshold_ << ",\n";
-        file << "    \"avg_turnaround_time\": " << (total_completed_ > 0 ? static_cast<double>(total_turnaround_time_) / total_completed_ : 0.0) << ",\n";
-        file << "    \"avg_waiting_time\": " << (total_completed_ > 0 ? static_cast<double>(total_waiting_time_) / total_completed_ : 0.0) << "\n";
-        file << "  },\n";
-        file << "  \"state_transitions\": [\n";
-
+        // 1. Write JSON file snapshot
         size_t count = std::min(transitions_.size(), max_records);
-        for (size_t i = 0; i < count; ++i) {
-            file << "    " << transitions_[i].to_json();
-            if (i + 1 < count) file << ",";
-            file << "\n";
+        std::ofstream file(filename);
+        if (file.is_open()) {
+            file << "{\n";
+            file << "  \"simulation_summary\": {\n";
+            file << "    \"total_ticks\": " << current_tick_ << ",\n";
+            file << "    \"total_completed\": " << total_completed_ << ",\n";
+            file << "    \"aging_promotions\": " << total_aging_promotions_ << ",\n";
+            file << "    \"aging_threshold_ticks\": " << aging_threshold_ << ",\n";
+            file << "    \"avg_turnaround_time\": " << (total_completed_ > 0 ? static_cast<double>(total_turnaround_time_) / total_completed_ : 0.0) << ",\n";
+            file << "    \"avg_waiting_time\": " << (total_completed_ > 0 ? static_cast<double>(total_waiting_time_) / total_completed_ : 0.0) << "\n";
+            file << "  },\n";
+            file << "  \"state_transitions\": [\n";
+            for (size_t i = 0; i < count; ++i) {
+                file << "    " << transitions_[i].to_json();
+                if (i + 1 < count) file << ",";
+                file << "\n";
+            }
+            file << "  ]\n";
+            file << "}\n";
+            file.close();
+            std::cout << "[MLFQScheduler] Wrote " << count << " transitions to " << filename << "\n";
         }
 
-        file << "  ]\n";
-        file << "}\n";
-        file.close();
+        // 2. Persist directly into Database (AuditExports and StateTransitionAudits)
+        if (mysql_storage_) {
+            mysql_storage_->save_audit_export(
+                current_tick_,
+                total_completed_,
+                static_cast<int>(mysql_storage_->total_commits()),
+                static_cast<int>(mysql_storage_->total_rollbacks()),
+                lock_manager_ ? static_cast<int>(lock_manager_->deadlocks_prevented()) : 0,
+                transitions_,
+                out_export_id
+            );
+        }
 
-        std::cout << "[MLFQScheduler] Wrote " << count << " transitions to " << filename << "\n";
+        return count;
+    }
+
+    void export_transitions_to_json(const std::string& filename, size_t max_records = 50000) {
+        int dummy_id = 0;
+        export_audit_to_database_and_file(filename, max_records, dummy_id);
     }
 
     // JSON API queries for Web Dashboard

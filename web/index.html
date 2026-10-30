@@ -1196,6 +1196,53 @@ ORDER BY t.TxID DESC LIMIT 25;</code></pre>
                     </table>
                 </div>
             </section>
+
+            <!-- 4. Exported Audit Snapshots in Database -->
+            <section class="card-panel" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div class="header-title">
+                        <span class="card-icon">💾</span>
+                        <div>
+                            <h2>DATABASE PERSISTENT AUDIT EXPORTS</h2>
+                            <span class="subtitle">Tables: <code>AuditExports</code> (Snapshots) &bull; <code>StateTransitionAudits</code> (Transition Events)</span>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-outline" id="btnRefreshExports">
+                            <span class="btn-icon">↻</span>
+                            <span>REFRESH EXPORTS</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="simple-expl-box">
+                    <span class="expl-tag">Database Persistence:</span> Whenever you click <strong>EXPORT AUDIT</strong> (top right), the entire state transition audit trail is permanently written to the MySQL tables <code>AuditExports</code> and <code>StateTransitionAudits</code>. You can query these directly via SQL or inspect them in the table below.
+                </div>
+
+                <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                    <table class="pcb-table" id="dbExportsTable">
+                        <thead>
+                            <tr>
+                                <th>EXPORT ID</th>
+                                <th>EXPORT TIMESTAMP</th>
+                                <th>TRANSITIONS SAVED</th>
+                                <th>COMMITS</th>
+                                <th>ROLLBACKS</th>
+                                <th>DEADLOCKS PREVENTED</th>
+                                <th>STATUS</th>
+                                <th>SUMMARY</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dbExportsTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">
+                                    Click "EXPORT AUDIT" (top right) to save the current audit snapshot directly into the database!
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </main>
     </div>
 

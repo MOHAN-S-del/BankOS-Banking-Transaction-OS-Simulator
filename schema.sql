@@ -88,13 +88,50 @@ CREATE TABLE IF NOT EXISTS AuditLogs (
     LogID INT PRIMARY KEY AUTO_INCREMENT,
     TxID INT NULL,
     AccountID INT NULL,
-    EventType VARCHAR(50) NOT NULL,    -- 'RATE_LIMIT_EXCEEDED', 'INSUFFICIENT_FUNDS', 'DEADLOCK_AVOIDED', 'SYSTEM_STARTUP'
+    EventType VARCHAR(50) NOT NULL,    -- 'RATE_LIMIT_EXCEEDED', 'INSUFFICIENT_FUNDS', 'DEADLOCK_AVOIDED', 'SYSTEM_STARTUP', 'EXPORT_AUDIT_SAVED'
     Severity ENUM('INFO', 'WARNING', 'CRITICAL') DEFAULT 'INFO',
     Description TEXT NOT NULL,
     CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_audit_account (AccountID),
     INDEX idx_event_type (EventType),
     FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
+-- Table 6: AuditExports
+-- Stores persistent audit batches generated when "EXPORT AUDIT" is clicked.
+-- Contains aggregate metrics, timestamp, and audit trail metadata.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS AuditExports (
+    ExportID INT PRIMARY KEY AUTO_INCREMENT,
+    ExportTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    TotalTransitions INT NOT NULL,
+    TotalCompleted INT NOT NULL,
+    TotalCommits INT NOT NULL,
+    TotalRollbacks INT NOT NULL,
+    DeadlocksPrevented INT NOT NULL,
+    Status VARCHAR(32) DEFAULT 'SAVED_TO_DB',
+    SummaryText TEXT NOT NULL
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
+-- Table 7: StateTransitionAudits
+-- High-resolution state transition log linked to an AuditExport batch.
+-- Stores OldState, NewState, Tick, PID, and scheduling decisions.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS StateTransitionAudits (
+    AuditID INT PRIMARY KEY AUTO_INCREMENT,
+    ExportID INT NOT NULL,
+    PID INT NOT NULL,
+    TransactionType VARCHAR(32) NOT NULL,
+    OldState VARCHAR(32) NOT NULL,
+    NewState VARCHAR(32) NOT NULL,
+    Tick INT NOT NULL,
+    Reason TEXT,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_export (ExportID),
+    INDEX idx_pid (PID),
+    FOREIGN KEY (ExportID) REFERENCES AuditExports(ExportID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
@@ -191,3 +228,22 @@ SELECT
 FROM Customers c
 LEFT JOIN Accounts a ON c.CustomerID = a.CustomerID
 GROUP BY c.CustomerID, c.FullName, c.CustomerType, c.Status;
+
+-- ----------------------------------------------------------------------------
+-- JOIN QUERY 3: Audit Export Details Multi-Table JOIN
+-- Relates Export ID with individual transition events and PIDs
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW View_Audit_Export_Transitions AS
+SELECT 
+    e.ExportID,
+    e.ExportTime,
+    s.AuditID,
+    s.PID,
+    s.TransactionType,
+    s.OldState,
+    s.NewState,
+    s.Tick,
+    s.Reason
+FROM AuditExports e
+INNER JOIN StateTransitionAudits s ON e.ExportID = s.ExportID
+ORDER BY s.AuditID DESC;

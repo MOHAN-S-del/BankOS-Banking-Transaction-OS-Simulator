@@ -109,6 +109,29 @@ def inspect_via_api():
             ])
         print_table(acc_headers, acc_rows)
 
+        # Table 4: AuditExports (Saved into Database via Export Audit)
+        try:
+            req_exp = urllib.request.Request(f"{base_url}/api/database/exports")
+            with urllib.request.urlopen(req_exp, timeout=3) as res:
+                exp_data = json.loads(res.read().decode('utf-8'))
+            if exp_data:
+                print_header("TABLE 4: AuditExports (Audit Snapshots Saved in Database)")
+                exp_headers = ["ExportID", "Timestamp", "Transitions", "Commits", "Rollbacks", "Deadlocks", "Status"]
+                exp_rows = []
+                for e in exp_data[:10]:
+                    exp_rows.append([
+                        f"BATCH #{e.get('export_id')}",
+                        e.get("export_time", ""),
+                        f"{e.get('total_transitions', 0):,} rows",
+                        str(e.get("total_commits", 0)),
+                        str(e.get("total_rollbacks", 0)),
+                        str(e.get("deadlocks_prevented", 0)),
+                        f"{GREEN}{e.get('status', 'SAVED_TO_DB')}{RESET}"
+                    ])
+                print_table(exp_headers, exp_rows)
+        except Exception:
+            pass
+
         # SQL JOIN Query Demonstration
         print_header("SQL JOIN DEMONSTRATION: MULTI-TABLE INNER JOIN (Faculty Review)")
         print(f"{YELLOW}SQL Query executed across Transactions, Accounts, Customers & Branches:{RESET}")

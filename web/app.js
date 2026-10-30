@@ -22,6 +22,7 @@
     const API_DB_JOINS_URL = `${API_HOST}/api/database/joins`;
     const API_DB_TABLES_URL = `${API_HOST}/api/database/tables`;
     const API_DB_CONNECT_URL = `${API_HOST}/api/database/connect`;
+    const API_DB_EXPORTS_URL = `${API_HOST}/api/database/exports`;
 
     const POLL_INTERVAL_MS = 500;
 
@@ -257,6 +258,8 @@
         dom.cntAuditLogs = document.getElementById('cntAuditLogs');
         dom.dbJoinTableBody = document.getElementById('dbJoinTableBody');
         dom.joinLatencyBadge = document.getElementById('joinLatencyBadge');
+        dom.btnRefreshExports = document.getElementById('btnRefreshExports');
+        dom.dbExportsTableBody = document.getElementById('dbExportsTableBody');
     }
 
     // ========================================================================
@@ -302,6 +305,7 @@
             setTimeout(renderOscilloscopeFrame, 50);
         } else if (targetPageId === 'page-database') {
             fetchDatabaseTablesAndJoins();
+            fetchDatabaseExports();
         }
     }
 
@@ -385,15 +389,19 @@
             dom.btnResetSim.addEventListener('click', () => injectScenario('reset'));
         }
 
-        // Export Log
+        // Export Log & Persist to Database
         if (dom.btnExportJson) {
             dom.btnExportJson.addEventListener('click', async () => {
                 dom.btnExportJson.disabled = true;
-                dom.btnExportJson.innerHTML = '<span>EXPORTING...</span>';
+                dom.btnExportJson.innerHTML = '<span>SAVING TO DB...</span>';
                 try {
                     const res = await fetch(API_EXPORT_URL);
                     const data = await res.json();
-                    showToast('💾', `State transitions audit trail exported to ${data.file || 'state_transitions.json'}!`);
+                    const exportIdMsg = data.export_id ? ` (Batch #${data.export_id})` : '';
+                    showToast('💾', `Audit exported & saved to Database${exportIdMsg}! Tables: AuditExports, StateTransitionAudits`);
+                    fetchDatabaseTablesAndJoins();
+                    fetchDatabaseExports();
+                    exportLocalJsonSnapshot();
                 } catch (e) {
                     exportLocalJsonSnapshot();
                     showToast('💾', 'Exported local state_transitions.json snapshot!');
@@ -458,6 +466,13 @@
         if (dom.btnRefreshJoin) {
             dom.btnRefreshJoin.addEventListener('click', () => {
                 fetchDatabaseTablesAndJoins();
+            });
+        }
+
+        if (dom.btnRefreshExports) {
+            dom.btnRefreshExports.addEventListener('click', () => {
+                fetchDatabaseExports();
+                showToast('↻', 'Database audit exports refreshed');
             });
         }
 
@@ -624,6 +639,39 @@
                 </tr>
             `;
         }).join('');
+    }
+
+    async function fetchDatabaseExports() {
+        if (!dom.dbExportsTableBody) return;
+        try {
+            const res = await fetch(API_DB_EXPORTS_URL);
+            if (!res.ok) return;
+            const exports = await res.json();
+            renderDbExportsTable(exports);
+        } catch (e) {
+            console.error('Failed to fetch DB exports:', e);
+        }
+    }
+
+    function renderDbExportsTable(rows) {
+        if (!dom.dbExportsTableBody) return;
+        if (!rows || rows.length === 0) {
+            dom.dbExportsTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">No audit batches exported yet. Click "EXPORT AUDIT" (top right) to save the current snapshot into the database.</td></tr>`;
+            return;
+        }
+
+        dom.dbExportsTableBody.innerHTML = rows.map(r => `
+            <tr>
+                <td style="font-family: var(--font-mono); font-weight: 700; color: #38bdf8;">BATCH #${r.export_id}</td>
+                <td style="font-family: var(--font-mono); font-size: 0.72rem; color: #94a3b8;">${escapeHtml(r.export_time || 'NOW')}</td>
+                <td style="font-family: var(--font-mono); font-weight: 600; color: #f1f5f9;">${(r.total_transitions || 0).toLocaleString()} rows</td>
+                <td style="font-family: var(--font-mono); color: #34d399;">${(r.total_commits || 0).toLocaleString()}</td>
+                <td style="font-family: var(--font-mono); color: #f87171;">${(r.total_rollbacks || 0).toLocaleString()}</td>
+                <td style="font-family: var(--font-mono); color: #fbbf24;">${(r.deadlocks_prevented || 0).toLocaleString()}</td>
+                <td><span class="state-step state-running" style="font-size: 0.65rem;">${escapeHtml(r.status || 'SAVED_TO_DB')}</span></td>
+                <td style="font-size: 0.72rem; color: #cbd5e1;">${escapeHtml(r.summary || 'Audit snapshot')}</td>
+            </tr>
+        `).join('');
     }
 
     function updateComparisonModeDisplay(isAdaptive) {

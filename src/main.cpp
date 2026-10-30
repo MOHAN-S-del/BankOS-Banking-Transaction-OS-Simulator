@@ -125,8 +125,19 @@ int main(int argc, char* argv[]) {
     });
 
     svr.Get("/api/export", [scheduler](const httplib::Request&, httplib::Response& res) {
-        scheduler->export_transitions_to_json("state_transitions.json", 50000);
-        res.set_content("{\"status\":\"exported\",\"file\":\"state_transitions.json\"}", "application/json");
+        int export_id = 0;
+        size_t count = scheduler->export_audit_to_database_and_file("state_transitions.json", 50000, export_id);
+        std::ostringstream oss;
+        oss << "{"
+            << "\"status\":\"success\","
+            << "\"saved_to_database\":true,"
+            << "\"export_id\":" << export_id << ","
+            << "\"records_saved\":" << count << ","
+            << "\"tables\":[\"AuditExports\",\"StateTransitionAudits\",\"AuditLogs\"],"
+            << "\"file\":\"state_transitions.json\","
+            << "\"storage_engine\":\"" << (scheduler->mysql_storage()->is_connected() ? "MySQL 8.4 (InnoDB)" : "Embedded Transactional Engine") << "\""
+            << "}";
+        res.set_content(oss.str(), "application/json");
     });
 
     // Requirement 3: Comparison Mode POST endpoints (Standard Execution vs Adaptive OS Ledger)
@@ -169,6 +180,19 @@ int main(int argc, char* argv[]) {
 
     svr.Get("/api/database/tables", [scheduler](const httplib::Request&, httplib::Response& res) {
         res.set_content(scheduler->mysql_storage()->get_database_tables_summary_json(), "application/json");
+    });
+
+    svr.Get("/api/database/exports", [scheduler](const httplib::Request&, httplib::Response& res) {
+        res.set_content(scheduler->mysql_storage()->get_audit_exports_json(), "application/json");
+    });
+
+    svr.Get("/api/database/export-details", [scheduler](const httplib::Request& req, httplib::Response& res) {
+        int eid = 0;
+        auto pos = req.path.find("id=");
+        if (pos != std::string::npos) {
+            try { eid = std::stoi(req.path.substr(pos + 3)); } catch (...) {}
+        }
+        res.set_content(scheduler->mysql_storage()->get_export_transitions_json(eid, 100), "application/json");
     });
 
     svr.Post("/api/database/connect", [scheduler](const httplib::Request& req, httplib::Response& res) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pcb.hpp"
+#include "state_transition.hpp"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -79,6 +80,36 @@ struct AuditRecord {
     std::string event_type;
     std::string severity;
     std::string description;
+    std::string created_at;
+};
+
+/**
+ * Audit Export Snapshot Record (in MySQL AuditExports table)
+ */
+struct AuditExportRecord {
+    int export_id;
+    std::string export_time;
+    int total_transitions;
+    int total_completed;
+    int total_commits;
+    int total_rollbacks;
+    int deadlocks_prevented;
+    std::string status;
+    std::string summary_text;
+};
+
+/**
+ * High-Resolution State Transition Audit Record (in MySQL StateTransitionAudits table)
+ */
+struct TransitionAuditRecord {
+    int audit_id;
+    int export_id;
+    int pid;
+    std::string transaction_type;
+    std::string old_state;
+    std::string new_state;
+    int tick;
+    std::string reason;
     std::string created_at;
 };
 
@@ -464,7 +495,8 @@ public:
             << "  \"bank_branches\":{\"count\":" << fallback_branches_.size() << ",\"columns\":[\"BranchID\",\"BranchName\",\"IFSCCode\",\"City\",\"ReserveBalance\"]},"
             << "  \"accounts\":{\"count\":" << fallback_accounts_.size() << ",\"columns\":[\"AccountID\",\"CustomerID\",\"BranchID\",\"AccountType\",\"Balance\",\"Status\"]},"
             << "  \"transactions\":{\"count\":" << transaction_history_.size() << ",\"columns\":[\"TxID\",\"FromAccount\",\"ToAccount\",\"Amount\",\"TransactionType\",\"Status\",\"CreatedAt\"]},"
-            << "  \"audit_logs\":{\"count\":" << audit_history_.size() << ",\"columns\":[\"LogID\",\"TxID\",\"AccountID\",\"EventType\",\"Severity\",\"Description\",\"CreatedAt\"]}"
+            << "  \"audit_logs\":{\"count\":" << audit_history_.size() << ",\"columns\":[\"LogID\",\"TxID\",\"AccountID\",\"EventType\",\"Severity\",\"Description\",\"CreatedAt\"]},"
+            << "  \"audit_exports\":{\"count\":" << fallback_exports_.size() << ",\"columns\":[\"ExportID\",\"ExportTime\",\"TotalTransitions\",\"TotalCompleted\",\"TotalCommits\",\"TotalRollbacks\",\"Status\"]}"
             << "},"
             << "\"sql_join_query\":\""
             << "SELECT t.TxID, t.Amount, t.Status, sc.FullName AS SenderName, t.FromAccount, rc.FullName AS ReceiverName, t.ToAccount, b.BranchName "
@@ -476,6 +508,226 @@ public:
             << "INNER JOIN Customers rc ON ra.CustomerID = rc.CustomerID "
             << "ORDER BY t.TxID DESC LIMIT 50;\""
             << "}";
+        return oss.str();
+    }
+
+    /**
+     * PERSISTENT AUDIT EXPORT:
+     * Saves audit snapshot and transition records directly into the database (AuditExports & StateTransitionAudits).
+     */
+    bool save_audit_export(
+        int total_ticks,
+        int total_completed,
+        int total_commits,
+        int total_rollbacks,
+        int deadlocks_prevented,
+        const std::vector<StateTransition>& transitions,
+        int& out_export_id
+    ) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        total_queries_++;
+        auto now_str = current_timestamp_str();
+        out_export_id = 1;
+
+        std::ostringstream summary_oss;
+        summary_oss << "Snapshot at Tick #" << total_ticks << " | Completed: " << total_completed 
+                    << " | Commits: " << total_commits << " | Rollbacks: " << total_rollbacks
+                    << " | Deadlocks Prevented: " << deadlocks_prevented 
+                    << " | Total Transitions: " << transitions.size();
+        std::string summary = summary_oss.str();
+
+#if HAS_MYSQL_CONNECTOR
+        if (is_connected_ && session_) {
+            try {
+                session_->startTransaction();
+                auto res = session_->sql(
+                    "INSERT INTO AuditExports (TotalTransitions, TotalCompleted, TotalCommits, TotalRollbacks, DeadlocksPrevented, Status, SummaryText) "
+                    "VALUES (?, ?, ?, ?, ?, 'SAVED_TO_DB', ?);"
+                ).bind(static_cast<int>(transitions.size()), total_completed, total_commits, total_rollbacks, deadlocks_prevented, summary).execute();
+
+                out_export_id = static_cast<int>(res.getAutoIncrementValue());
+
+                // Insert up to 1000 transitions into StateTransitionAudits
+                size_t max_insert = std::min(transitions.size(), static_cast<size_t>(1000));
+                for (size_t i = 0; i < max_insert; ++i) {
+                    const auto& t = transitions[i];
+                    session_->sql(
+                        "INSERT INTO StateTransitionAudits (ExportID, PID, TransactionType, OldState, NewState, Tick, Reason) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?);"
+                    ).bind(out_export_id, t.pid, transactionTypeToString(t.type), 
+                           processStateToString(t.from_state), processStateToString(t.to_state), 
+                           t.tick, t.reason).execute();
+                }
+
+                // Insert regulatory audit log
+                session_->sql(
+                    "INSERT INTO AuditLogs (EventType, Severity, Description) "
+                    "VALUES ('AUDIT_EXPORT_SAVED', 'INFO', ?);"
+                ).bind("Audit batch #" + std::to_string(out_export_id) + " exported to database with " + std::to_string(max_insert) + " records.").execute();
+
+                session_->commit();
+                std::cout << "[MySQLStorage] Saved Audit Export #" << out_export_id << " to MySQL (" 
+                          << max_insert << " transition rows).\n";
+                return true;
+            } catch (const std::exception& e) {
+                try { session_->rollback(); } catch (...) {}
+                std::cerr << "[MySQLStorage] Error saving audit export to MySQL: " << e.what() << "\n";
+            }
+        }
+#endif
+
+        // In-memory fallback
+        out_export_id = static_cast<int>(fallback_exports_.size()) + 1;
+        fallback_exports_.push_back({
+            out_export_id,
+            now_str,
+            static_cast<int>(transitions.size()),
+            total_completed,
+            total_commits,
+            total_rollbacks,
+            deadlocks_prevented,
+            "SAVED_TO_DB",
+            summary
+        });
+
+        size_t max_in_mem = std::min(transitions.size(), static_cast<size_t>(500));
+        for (size_t i = 0; i < max_in_mem; ++i) {
+            const auto& t = transitions[i];
+            fallback_transition_audits_.push_back({
+                static_cast<int>(fallback_transition_audits_.size() + 1),
+                out_export_id,
+                t.pid,
+                transactionTypeToString(t.type),
+                processStateToString(t.from_state),
+                processStateToString(t.to_state),
+                t.tick,
+                t.reason,
+                now_str
+            });
+        }
+
+        record_audit_log_unlocked(0, 0, "AUDIT_EXPORT_SAVED", "INFO", 
+            "Batch #" + std::to_string(out_export_id) + " exported to transactional ledger (" + std::to_string(max_in_mem) + " transition records).");
+
+        return true;
+    }
+
+    std::string get_audit_exports_json() {
+        std::lock_guard<std::mutex> lock(mtx_);
+#if HAS_MYSQL_CONNECTOR
+        if (is_connected_ && session_) {
+            try {
+                auto res = session_->sql(
+                    "SELECT ExportID, DATE_FORMAT(ExportTime, '%Y-%m-%d %H:%i:%s'), "
+                    "TotalTransitions, TotalCompleted, TotalCommits, TotalRollbacks, DeadlocksPrevented, Status, SummaryText "
+                    "FROM AuditExports ORDER BY ExportID DESC LIMIT 30;"
+                ).execute();
+
+                std::ostringstream oss;
+                oss << "[";
+                bool first = true;
+                for (auto row : res.fetchAll()) {
+                    if (!first) oss << ",";
+                    first = false;
+                    oss << "{"
+                        << "\"export_id\":" << row[0].get<int>() << ","
+                        << "\"export_time\":\"" << row[1].get<std::string>() << "\","
+                        << "\"total_transitions\":" << row[2].get<int>() << ","
+                        << "\"total_completed\":" << row[3].get<int>() << ","
+                        << "\"total_commits\":" << row[4].get<int>() << ","
+                        << "\"total_rollbacks\":" << row[5].get<int>() << ","
+                        << "\"deadlocks_prevented\":" << row[6].get<int>() << ","
+                        << "\"status\":\"" << row[7].get<std::string>() << "\","
+                        << "\"summary\":\"" << row[8].get<std::string>() << "\""
+                        << "}";
+                }
+                oss << "]";
+                return oss.str();
+            } catch (...) {}
+        }
+#endif
+        std::ostringstream oss;
+        oss << "[";
+        bool first = true;
+        for (int i = static_cast<int>(fallback_exports_.size()) - 1; i >= 0; --i) {
+            const auto& e = fallback_exports_[i];
+            if (!first) oss << ",";
+            first = false;
+            oss << "{"
+                << "\"export_id\":" << e.export_id << ","
+                << "\"export_time\":\"" << e.export_time << "\","
+                << "\"total_transitions\":" << e.total_transitions << ","
+                << "\"total_completed\":" << e.total_completed << ","
+                << "\"total_commits\":" << e.total_commits << ","
+                << "\"total_rollbacks\":" << e.total_rollbacks << ","
+                << "\"deadlocks_prevented\":" << e.deadlocks_prevented << ","
+                << "\"status\":\"" << e.status << "\","
+                << "\"summary\":\"" << e.summary_text << "\""
+                << "}";
+        }
+        oss << "]";
+        return oss.str();
+    }
+
+    std::string get_export_transitions_json(int export_id = 0, size_t limit = 50) {
+        std::lock_guard<std::mutex> lock(mtx_);
+#if HAS_MYSQL_CONNECTOR
+        if (is_connected_ && session_) {
+            try {
+                std::string sql = "SELECT AuditID, ExportID, PID, TransactionType, OldState, NewState, Tick, Reason, "
+                                  "DATE_FORMAT(CreatedAt, '%Y-%m-%d %H:%i:%s') FROM StateTransitionAudits ";
+                if (export_id > 0) {
+                    sql += "WHERE ExportID = " + std::to_string(export_id) + " ";
+                }
+                sql += "ORDER BY AuditID DESC LIMIT " + std::to_string(limit) + ";";
+
+                auto res = session_->sql(sql).execute();
+                std::ostringstream oss;
+                oss << "[";
+                bool first = true;
+                for (auto row : res.fetchAll()) {
+                    if (!first) oss << ",";
+                    first = false;
+                    oss << "{"
+                        << "\"audit_id\":" << row[0].get<int>() << ","
+                        << "\"export_id\":" << row[1].get<int>() << ","
+                        << "\"pid\":" << row[2].get<int>() << ","
+                        << "\"type\":\"" << row[3].get<std::string>() << "\","
+                        << "\"old_state\":\"" << row[4].get<std::string>() << "\","
+                        << "\"new_state\":\"" << row[5].get<std::string>() << "\","
+                        << "\"tick\":" << row[6].get<int>() << ","
+                        << "\"reason\":\"" << row[7].get<std::string>() << "\","
+                        << "\"created_at\":\"" << row[8].get<std::string>() << "\""
+                        << "}";
+                }
+                oss << "]";
+                return oss.str();
+            } catch (...) {}
+        }
+#endif
+        std::ostringstream oss;
+        oss << "[";
+        bool first = true;
+        size_t count = 0;
+        for (int i = static_cast<int>(fallback_transition_audits_.size()) - 1; i >= 0 && count < limit; --i) {
+            const auto& a = fallback_transition_audits_[i];
+            if (export_id > 0 && a.export_id != export_id) continue;
+            if (!first) oss << ",";
+            first = false;
+            count++;
+            oss << "{"
+                << "\"audit_id\":" << a.audit_id << ","
+                << "\"export_id\":" << a.export_id << ","
+                << "\"pid\":" << a.pid << ","
+                << "\"type\":\"" << a.transaction_type << "\","
+                << "\"old_state\":\"" << a.old_state << "\","
+                << "\"new_state\":\"" << a.new_state << "\","
+                << "\"tick\":" << a.tick << ","
+                << "\"reason\":\"" << a.reason << "\","
+                << "\"created_at\":\"" << a.created_at << "\""
+                << "}";
+        }
+        oss << "]";
         return oss.str();
     }
 
@@ -544,6 +796,35 @@ private:
                               "Description TEXT NOT NULL, "
                               "CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                               "FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) ON DELETE SET NULL"
+                              ") ENGINE=InnoDB;").execute();
+
+                // 6. AuditExports
+                session_->sql("CREATE TABLE IF NOT EXISTS AuditExports ("
+                              "ExportID INT PRIMARY KEY AUTO_INCREMENT, "
+                              "ExportTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                              "TotalTransitions INT NOT NULL, "
+                              "TotalCompleted INT NOT NULL, "
+                              "TotalCommits INT NOT NULL, "
+                              "TotalRollbacks INT NOT NULL, "
+                              "DeadlocksPrevented INT NOT NULL, "
+                              "Status VARCHAR(32) DEFAULT 'SAVED_TO_DB', "
+                              "SummaryText TEXT NOT NULL"
+                              ") ENGINE=InnoDB;").execute();
+
+                // 7. StateTransitionAudits
+                session_->sql("CREATE TABLE IF NOT EXISTS StateTransitionAudits ("
+                              "AuditID INT PRIMARY KEY AUTO_INCREMENT, "
+                              "ExportID INT NOT NULL, "
+                              "PID INT NOT NULL, "
+                              "TransactionType VARCHAR(32) NOT NULL, "
+                              "OldState VARCHAR(32) NOT NULL, "
+                              "NewState VARCHAR(32) NOT NULL, "
+                              "Tick INT NOT NULL, "
+                              "Reason TEXT, "
+                              "CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                              "INDEX idx_export (ExportID), "
+                              "INDEX idx_pid (PID), "
+                              "FOREIGN KEY (ExportID) REFERENCES AuditExports(ExportID) ON DELETE CASCADE"
                               ") ENGINE=InnoDB;").execute();
 
                 // Seed initial Customers in MySQL
@@ -700,6 +981,8 @@ private:
     std::unordered_map<int, int> account_to_customer_;
     std::vector<TransactionRecord> transaction_history_;
     std::vector<AuditRecord> audit_history_;
+    std::vector<AuditExportRecord> fallback_exports_;
+    std::vector<TransitionAuditRecord> fallback_transition_audits_;
     mutable std::mutex mtx_;
 };
 
