@@ -186,6 +186,25 @@ INSERT INTO AuditLogs (AccountID, EventType, Severity, Description) VALUES
 (1001, 'RATE_LIMIT_EXCEEDED', 'WARNING', 'Incoming burst exceeded Token Bucket rate limit threshold (10 req/s). Request temporarily deferred.'),
 (2001, 'DEADLOCK_AVOIDED', 'INFO', 'LockManager enforced strict ascending lock hierarchy on accounts 2001 and 2002, eliminating circular wait condition.');
 
+-- ----------------------------------------------------------------------------
+-- Seed Data: AuditExports & StateTransitionAudits (Demo Baseline Data)
+-- ----------------------------------------------------------------------------
+INSERT INTO AuditExports (ExportID, ExportTime, TotalTransitions, TotalCompleted, TotalCommits, TotalRollbacks, DeadlocksPrevented, Status, SummaryText) VALUES
+(1, NOW() - INTERVAL 15 MINUTE, 48, 14, 12, 2, 4, 'SAVED_TO_DB', 'Snapshot at Tick #150 | Completed: 14 | Commits: 12 | Rollbacks: 2 | Deadlocks Prevented: 4 | Total Transitions: 48'),
+(2, NOW() - INTERVAL 3 MINUTE, 125, 38, 33, 5, 9, 'SAVED_TO_DB', 'Snapshot at Tick #480 | Completed: 38 | Commits: 33 | Rollbacks: 5 | Deadlocks Prevented: 9 | Total Transitions: 125')
+ON DUPLICATE KEY UPDATE Status = VALUES(Status);
+
+INSERT INTO StateTransitionAudits (AuditID, ExportID, PID, TransactionType, OldState, NewState, Tick, Reason) VALUES
+(1, 1, 101, 'TRANSFER', 'NEW', 'READY', 1, 'Transaction queued into MLFQ Level 0 (Interactive)'),
+(2, 1, 101, 'TRANSFER', 'READY', 'RUNNING', 2, 'Dispatched to CPU Core 0 under Preemptive Round Robin'),
+(3, 1, 101, 'TRANSFER', 'RUNNING', 'BLOCKED', 5, 'Acquiring Strict 2PL exclusive lock on Account 1001'),
+(4, 1, 101, 'TRANSFER', 'BLOCKED', 'RUNNING', 8, 'Lock granted following ascending account hierarchy (Havender Deadlock Denial)'),
+(5, 1, 101, 'TRANSFER', 'RUNNING', 'COMMITTED', 12, 'ACID commit validated; balance updated and written to WAL'),
+(6, 1, 102, 'TRANSFER', 'NEW', 'READY', 15, 'High-frequency burst queued into MLFQ Level 0'),
+(7, 1, 102, 'TRANSFER', 'READY', 'RUNNING', 16, 'Dispatched to CPU Core 1'),
+(8, 1, 102, 'TRANSFER', 'RUNNING', 'ABORTED', 19, 'ACID Rollback: Insufficient balance on Account 1005 ($300.00). Constraints verified.')
+ON DUPLICATE KEY UPDATE Reason = VALUES(Reason);
+
 -- ============================================================================
 -- SQL JOIN QUERIES FOR FACULTY DEMONSTRATION
 -- ============================================================================
