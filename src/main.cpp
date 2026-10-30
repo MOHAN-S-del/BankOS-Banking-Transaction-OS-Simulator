@@ -162,6 +162,38 @@ int main(int argc, char* argv[]) {
         res.set_content(scheduler->mysql_storage()->get_accounts_json(), "application/json");
     });
 
+    // Relational Database & SQL JOIN inspection endpoints
+    svr.Get("/api/database/joins", [scheduler](const httplib::Request&, httplib::Response& res) {
+        res.set_content(scheduler->mysql_storage()->get_joined_transactions_json(50), "application/json");
+    });
+
+    svr.Get("/api/database/tables", [scheduler](const httplib::Request&, httplib::Response& res) {
+        res.set_content(scheduler->mysql_storage()->get_database_tables_summary_json(), "application/json");
+    });
+
+    svr.Post("/api/database/connect", [scheduler](const httplib::Request& req, httplib::Response& res) {
+        MySQLConfig cfg = MySQLConfig::from_env();
+        auto parse_param = [&req](const std::string& key, std::string& out) {
+            auto pos = req.body.find("\"" + key + "\":");
+            if (pos != std::string::npos) {
+                auto start = req.body.find("\"", pos + key.length() + 3);
+                if (start != std::string::npos) {
+                    auto end = req.body.find("\"", start + 1);
+                    if (end != std::string::npos) {
+                        out = req.body.substr(start + 1, end - start - 1);
+                    }
+                }
+            }
+        };
+        parse_param("host", cfg.host);
+        parse_param("user", cfg.user);
+        parse_param("password", cfg.password);
+        parse_param("database", cfg.database);
+        bool ok = scheduler->mysql_storage()->connect(&cfg);
+        res.set_content("{\"success\":" + std::string(ok ? "true" : "false") + 
+                        ",\"is_connected\":" + (scheduler->mysql_storage()->is_connected() ? "true" : "false") + "}", "application/json");
+    });
+
     // Lock Manager REST API endpoints
     svr.Get("/api/lockmanager/status", [scheduler](const httplib::Request&, httplib::Response& res) {
         auto lm = scheduler->lock_manager();

@@ -19,6 +19,9 @@
     const API_SPIKE_URL = `${API_HOST}/api/workload/spike`;
     const API_SCENARIO_URL = `${API_HOST}/api/scenario`;
     const API_ACCOUNTS_URL = `${API_HOST}/api/accounts`;
+    const API_DB_JOINS_URL = `${API_HOST}/api/database/joins`;
+    const API_DB_TABLES_URL = `${API_HOST}/api/database/tables`;
+    const API_DB_CONNECT_URL = `${API_HOST}/api/database/connect`;
 
     const POLL_INTERVAL_MS = 500;
 
@@ -237,6 +240,23 @@
         dom.modalPcbMeta = document.getElementById('modalPcbMeta');
         dom.btnModalClose = document.getElementById('btnModalClose');
         dom.btnCopyPcbJson = document.getElementById('btnCopyPcbJson');
+
+        // Database & SQL Joins Page
+        dom.dbEngineBadge = document.getElementById('dbEngineBadge');
+        dom.btnConnectDb = document.getElementById('btnConnectDb');
+        dom.btnRefreshJoin = document.getElementById('btnRefreshJoin');
+        dom.dbHost = document.getElementById('dbHost');
+        dom.dbPort = document.getElementById('dbPort');
+        dom.dbUser = document.getElementById('dbUser');
+        dom.dbPassword = document.getElementById('dbPassword');
+        dom.dbDatabase = document.getElementById('dbDatabase');
+        dom.cntCustomers = document.getElementById('cntCustomers');
+        dom.cntBranches = document.getElementById('cntBranches');
+        dom.cntAccounts = document.getElementById('cntAccounts');
+        dom.cntTransactions = document.getElementById('cntTransactions');
+        dom.cntAuditLogs = document.getElementById('cntAuditLogs');
+        dom.dbJoinTableBody = document.getElementById('dbJoinTableBody');
+        dom.joinLatencyBadge = document.getElementById('joinLatencyBadge');
     }
 
     // ========================================================================
@@ -280,6 +300,8 @@
         // Force oscilloscope resize/refresh when opening that tab
         if (targetPageId === 'page-oscilloscope') {
             setTimeout(renderOscilloscopeFrame, 50);
+        } else if (targetPageId === 'page-database') {
+            fetchDatabaseTablesAndJoins();
         }
     }
 
@@ -431,6 +453,42 @@
                 }
             });
         }
+
+        // Database & SQL Joins Page Controls
+        if (dom.btnRefreshJoin) {
+            dom.btnRefreshJoin.addEventListener('click', () => {
+                fetchDatabaseTablesAndJoins();
+            });
+        }
+
+        if (dom.btnConnectDb) {
+            dom.btnConnectDb.addEventListener('click', async () => {
+                const host = dom.dbHost ? dom.dbHost.value.trim() : '127.0.0.1';
+                const port = dom.dbPort ? parseInt(dom.dbPort.value) : 33060;
+                const user = dom.dbUser ? dom.dbUser.value.trim() : 'root';
+                const password = dom.dbPassword ? dom.dbPassword.value : '';
+                const database = dom.dbDatabase ? dom.dbDatabase.value.trim() : 'bank_db';
+
+                showToast('⏳', `Connecting to MySQL (${user}@${host}:${port}/${database})...`);
+
+                try {
+                    const res = await fetch(API_DB_CONNECT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ host, port, user, password, database })
+                    });
+                    const data = await res.json();
+                    if (data.is_connected) {
+                        showToast('✅', `Connected to MySQL database '${database}' successfully!`);
+                    } else {
+                        showToast('⚠️', 'MySQL connection notice: using Embedded Transactional Engine');
+                    }
+                    fetchDatabaseTablesAndJoins();
+                } catch (e) {
+                    showToast('⚠️', 'Error connecting to MySQL endpoint');
+                }
+            });
+        }
     }
 
     // ========================================================================
@@ -486,6 +544,86 @@
                 updateDOM(st);
             }
         } catch (e) {}
+    }
+
+    // ========================================================================
+    // Database & SQL JOIN Visualizer
+    // ========================================================================
+    async function fetchDatabaseTablesAndJoins() {
+        const startTime = performance.now();
+        try {
+            const [tablesRes, joinsRes] = await Promise.all([
+                fetch(API_DB_TABLES_URL).catch(() => null),
+                fetch(API_DB_JOINS_URL).catch(() => null)
+            ]);
+
+            const elapsed = (performance.now() - startTime).toFixed(1);
+            if (dom.joinLatencyBadge) {
+                dom.joinLatencyBadge.innerText = `LATENCY: ${elapsed}ms`;
+            }
+
+            if (tablesRes && tablesRes.ok) {
+                const dbInfo = await tablesRes.json();
+                if (dom.dbEngineBadge) {
+                    dom.dbEngineBadge.innerText = dbInfo.is_connected 
+                        ? 'MYSQL 8.4 INNODB (CONNECTED)' 
+                        : 'EMBEDDED TRANSACTIONAL ACID LEDGER';
+                    dom.dbEngineBadge.style.background = dbInfo.is_connected ? '#047857' : '#1e3a8a';
+                    dom.dbEngineBadge.style.color = '#ffffff';
+                }
+
+                if (dbInfo.tables) {
+                    if (dom.cntCustomers && dbInfo.tables.customers) 
+                        dom.cntCustomers.innerText = `${dbInfo.tables.customers.count} Verified`;
+                    if (dom.cntBranches && dbInfo.tables.bank_branches) 
+                        dom.cntBranches.innerText = `${dbInfo.tables.bank_branches.count} Hubs`;
+                    if (dom.cntAccounts && dbInfo.tables.accounts) 
+                        dom.cntAccounts.innerText = `${dbInfo.tables.accounts.count} Active`;
+                    if (dom.cntTransactions && dbInfo.tables.transactions) 
+                        dom.cntTransactions.innerText = `${dbInfo.tables.transactions.count} Executed`;
+                    if (dom.cntAuditLogs && dbInfo.tables.audit_logs) 
+                        dom.cntAuditLogs.innerText = `${dbInfo.tables.audit_logs.count} Events`;
+                }
+            }
+
+            if (joinsRes && joinsRes.ok) {
+                const joins = await joinsRes.json();
+                renderDbJoinTable(joins);
+                showToast('⚡', `SQL JOIN executed across 4 tables in ${elapsed}ms`);
+            }
+        } catch (err) {
+            console.error('Failed to load DB joins:', err);
+        }
+    }
+
+    function renderDbJoinTable(rows) {
+        if (!dom.dbJoinTableBody) return;
+        if (!rows || rows.length === 0) {
+            dom.dbJoinTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-dim); padding: 2rem;">No joined records found. Run simulation to stream transactions.</td></tr>`;
+            return;
+        }
+
+        dom.dbJoinTableBody.innerHTML = rows.map(r => {
+            const isCommitted = r.status === 'COMMITTED';
+            const statusClass = isCommitted ? 'state-running' : 'state-wait';
+            const statusText = isCommitted ? 'COMMITTED' : 'ROLLED_BACK';
+            const typeClass = r.type === 'SALARY_BATCH' ? 'tag-salary' : (r.type === 'ATM_WITHDRAWAL' ? 'tag-atm' : 'tag-upi');
+
+            return `
+                <tr>
+                    <td style="font-family: var(--font-mono); font-weight: 700; color: #38bdf8;">#${r.tx_id}</td>
+                    <td><strong style="color: #f1f5f9;">${escapeHtml(r.sender_name || 'Retail Client')}</strong></td>
+                    <td style="font-family: var(--font-mono); color: #94a3b8;">#${r.sender_account}</td>
+                    <td><strong style="color: #f1f5f9;">${escapeHtml(r.receiver_name || 'Retail Client')}</strong></td>
+                    <td style="font-family: var(--font-mono); color: #94a3b8;">#${r.receiver_account}</td>
+                    <td style="color: #94a3b8; font-size: 0.72rem;">${escapeHtml(r.sender_branch || 'Downtown Financial')}</td>
+                    <td style="font-family: var(--font-mono); font-weight: 600; color: #a7f3d0;">$${parseFloat(r.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td><span class="type-badge ${typeClass}">${escapeHtml(r.type || 'UPI')}</span></td>
+                    <td><span class="state-step ${statusClass}">${statusText}</span></td>
+                    <td style="font-family: var(--font-mono); font-size: 0.68rem; color: #64748b;">${escapeHtml(r.timestamp || 'NOW')}</td>
+                </tr>
+            `;
+        }).join('');
     }
 
     function updateComparisonModeDisplay(isAdaptive) {

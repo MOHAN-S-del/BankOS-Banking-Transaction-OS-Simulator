@@ -2121,3 +2121,170 @@ input:checked + .slider:before {
     border-color: var(--crimson-primary);
     box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
 }
+
+/* ============================================================================
+   PAGE 6: Database & Multi-Table SQL Joins
+   ============================================================================ */
+.db-connect-box {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    background: #090e18;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    flex-wrap: wrap;
+}
+
+.db-conn-inputs {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.db-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.db-input-group label {
+    font-size: 0.62rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.db-input-group input {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 4px;
+    color: #e5e7eb;
+    padding: 7px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    min-width: 110px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.db-input-group input:focus {
+    border-color: var(--blue-primary);
+}
+
+.db-tables-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.db-table-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.db-table-card:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+}
+
+.db-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.table-tag {
+    font-size: 0.58rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: #1e293b;
+    color: #93c5fd;
+    border: 1px solid #334155;
+}
+
+.db-table-card h4 {
+    margin: 0;
+    font-size: 0.88rem;
+    color: #f3f4f6;
+    font-weight: 600;
+}
+
+.db-card-desc {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    line-height: 1.35;
+}
+
+.db-schema-cols {
+    background: #090e18;
+    border: 1px solid #1e293b;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: #94a3b8;
+    word-break: break-word;
+}
+
+.db-schema-cols code {
+    color: #38bdf8;
+}
+
+.db-card-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+}
+
+.sql-code-box {
+    background: #080d16;
+    border: 1px solid #1e293b;
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.sql-code-header {
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    color: #94a3b8;
+    font-weight: 700;
+}
+
+.sql-code-box pre {
+    margin: 0;
+    padding: 12px 14px;
+    overflow-x: auto;
+}
+
+.sql-code {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: #38bdf8;
+    line-height: 1.45;
+}

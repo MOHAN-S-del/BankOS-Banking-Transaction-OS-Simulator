@@ -90,6 +90,10 @@
                 <span class="nav-icon">📚</span>
                 <span class="nav-label">5. DBMS &amp; OS CONCEPTS</span>
             </button>
+            <button class="nav-tab-btn" data-tab="page-database">
+                <span class="nav-icon">🗄</span>
+                <span class="nav-label">6. MYSQL DATABASE &amp; SQL JOINS</span>
+            </button>
         </nav>
 
         <!-- ====================================================================
@@ -977,6 +981,219 @@
                             <div class="formula-line"><strong>Consistency:</strong> Debit(From) == Credit(To) &bull; Balance &ge; 0.00</div>
                         </div>
                     </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ====================================================================
+             PAGE 6: MYSQL DATABASE & SQL JOINS (For Faculty Demonstration)
+             ==================================================================== -->
+        <main class="page-view" id="page-database">
+            <!-- 1. Database Connection & Engine Status -->
+            <section class="card-panel">
+                <div class="card-header">
+                    <div class="header-title">
+                        <span class="card-icon">🗄️</span>
+                        <div>
+                            <h2>RELATIONAL DATABASE MANAGEMENT SYSTEM (DBMS)</h2>
+                            <span class="subtitle">MySQL 8.4 InnoDB Storage Engine &bull; 5 Relational Tables &bull; Multi-Table SQL JOINs</span>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <span class="badge" id="dbEngineBadge">INSPECTING ENGINE</span>
+                    </div>
+                </div>
+
+                <div class="simple-expl-box" style="margin-bottom: 1.2rem;">
+                    <span class="expl-tag">Faculty Explanation:</span> BankOS implements a production-grade 5-table Relational Schema (3NF Normalized). Transaction processing threads lock accounts via Two-Phase Locking, enforce Foreign Key constraints between Senders & Receivers, and commit or rollback atomically with full persistence.
+                </div>
+
+                <!-- Database Connect Configuration Bar -->
+                <div class="db-connect-box">
+                    <div class="db-conn-inputs">
+                        <div class="db-input-group">
+                            <label>HOST</label>
+                            <input type="text" id="dbHost" value="127.0.0.1" placeholder="127.0.0.1">
+                        </div>
+                        <div class="db-input-group">
+                            <label>X-PORT</label>
+                            <input type="number" id="dbPort" value="33060" placeholder="33060">
+                        </div>
+                        <div class="db-input-group">
+                            <label>USER</label>
+                            <input type="text" id="dbUser" value="root" placeholder="root">
+                        </div>
+                        <div class="db-input-group">
+                            <label>PASSWORD</label>
+                            <input type="password" id="dbPassword" placeholder="Enter MySQL Password">
+                        </div>
+                        <div class="db-input-group">
+                            <label>DATABASE</label>
+                            <input type="text" id="dbDatabase" value="bank_db" placeholder="bank_db">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="btnConnectDb">
+                        <span class="btn-icon">⚡</span>
+                        <span>CONNECT MYSQL</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 2. The 5 Relational Tables Grid -->
+            <section class="db-tables-grid">
+                <!-- Table 1: Customers -->
+                <div class="db-table-card">
+                    <div class="db-card-header">
+                        <span class="table-tag">TABLE 1</span>
+                        <h4>Customers (KYC &amp; Identity)</h4>
+                    </div>
+                    <p class="db-card-desc">Stores verified client identities. 1:N relationship with Accounts.</p>
+                    <div class="db-schema-cols">
+                        <code>CustomerID (PK)</code>, <code>FullName</code>, <code>Email</code>, <code>Phone</code>, <code>CustomerType</code>, <code>Status</code>
+                    </div>
+                    <div class="db-card-stats">
+                        <span>Records: <strong id="cntCustomers">10 Verified</strong></span>
+                        <span class="tag-retail">RETAIL &amp; CORP</span>
+                    </div>
+                </div>
+
+                <!-- Table 2: BankBranches -->
+                <div class="db-table-card">
+                    <div class="db-card-header">
+                        <span class="table-tag">TABLE 2</span>
+                        <h4>BankBranches (Routing Hubs)</h4>
+                    </div>
+                    <p class="db-card-desc">Bank branches, IFSC codes, and liquidity reserve vaults.</p>
+                    <div class="db-schema-cols">
+                        <code>BranchID (PK)</code>, <code>BranchName</code>, <code>IFSCCode</code>, <code>City</code>, <code>ReserveBalance</code>
+                    </div>
+                    <div class="db-card-stats">
+                        <span>Records: <strong id="cntBranches">3 Hubs</strong></span>
+                        <span class="tag-atm">IFSC ROUTED</span>
+                    </div>
+                </div>
+
+                <!-- Table 3: Accounts -->
+                <div class="db-table-card">
+                    <div class="db-card-header">
+                        <span class="table-tag">TABLE 3</span>
+                        <h4>Accounts (Financial Ledgers)</h4>
+                    </div>
+                    <p class="db-card-desc">Holds account balances with <code>CHECK (Balance >= 0.00)</code> integrity.</p>
+                    <div class="db-schema-cols">
+                        <code>AccountID (PK)</code>, <code>CustomerID (FK)</code>, <code>BranchID (FK)</code>, <code>AccountType</code>, <code>Balance</code>
+                    </div>
+                    <div class="db-card-stats">
+                        <span>Accounts: <strong id="cntAccounts">12 Active</strong></span>
+                        <span class="tag-corp">2PL PROTECTED</span>
+                    </div>
+                </div>
+
+                <!-- Table 4: Transactions -->
+                <div class="db-table-card">
+                    <div class="db-card-header">
+                        <span class="table-tag">TABLE 4</span>
+                        <h4>Transactions (Audit Ledger)</h4>
+                    </div>
+                    <p class="db-card-desc">Immutable transaction history linking Sender and Receiver accounts.</p>
+                    <div class="db-schema-cols">
+                        <code>TxID (PK)</code>, <code>FromAccount (FK)</code>, <code>ToAccount (FK)</code>, <code>Amount</code>, <code>Status</code>
+                    </div>
+                    <div class="db-card-stats">
+                        <span>Executed: <strong id="cntTransactions">0 Committed</strong></span>
+                        <span class="tag-upi">ACID ATOMIC</span>
+                    </div>
+                </div>
+
+                <!-- Table 5: AuditLogs -->
+                <div class="db-table-card">
+                    <div class="db-card-header">
+                        <span class="table-tag">TABLE 5</span>
+                        <h4>AuditLogs (Security Telemetry)</h4>
+                    </div>
+                    <p class="db-card-desc">Records deadlock denials, insufficient fund rollbacks, and rate limit events.</p>
+                    <div class="db-schema-cols">
+                        <code>LogID (PK)</code>, <code>TxID</code>, <code>AccountID (FK)</code>, <code>EventType</code>, <code>Severity</code>, <code>Description</code>
+                    </div>
+                    <div class="db-card-stats">
+                        <span>Events: <strong id="cntAuditLogs">3 Logged</strong></span>
+                        <span class="tag-salary">COMPLIANCE</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Faculty SQL JOIN Showcase -->
+            <section class="card-panel">
+                <div class="card-header">
+                    <div class="header-title">
+                        <span class="card-icon">⚡</span>
+                        <div>
+                            <h2>LIVE MULTI-TABLE SQL JOIN VIEWER</h2>
+                            <span class="subtitle">Query: <code>Transactions</code> ⨝ <code>Accounts</code> ⨝ <code>Customers</code> ⨝ <code>BankBranches</code></span>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-outline" id="btnRefreshJoin">
+                            <span class="btn-icon">↻</span>
+                            <span>EXECUTE JOIN QUERY</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="simple-expl-box">
+                    <span class="expl-tag">Relational Algebra / SQL JOIN:</span> The query below demonstrates an <code>INNER JOIN</code> linking raw Transaction IDs with both the Sender Customer Name &amp; Account and Receiver Customer Name &amp; Account across 4 relational tables, proving 3NF database normalization.
+                </div>
+
+                <!-- Raw SQL Query Code Box -->
+                <div class="sql-code-box">
+                    <div class="sql-code-header">
+                        <span>SQL QUERY SCRIPT (INNER JOIN &amp; LEFT JOIN)</span>
+                        <span class="badge" id="joinLatencyBadge">LATENCY: 0.8ms</span>
+                    </div>
+                    <pre><code class="sql-code">SELECT 
+    t.TxID,
+    t.Amount,
+    t.Status AS TransactionStatus,
+    sender_cust.FullName AS SenderCustomer,
+    t.FromAccount AS SenderAccount,
+    receiver_cust.FullName AS ReceiverCustomer,
+    t.ToAccount AS ReceiverAccount,
+    branch.BranchName AS SenderBranch,
+    t.CreatedAt AS ExecutionTimestamp
+FROM Transactions t
+INNER JOIN Accounts sender_acc   ON t.FromAccount = sender_acc.AccountID
+INNER JOIN Customers sender_cust ON sender_acc.CustomerID = sender_cust.CustomerID
+LEFT  JOIN BankBranches branch   ON sender_acc.BranchID = branch.BranchID
+INNER JOIN Accounts receiver_acc ON t.ToAccount = receiver_acc.AccountID
+INNER JOIN Customers receiver_cust ON receiver_acc.CustomerID = receiver_cust.CustomerID
+ORDER BY t.TxID DESC LIMIT 25;</code></pre>
+                </div>
+
+                <!-- Joined Table Output -->
+                <div class="table-container" style="max-height: 480px; overflow-y: auto;">
+                    <table class="pcb-table" id="dbJoinTable">
+                        <thead>
+                            <tr>
+                                <th>TX ID</th>
+                                <th>SENDER CUSTOMER</th>
+                                <th>SENDER ACC</th>
+                                <th>RECEIVER CUSTOMER</th>
+                                <th>RECEIVER ACC</th>
+                                <th>SENDER BRANCH</th>
+                                <th>AMOUNT</th>
+                                <th>TYPE</th>
+                                <th>ACID STATUS</th>
+                                <th>TIMESTAMP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dbJoinTableBody">
+                            <tr>
+                                <td colspan="10" style="text-align: center; color: var(--text-dim); padding: 2rem;">
+                                    Click "EXECUTE JOIN QUERY" or run simulation to populate joined database records...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
         </main>

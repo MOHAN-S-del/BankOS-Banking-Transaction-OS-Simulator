@@ -91,6 +91,11 @@ The web console (`http://localhost:8080`) features a **clean, tabbed multi-page 
    * Kernel state transition audit log.
 5. **`5. DBMS & OS CONCEPTS`**:
    * Educational architecture cards with formulas, state machine diagrams, and explanations in plain language.
+6. **`6. MYSQL DATABASE & SQL JOINS` (Faculty Showcase)**:
+   * **5 Relational Tables:** `Customers` (Sender/Receiver KYC), `BankBranches` (IFSC clearing), `Accounts` (2PL balances), `Transactions` (audit ledger), `AuditLogs` (security/deadlock denial).
+   * **Live Credentials Connector:** Connect directly to local MySQL (`host`, `port`, `user`, `password`).
+   * **Multi-Table SQL JOIN Viewer:** Visualizes real-time `INNER JOIN` & `LEFT JOIN` queries linking Sender Customer, Sender Account, Receiver Customer, Receiver Account, Branch, and Amount.
+   * **CLI Faculty Tool:** Run `./db/show_database.sh` to output beautiful ASCII tables directly in terminal!
 
 ---
 
@@ -153,6 +158,9 @@ This generates `state_transitions.json` containing the full transition audit log
 | `/api/transitions` | `GET` | Live stream of recent state transitions with reason metadata |
 | `/api/workload/spike` | `GET/POST` | Inject benchmark scenarios: `upi_peak`, `salary_clearing`, `settlement_hotspot`, `acid_rollback`, `reset` |
 | `/api/comparison-mode` | `GET/POST` | Toggle between Baseline (Direct DB collisions) and Adaptive BankOS Ledger (MD-ACC) |
+| `/api/database/joins` | `GET` | Multi-table SQL JOIN query results (Transactions ⨝ Accounts ⨝ Customers ⨝ Branches) |
+| `/api/database/tables` | `GET` | 5-table schema metadata, live row counts, and active storage engine status |
+| `/api/database/connect` | `POST` | Live runtime reconnection to MySQL server (`host`, `port`, `user`, `password`) |
 | `/api/db/status` | `GET` | MySQL persistent storage stats: connection status, queries, commits, rollbacks |
 | `/api/lockmanager/status` | `GET` | 2PL Lock Manager stats: lock attempts, conflicts, timeouts, deadlocks prevented |
 | `/api/control/pause` | `GET` | Pause discrete tick execution |
