@@ -675,3 +675,4 @@ def create_deck(output_path="BankOS_Project_Presentation.pptx"):
 if __name__ == "__main__":
     out_file = sys.argv[1] if len(sys.argv) > 1 else "BankOS_Project_Presentation.pptx"
     create_deck(out_file)
+
