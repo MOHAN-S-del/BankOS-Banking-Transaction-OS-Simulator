@@ -4,5 +4,6 @@ bank_os_sim
 state_transitions.json
 test_state_transitions.json
 *.o
+*.log
 .DS_Store
 .cache/

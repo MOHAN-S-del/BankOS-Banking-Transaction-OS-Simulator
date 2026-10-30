@@ -316,6 +316,20 @@ public:
     uint64_t total_commits() const { return total_commits_; }
     uint64_t total_rollbacks() const { return total_rollbacks_; }
 
+    std::string get_accounts_json() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        std::ostringstream oss;
+        oss << "[";
+        bool first = true;
+        for (const auto& [acc_id, bal] : fallback_accounts_) {
+            if (!first) oss << ",";
+            first = false;
+            oss << "{\"account_id\":" << acc_id << ",\"balance\":" << std::fixed << std::setprecision(2) << bal << "}";
+        }
+        oss << "]";
+        return oss.str();
+    }
+
     std::vector<TransactionRecord> get_recent_transactions(size_t limit = 50) {
         std::lock_guard<std::mutex> lock(mtx_);
         size_t count = std::min(limit, transaction_history_.size());
@@ -335,9 +349,22 @@ private:
                 session_->sql("CREATE DATABASE IF NOT EXISTS " + config_.database + ";").execute();
                 session_->sql("USE " + config_.database + ";").execute();
 
+                session_->sql("CREATE TABLE IF NOT EXISTS Customers ("
+                              "CustomerID INT PRIMARY KEY AUTO_INCREMENT, "
+                              "FullName VARCHAR(100) NOT NULL, "
+                              "Email VARCHAR(100) UNIQUE NOT NULL, "
+                              "CustomerType VARCHAR(32) DEFAULT 'RETAIL', "
+                              "Status VARCHAR(32) DEFAULT 'ACTIVE', "
+                              "CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                              ") ENGINE=InnoDB;").execute();
+
                 session_->sql("CREATE TABLE IF NOT EXISTS Accounts ("
                               "AccountID INT PRIMARY KEY, "
-                              "Balance DECIMAL(15, 2) NOT NULL DEFAULT 0.00"
+                              "CustomerID INT NULL, "
+                              "Balance DECIMAL(15, 2) NOT NULL DEFAULT 0.00, "
+                              "CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                              "UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                              "FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID) ON DELETE SET NULL"
                               ") ENGINE=InnoDB;").execute();
 
                 session_->sql("CREATE TABLE IF NOT EXISTS Transactions ("
@@ -349,6 +376,16 @@ private:
                               "CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                               "FOREIGN KEY (FromAccount) REFERENCES Accounts(AccountID), "
                               "FOREIGN KEY (ToAccount) REFERENCES Accounts(AccountID)"
+                              ") ENGINE=InnoDB;").execute();
+
+                session_->sql("CREATE TABLE IF NOT EXISTS AuditLogs ("
+                              "LogID INT PRIMARY KEY AUTO_INCREMENT, "
+                              "AccountID INT NULL, "
+                              "EventType VARCHAR(50) NOT NULL, "
+                              "Severity VARCHAR(20) DEFAULT 'INFO', "
+                              "Description TEXT NOT NULL, "
+                              "CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                              "FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) ON DELETE SET NULL"
                               ") ENGINE=InnoDB;").execute();
 
                 std::cout << "[MySQLStorage] Schema initialized successfully in MySQL database '" 

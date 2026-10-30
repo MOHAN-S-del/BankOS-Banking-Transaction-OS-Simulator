@@ -93,6 +93,7 @@ int main(int argc, char* argv[]) {
     // 3. Instantiate and load MLFQ Scheduler with MD-ACC Middleware and MySQL Storage
     auto scheduler = std::make_shared<MLFQScheduler>(aging_threshold, time_quantum, mdacc_enabled, mysql_storage);
     scheduler->load_workload(std::move(workload));
+    scheduler->set_auto_stream(true); // Continuous stream so CPU and MLFQ are never empty!
 
     if (fast_headless) {
         std::cout << "[Simulator] Running fast headless mode...\n";
@@ -157,6 +158,10 @@ int main(int argc, char* argv[]) {
         res.set_content(oss.str(), "application/json");
     });
 
+    svr.Get("/api/accounts", [scheduler](const httplib::Request&, httplib::Response& res) {
+        res.set_content(scheduler->mysql_storage()->get_accounts_json(), "application/json");
+    });
+
     // Lock Manager REST API endpoints
     svr.Get("/api/lockmanager/status", [scheduler](const httplib::Request&, httplib::Response& res) {
         auto lm = scheduler->lock_manager();
@@ -199,6 +204,30 @@ int main(int argc, char* argv[]) {
         res.set_content(scheduler->get_state_json(), "application/json");
     });
 
+    // Workload Injection & Benchmark Scenarios (UPI Surge, Payroll Batch, Hotspot Contention, ACID Rollback, Reset)
+    auto handle_scenario = [scheduler](const httplib::Request& req, httplib::Response& res) {
+        std::string type = "upi_peak";
+        auto pos = req.path.find("type=");
+        if (pos != std::string::npos) {
+            type = req.path.substr(pos + 5);
+            auto amp = type.find('&');
+            if (amp != std::string::npos) type = type.substr(0, amp);
+        } else if (!req.body.empty()) {
+            if (req.body.find("salary") != std::string::npos) type = "salary_clearing";
+            else if (req.body.find("hotspot") != std::string::npos) type = "settlement_hotspot";
+            else if (req.body.find("rollback") != std::string::npos) type = "acid_rollback";
+            else if (req.body.find("reset") != std::string::npos) type = "reset";
+            else type = "upi_peak";
+        }
+        scheduler->inject_scenario(type);
+        res.set_content("{\"status\":\"ok\",\"injected\":\"" + type + "\"}", "application/json");
+    };
+
+    svr.Get("/api/workload/spike", handle_scenario);
+    svr.Post("/api/workload/spike", handle_scenario);
+    svr.Get("/api/scenario", handle_scenario);
+    svr.Post("/api/scenario", handle_scenario);
+
     // Run HTTP server in background thread
     std::thread server_thread([&svr, port]() {
         svr.listen("0.0.0.0", port);
@@ -206,7 +235,7 @@ int main(int argc, char* argv[]) {
 
     // 5. Background Simulation Worker Thread
     std::atomic<bool> sim_paused(false);
-    std::atomic<int> sim_speed_delay_us(1000); // 1ms delay per tick
+    std::atomic<int> sim_speed_delay_us(80000); // 80ms delay per tick for visible real-time presentation
 
     svr.Get("/api/control/pause", [&sim_paused](const httplib::Request&, httplib::Response& res) {
         sim_paused.store(true);

@@ -15,6 +15,7 @@
 #include <mutex>
 #include <memory>
 #include <sstream>
+#include <random>
 
 namespace bank_sim {
 
@@ -90,6 +91,103 @@ public:
     bool step_tick() {
         std::lock_guard<std::mutex> lock(mtx_);
         return step_tick_unlocked();
+    }
+
+    void set_auto_stream(bool enabled) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        auto_stream_enabled_ = enabled;
+    }
+
+    void inject_scenario(const std::string& type) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        static int s_scenario_pid = 300000;
+        
+        if (type == "salary_clearing" || type == "salary") {
+            for (int i = 0; i < 20; ++i) {
+                ProcessControlBlock p;
+                p.pid = s_scenario_pid++;
+                p.type = TransactionType::SALARY;
+                p.arrival_time = current_tick_;
+                p.burst_time = 15 + (i % 10);
+                p.total_burst_time = p.burst_time;
+                p.from_account = 5001;
+                p.to_account = 1001 + (i % 8);
+                p.amount = 45000.0 + (i * 1000);
+                p.required_locks = {std::min(p.from_account, p.to_account), std::max(p.from_account, p.to_account)};
+                p.state = ProcessState::READY;
+                p.current_queue = 2;
+                all_pcbs_[p.pid] = p;
+                q2_ready_pids_.push_back(p.pid);
+                record_transition(p.pid, p.type, ProcessState::NEW, ProcessState::READY, 
+                                  "Live Scenario: Corporate Payroll Batch injected into Queue 2 (Round Robin)");
+            }
+        } else if (type == "settlement_hotspot" || type == "hotspot") {
+            for (int i = 0; i < 24; ++i) {
+                ProcessControlBlock p;
+                p.pid = s_scenario_pid++;
+                p.type = TransactionType::ATM;
+                p.arrival_time = current_tick_;
+                p.burst_time = 3;
+                p.total_burst_time = 3;
+                p.from_account = 1001;
+                p.to_account = 2001;
+                p.amount = 2000.0;
+                p.required_locks = {1001, 2001};
+                p.state = ProcessState::READY;
+                p.current_queue = 1;
+                all_pcbs_[p.pid] = p;
+                q1_ready_pids_.push_back(p.pid);
+                record_transition(p.pid, p.type, ProcessState::NEW, ProcessState::READY, 
+                                  "Live Scenario: Hotspot contention injected on Account #1001 (Havender 2PL)");
+            }
+        } else if (type == "acid_rollback" || type == "rollback") {
+            ProcessControlBlock p;
+            p.pid = s_scenario_pid++;
+            p.type = TransactionType::UPI;
+            p.arrival_time = current_tick_;
+            p.burst_time = 1;
+            p.total_burst_time = 1;
+            p.from_account = 1005; // Available balance only 300.00
+            p.to_account = 1001;
+            p.amount = 5000.0;     // Exceeds balance!
+            p.required_locks = {1001, 1005};
+            p.state = ProcessState::READY;
+            p.current_queue = 1;
+            all_pcbs_[p.pid] = p;
+            q1_ready_pids_.push_front(p.pid); // Front of Q1 for immediate dispatch
+            record_transition(p.pid, p.type, ProcessState::NEW, ProcessState::READY,
+                              "Live Scenario: Overdraft on Account #1005 injected (ACID Atomicity Rollback test)");
+        } else if (type == "reset") {
+            q1_ready_pids_.clear();
+            q2_ready_pids_.clear();
+            waiting_pids_.clear();
+            locked_accounts_.clear();
+            running_pid_ = -1;
+            total_aging_promotions_ = 0;
+            total_completed_ = 0;
+            total_failed_ = 0;
+            if (middleware_) middleware_->reset();
+            if (lock_manager_) lock_manager_->reset();
+        } else {
+            for (int i = 0; i < 30; ++i) {
+                ProcessControlBlock p;
+                p.pid = s_scenario_pid++;
+                p.type = TransactionType::UPI;
+                p.arrival_time = current_tick_;
+                p.burst_time = 1 + (i % 3);
+                p.total_burst_time = p.burst_time;
+                p.from_account = 1001 + (i % 8);
+                p.to_account = 1001 + ((i + 2) % 8);
+                p.amount = 100.0 + (i * 20);
+                p.required_locks = {std::min(p.from_account, p.to_account), std::max(p.from_account, p.to_account)};
+                p.state = ProcessState::READY;
+                p.current_queue = 1;
+                all_pcbs_[p.pid] = p;
+                q1_ready_pids_.push_back(p.pid);
+                record_transition(p.pid, p.type, ProcessState::NEW, ProcessState::READY, 
+                                  "Live Scenario: Retail UPI Surge injected into Queue 1 (SRTF Priority)");
+            }
+        }
     }
 
     /**
@@ -352,7 +450,20 @@ public:
             }
         }
 
-        oss << "],\"metrics\":{"
+        // Bank Accounts from Storage
+        oss << "],\"accounts\":" << mysql_storage_->get_accounts_json();
+
+        // Locked Accounts from 2PL Lock Manager
+        oss << ",\"locked_accounts\":[";
+        bool first_lck = true;
+        for (int acc_id : locked_accounts_) {
+            if (!first_lck) oss << ",";
+            first_lck = false;
+            oss << "{\"account_id\":" << acc_id << ",\"holder_pid\":" << lock_manager_->get_holder(acc_id) << "}";
+        }
+        oss << "]";
+
+        oss << ",\"metrics\":{"
             << "\"tps\":" << current_tps_.load() << ","
             << "\"abort_rate\":" << middleware_->abort_rate() << ","
             << "\"contention_score\":\"" << contentionLevelToString(middleware_->contention_level()) << "\","
@@ -433,6 +544,56 @@ private:
             } else {
                 pcb.current_queue = 1; // Queue 1: High Priority SRTF (UPI & ATM)
                 q1_ready_pids_.push_back(pid);
+            }
+        }
+
+        // Continuous Live Replenishment: Ensure CPU Dispatcher & MLFQ are never empty!
+        if (auto_stream_enabled_ && (q1_ready_pids_.size() < 12 || q2_ready_pids_.size() < 6)) {
+            static int s_next_stream_pid = 200000;
+            static std::mt19937 s_gen(1337);
+            std::uniform_int_distribution<int> dist_type(0, 99);
+            for (int k = 0; k < 6; ++k) {
+                ProcessControlBlock p;
+                p.pid = s_next_stream_pid++;
+                p.arrival_time = current_tick_;
+                int r = dist_type(s_gen);
+                if (r < 60) {
+                    p.type = TransactionType::UPI;
+                    p.burst_time = 1 + (p.pid % 4);
+                    p.total_burst_time = p.burst_time;
+                    p.from_account = 1001 + (p.pid % 8);
+                    p.to_account = 1001 + ((p.pid + 3) % 8);
+                    p.amount = 50.0 + (p.pid % 450);
+                    p.required_locks = {std::min(p.from_account, p.to_account), std::max(p.from_account, p.to_account)};
+                    p.state = ProcessState::READY;
+                    p.current_queue = 1;
+                    all_pcbs_[p.pid] = p;
+                    q1_ready_pids_.push_back(p.pid);
+                } else if (r < 85) {
+                    p.type = TransactionType::ATM;
+                    p.burst_time = 2 + (p.pid % 5);
+                    p.total_burst_time = p.burst_time;
+                    p.from_account = 1001 + (p.pid % 8);
+                    p.to_account = 2001 + (p.pid % 2);
+                    p.amount = 500.0 + (p.pid % 2500);
+                    p.required_locks = {std::min(p.from_account, p.to_account), std::max(p.from_account, p.to_account)};
+                    p.state = ProcessState::READY;
+                    p.current_queue = 1;
+                    all_pcbs_[p.pid] = p;
+                    q1_ready_pids_.push_back(p.pid);
+                } else {
+                    p.type = TransactionType::SALARY;
+                    p.burst_time = 10 + (p.pid % 18);
+                    p.total_burst_time = p.burst_time;
+                    p.from_account = 5001 + (p.pid % 2);
+                    p.to_account = 1001 + (p.pid % 8);
+                    p.amount = 35000.0 + (p.pid % 25000);
+                    p.required_locks = {std::min(p.from_account, p.to_account), std::max(p.from_account, p.to_account)};
+                    p.state = ProcessState::READY;
+                    p.current_queue = 2;
+                    all_pcbs_[p.pid] = p;
+                    q2_ready_pids_.push_back(p.pid);
+                }
             }
         }
 
@@ -756,6 +917,7 @@ private:
     // Configuration & parameters
     int aging_threshold_;
     int time_quantum_;
+    bool auto_stream_enabled_{false};
 
     // Simulation Clock & Queues
     int current_tick_;
