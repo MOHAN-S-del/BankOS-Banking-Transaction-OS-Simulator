@@ -110,7 +110,7 @@
 
         /* Top Sticky Header */
         .app-header {
-            background: rgba(255, 255, 255, 0.78);
+            background: rgba(255, 255, 255, 0.82);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
             border-bottom: 1px solid var(--glass-border);
@@ -118,88 +118,105 @@
             top: 0;
             z-index: 100;
             box-shadow: 0 4px 20px rgba(2, 132, 199, 0.05);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .header-wrap {
-            max-width: 1560px;
+            max-width: 100%;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
-            padding: 12px 28px;
+            padding: 9px 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 20px;
+            gap: 10px;
             position: relative;
             z-index: 1;
+            flex-wrap: nowrap;
         }
 
         .brand-block {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
+            flex-shrink: 0;
         }
 
         .brand-icon {
-            width: 40px;
-            height: 40px;
+            width: 38px;
+            height: 38px;
             background: linear-gradient(135deg, #0284C7 0%, #06B6D4 100%);
             border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
             color: #FFFFFF;
-            font-size: 1.25rem;
+            font-size: 1.2rem;
             box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+            flex-shrink: 0;
         }
 
         .brand-title {
-            font-size: 1.18rem;
+            font-size: 1.12rem;
             font-weight: 800;
             color: var(--text-title);
             letter-spacing: -0.4px;
             display: flex;
             align-items: center;
             gap: 8px;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .brand-badge {
-            font-size: 0.68rem;
+            font-size: 0.78rem;
             font-weight: 800;
             color: var(--marina-primary);
             background: var(--marina-light);
             border: 1px solid var(--glass-border);
-            padding: 2px 8px;
+            padding: 5px 12px;
             border-radius: var(--radius-full);
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
             text-transform: uppercase;
+            white-space: nowrap;
+            min-width: max-content;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            box-shadow: 0 1px 4px rgba(2, 132, 199, 0.1);
         }
 
         .brand-desc {
-            font-size: 0.74rem;
+            font-size: 0.72rem;
             color: var(--text-muted);
             font-weight: 500;
+            white-space: nowrap;
         }
 
         /* 3-Slide Navigation Pills */
         .slide-nav-pills {
             display: flex;
             background: rgba(224, 242, 254, 0.55);
-            padding: 5px;
+            padding: 4px;
             border-radius: var(--radius-full);
             border: 1px solid var(--glass-border);
-            gap: 5px;
+            gap: 4px;
             backdrop-filter: blur(12px);
+            flex-shrink: 0;
         }
 
         .nav-pill {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px 18px;
+            gap: 6px;
+            padding: 7px 14px;
             border-radius: var(--radius-full);
             border: none;
             background: transparent;
             color: var(--text-body);
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -214,27 +231,30 @@
         .nav-pill.active {
             background: #FFFFFF;
             color: var(--marina-primary);
-            box-shadow: 0 3px 10px rgba(2, 132, 199, 0.18);
+            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.18);
             border: 1px solid rgba(14, 165, 233, 0.3);
         }
 
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
+            flex-shrink: 0;
         }
 
         .status-pill {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            font-size: 0.76rem;
+            font-size: 0.74rem;
             font-weight: 700;
-            padding: 6px 14px;
+            padding: 6px 12px;
             border-radius: var(--radius-full);
             background: var(--emerald-bg);
             color: var(--emerald);
             border: 1px solid var(--emerald-border);
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .status-pill.in-memory {
@@ -261,14 +281,16 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            padding: 8px 16px;
+            gap: 5px;
+            padding: 7px 13px;
             border-radius: var(--radius-md);
-            font-size: 0.82rem;
+            font-size: 0.78rem;
             font-weight: 700;
             border: none;
             cursor: pointer;
             transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .btn-marina {
@@ -961,13 +983,13 @@
             <!-- 3-Slide Horizontal Navigation Switcher -->
             <nav class="slide-nav-pills" id="slideNav">
                 <button class="nav-pill active" onclick="switchSlide(0)">
-                    <span>⚡ Slide 1: MLFQ OS Core & Injector</span>
+                    <span>⚡ Slide 1: MLFQ Core</span>
                 </button>
                 <button class="nav-pill" onclick="switchSlide(1)">
-                    <span>📊 Slide 2: Joined Ledger & OS Logs</span>
+                    <span>📊 Slide 2: Joined Ledger</span>
                 </button>
                 <button class="nav-pill" onclick="switchSlide(2)">
-                    <span>📈 Slide 3: Live Telemetry & Verified Balances</span>
+                    <span>📈 Slide 3: Telemetry & Balances</span>
                 </button>
             </nav>
 
@@ -977,7 +999,7 @@
                     <span id="dbStatusText">MySQL Synchronized</span>
                 </div>
                 <button class="btn btn-marina" onclick="exportAuditLog()" title="Download Complete CSV Audit Log">
-                    <span>📥 Export Audit Log (.CSV)</span>
+                    <span>📥 Export Audit (.CSV)</span>
                 </button>
                 <button class="btn btn-outline" id="trafficToggleBtn" onclick="toggleTraffic()">
                     <span id="trafficIcon">▶</span>
