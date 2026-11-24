@@ -403,22 +403,38 @@ def ensure_cpp_scheduler_running():
 tracked_test_txn = None
 
 def get_cpp_scheduler_state():
+    # 1. Try TCP Socket
     try:
         req = urllib.request.Request(f"{CPP_SCHEDULER_URL}/state")
-        with urllib.request.urlopen(req, timeout=1.0) as resp:
+        with urllib.request.urlopen(req, timeout=0.5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             return data
-    except Exception as e:
-        return {
-            "active_process": None,
-            "queue_1": [],
-            "queue_2": [],
-            "queue_3": [],
-            "completed": [],
-            "stats": {"total_admitted": 0, "total_completed": 0}
-        }
+    except Exception:
+        pass
+
+    # 2. Resilient File Bridge fallback (state.json)
+    try:
+        if os.path.exists("state.json"):
+            with open("state.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data
+    except Exception:
+        pass
+
+    return {
+        "active_process": None,
+        "queue_1": [],
+        "queue_2": [],
+        "queue_3": [],
+        "completed": [],
+        "stats": {"total_admitted": 0, "total_completed": 0}
+    }
 
 def inject_into_cpp_scheduler(txn_id, sender, receiver, txn_type, amount, is_test):
+    burst = 1 if txn_type == 'ATM' else (2 if txn_type == 'UPI' else (3 if amount <= 10000.0 else (7 if txn_type == 'PAYROLL' else 5)))
+    queue = "Queue 1 (Priority)" if txn_type in ('ATM', 'UPI') else ("Queue 2 (SJF)" if burst <= 3 else "Queue 3 (FCFS)")
+
+    # 1. Try TCP Socket
     query = urllib.parse.urlencode({
         "txn_id": txn_id,
         "sender_id": sender,
@@ -430,23 +446,29 @@ def inject_into_cpp_scheduler(txn_id, sender, receiver, txn_type, amount, is_tes
     url = f"{CPP_SCHEDULER_URL}/inject?{query}"
     try:
         req = urllib.request.Request(url, method="POST")
-        with urllib.request.urlopen(req, timeout=1.2) as resp:
+        with urllib.request.urlopen(req, timeout=0.6) as resp:
             return json.loads(resp.read().decode('utf-8'))
-    except Exception as e:
-        # Fallback local calculation
-        burst = 1 if txn_type == 'ATM' else (2 if txn_type == 'UPI' else (3 if amount <= 10000 else (7 if txn_type == 'PAYROLL' else 5)))
-        queue = "Queue 1 (Priority)" if txn_type in ('ATM', 'UPI') else ("Queue 2 (SJF)" if burst <= 3 else "Queue 3 (FCFS)")
-        return {
-            "txn_id": txn_id,
-            "sender_id": sender,
-            "receiver_id": receiver,
-            "txn_type": txn_type,
-            "amount": amount,
-            "auto_burst_time": burst,
-            "assigned_queue": queue,
-            "status": "QUEUED",
-            "is_test": is_test
-        }
+    except Exception:
+        pass
+
+    # 2. Resilient File Bridge fallback (inbox.jsonl)
+    try:
+        with open("inbox.jsonl", "a", encoding="utf-8") as f:
+            f.write(f"txn_id={txn_id};sender_id={sender};receiver_id={receiver};txn_type={txn_type};amount={amount};is_test={1 if is_test else 0}\n")
+    except Exception:
+        pass
+
+    return {
+        "txn_id": txn_id,
+        "sender_id": sender,
+        "receiver_id": receiver,
+        "txn_type": txn_type,
+        "amount": amount,
+        "auto_burst_time": burst,
+        "assigned_queue": queue,
+        "status": "QUEUED",
+        "is_test": is_test
+    }
 
 # ----------------------------------------------------------------------------
 # Background Worker: Syncs C++ Completed Transactions to MySQL ACID Balances

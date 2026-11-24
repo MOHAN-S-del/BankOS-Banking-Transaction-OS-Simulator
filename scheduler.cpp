@@ -2,18 +2,21 @@
 // BankOS Middleware: Pure C++17 Multi-Level Feedback Queue (MLFQ) Engine
 // File: scheduler.cpp
 //
+// Dual-Bridge OS Architecture:
+// 1. High-Performance TCP Socket Server on Port 8765
+// 2. Resilient Atomic File Bridge (state.json & inbox.jsonl)
+//
 // Features:
-// 1. Process Control Block (struct Process) modeling banking transactions.
-// 2. Auto Burst Time Calculation:
-//    - ATM: 1s
-//    - UPI: 2s
-//    - STANDARD: 3s (amount <= 10,000) or 5s (amount > 10,000)
-//    - PAYROLL: 7s
-// 3. 3-Level MLFQ Scheduling:
-//    - Queue 1: Priority Scheduling (ATM, UPI)
-//    - Queue 2: Shortest Job First (SJF) (Standard <= 3s)
-//    - Queue 3: First-Come, First-Served (FCFS) (Payroll, Large > 3s)
-// 4. Built-in Local Micro-HTTP Bridge for server.py communication.
+// - Process Control Block (struct Process) modeling banking transactions.
+// - Auto Burst Time:
+//     ATM: 1s
+//     UPI: 2s
+//     STANDARD: 3s (amount <= 10000) or 5s (amount > 10000)
+//     PAYROLL: 7s
+// - 3-Level MLFQ:
+//     Queue 1: Priority Scheduling (ATM, UPI)
+//     Queue 2: Shortest Job First (SJF) (Standard <= 3s)
+//     Queue 3: First-Come, First-Served (FCFS) (Payroll, Large > 3s)
 //
 // Compile: g++ -O2 -std=c++17 scheduler.cpp -o scheduler -pthread
 // ============================================================================
@@ -28,9 +31,9 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <fstream>
 #include <cstring>
 
-// POSIX Sockets for lightweight local IPC bridge
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -128,7 +131,6 @@ public:
             queue_1_.push_back(p);
         } else if (p.assigned_queue == "Queue 2 (SJF)") {
             queue_2_.push_back(p);
-            // Sort Q2 ascending by burst time (Shortest Job First)
             std::sort(queue_2_.begin(), queue_2_.end(), [](const Process& a, const Process& b) {
                 return a.auto_burst_time < b.auto_burst_time;
             });
@@ -137,27 +139,32 @@ public:
         }
 
         total_admitted_++;
+        dump_state_file_unlocked();
         return p;
     }
 
-    void start_cpu_worker() {
+    void start() {
         worker_running_ = true;
         worker_thread_ = std::thread(&MLFQScheduler::cpu_loop, this);
+        file_inbox_thread_ = std::thread(&MLFQScheduler::file_inbox_loop, this);
     }
 
     void stop() {
         worker_running_ = false;
-        if (worker_thread_.joinable()) {
-            worker_thread_.join();
-        }
+        if (worker_thread_.joinable()) worker_thread_.join();
+        if (file_inbox_thread_.joinable()) file_inbox_thread_.join();
     }
 
     std::string get_state_json() {
         std::lock_guard<std::mutex> lock(mtx_);
+        return serialize_state_unlocked();
+    }
+
+private:
+    std::string serialize_state_unlocked() {
         std::ostringstream ss;
         ss << "{";
 
-        // Active CPU process
         ss << "\"active_process\":";
         if (active_process_) {
             ss << active_process_->to_json();
@@ -166,7 +173,6 @@ public:
         }
         ss << ",";
 
-        // Queue 1
         ss << "\"queue_1\":[";
         for (size_t i = 0; i < queue_1_.size(); ++i) {
             ss << queue_1_[i].to_json();
@@ -174,7 +180,6 @@ public:
         }
         ss << "],";
 
-        // Queue 2
         ss << "\"queue_2\":[";
         for (size_t i = 0; i < queue_2_.size(); ++i) {
             ss << queue_2_[i].to_json();
@@ -182,7 +187,6 @@ public:
         }
         ss << "],";
 
-        // Queue 3
         ss << "\"queue_3\":[";
         for (size_t i = 0; i < queue_3_.size(); ++i) {
             ss << queue_3_[i].to_json();
@@ -190,7 +194,6 @@ public:
         }
         ss << "],";
 
-        // Completed ready for DB commit
         ss << "\"completed\":[";
         for (size_t i = 0; i < recent_completed_.size(); ++i) {
             ss << recent_completed_[i].to_json();
@@ -198,7 +201,6 @@ public:
         }
         ss << "],";
 
-        // Metrics
         ss << "\"stats\":{"
            << "\"total_admitted\":" << total_admitted_ << ","
            << "\"total_completed\":" << total_completed_
@@ -208,15 +210,66 @@ public:
         return ss.str();
     }
 
-    // Drain newly completed transactions so Python can update MySQL
-    std::vector<Process> drain_completed() {
-        std::lock_guard<std::mutex> lock(mtx_);
-        std::vector<Process> res = std::move(ready_for_commit_);
-        ready_for_commit_.clear();
-        return res;
+    void dump_state_file_unlocked() {
+        std::string json_str = serialize_state_unlocked();
+        std::ofstream tmp_f("state.json.tmp");
+        if (tmp_f.is_open()) {
+            tmp_f << json_str;
+            tmp_f.close();
+            std::rename("state.json.tmp", "state.json");
+        }
     }
 
-private:
+    void file_inbox_loop() {
+        while (worker_running_) {
+            std::ifstream in("inbox.jsonl");
+            if (in.is_open()) {
+                std::string line;
+                std::vector<std::string> lines;
+                while (std::getline(in, line)) {
+                    if (!line.empty()) lines.push_back(line);
+                }
+                in.close();
+
+                if (!lines.empty()) {
+                    // Truncate inbox
+                    std::ofstream out("inbox.jsonl", std::ios::trunc);
+                    out.close();
+
+                    for (const auto& l : lines) {
+                        // Simple parser for key=value
+                        std::istringstream ss(l);
+                        std::string part;
+                        std::string txn_id = "TXN-AUTO";
+                        std::string sender = "ACC1001";
+                        std::string receiver = "ACC1002";
+                        std::string type = "UPI";
+                        double amount = 1000.0;
+                        bool is_test = false;
+
+                        while (std::getline(ss, part, ';')) {
+                            auto eq = part.find('=');
+                            if (eq != std::string::npos) {
+                                std::string k = part.substr(0, eq);
+                                std::string v = part.substr(eq + 1);
+                                if (k == "txn_id") txn_id = v;
+                                else if (k == "sender_id") sender = v;
+                                else if (k == "receiver_id") receiver = v;
+                                else if (k == "txn_type") type = v;
+                                else if (k == "amount") {
+                                    try { amount = std::stod(v); } catch (...) {}
+                                }
+                                else if (k == "is_test") is_test = (v == "1" || v == "true");
+                            }
+                        }
+                        admit_transaction(txn_id, sender, receiver, type, amount, is_test);
+                    }
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(80));
+        }
+    }
+
     void cpu_loop() {
         while (worker_running_) {
             Process current;
@@ -249,6 +302,7 @@ private:
                     std::chrono::duration<double> wait_d = now - current.arrival_tp;
                     current.wait_time = wait_d.count();
                     active_process_ = std::make_unique<Process>(current);
+                    dump_state_file_unlocked();
                 }
             }
 
@@ -259,8 +313,7 @@ private:
 
             // Simulate Burst Execution in smooth ticks
             int burst = current.auto_burst_time;
-            const int total_steps = 20;
-            // 0.4s to 0.5s per burst second for responsive live visual updates
+            const int total_steps = 15;
             double total_sim_ms = std::max(400.0, burst * 450.0);
             int step_ms = static_cast<int>(total_sim_ms / total_steps);
 
@@ -270,6 +323,7 @@ private:
                 if (active_process_) {
                     active_process_->progress_pct = (s * 100) / total_steps;
                     active_process_->remaining_burst = std::max(0, burst - (s * burst) / total_steps);
+                    dump_state_file_unlocked();
                 }
             }
 
@@ -284,8 +338,8 @@ private:
                 recent_completed_.push_front(current);
                 if (recent_completed_.size() > 50) recent_completed_.pop_back();
 
-                ready_for_commit_.push_back(current);
                 active_process_.reset();
+                dump_state_file_unlocked();
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -298,12 +352,12 @@ private:
     std::deque<Process> queue_3_;
     std::unique_ptr<Process> active_process_;
     std::deque<Process> recent_completed_;
-    std::vector<Process> ready_for_commit_;
 
     uint64_t total_admitted_ = 0;
     uint64_t total_completed_ = 0;
     bool worker_running_ = false;
     std::thread worker_thread_;
+    std::thread file_inbox_thread_;
 };
 
 } // namespace bankos
@@ -315,10 +369,7 @@ static bankos::MLFQScheduler g_scheduler;
 
 void run_ipc_bridge(int port) {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0) {
-        std::cerr << "[scheduler] Socket creation error\n";
-        return;
-    }
+    if (server_fd < 0) return;
 
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -329,13 +380,11 @@ void run_ipc_bridge(int port) {
     address.sin_port = htons(port);
 
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        std::cerr << "[scheduler] Bind failed on port " << port << " (Port may be in use)\n";
         close(server_fd);
         return;
     }
 
     if (listen(server_fd, 10) < 0) {
-        std::cerr << "[scheduler] Listen failed\n";
         close(server_fd);
         return;
     }
@@ -353,7 +402,6 @@ void run_ipc_bridge(int port) {
         if (bytes_read > 0) {
             std::string req(buffer, bytes_read);
 
-            // Handle GET /state
             if (req.find("GET /state") != std::string::npos) {
                 std::string body = g_scheduler.get_state_json();
                 std::ostringstream resp;
@@ -364,17 +412,7 @@ void run_ipc_bridge(int port) {
                      << body;
                 std::string resp_str = resp.str();
                 write(client_fd, resp_str.c_str(), resp_str.size());
-            }
-            // Handle POST /inject
-            else if (req.find("POST /inject") != std::string::npos) {
-                // Extract parameters from URL query or simple body
-                std::string txn_id = "TXN-AUTO";
-                std::string sender = "ACC1001";
-                std::string receiver = "ACC1002";
-                std::string type = "UPI";
-                double amount = 1000.0;
-                bool is_test = false;
-
+            } else if (req.find("POST /inject") != std::string::npos) {
                 auto parse_param = [&](const std::string& key) -> std::string {
                     std::string pattern = key + "=";
                     auto pos = req.find(pattern);
@@ -385,25 +423,21 @@ void run_ipc_bridge(int port) {
                     return "";
                 };
 
-                std::string p_txn = parse_param("txn_id");
-                if (!p_txn.empty()) txn_id = p_txn;
-
-                std::string p_snd = parse_param("sender_id");
-                if (!p_snd.empty()) sender = p_snd;
-
-                std::string p_rcv = parse_param("receiver_id");
-                if (!p_rcv.empty()) receiver = p_rcv;
-
-                std::string p_type = parse_param("txn_type");
-                if (!p_type.empty()) type = p_type;
-
+                std::string txn_id = parse_param("txn_id");
+                if (txn_id.empty()) txn_id = "TXN-AUTO";
+                std::string sender = parse_param("sender_id");
+                if (sender.empty()) sender = "ACC1001";
+                std::string receiver = parse_param("receiver_id");
+                if (receiver.empty()) receiver = "ACC1002";
+                std::string type = parse_param("txn_type");
+                if (type.empty()) type = "UPI";
+                double amount = 1000.0;
                 std::string p_amt = parse_param("amount");
                 if (!p_amt.empty()) {
                     try { amount = std::stod(p_amt); } catch (...) {}
                 }
-
                 std::string p_test = parse_param("is_test");
-                if (p_test == "1" || p_test == "true") is_test = true;
+                bool is_test = (p_test == "1" || p_test == "true");
 
                 bankos::Process admitted = g_scheduler.admit_transaction(txn_id, sender, receiver, type, amount, is_test);
 
@@ -416,9 +450,7 @@ void run_ipc_bridge(int port) {
                      << body;
                 std::string resp_str = resp.str();
                 write(client_fd, resp_str.c_str(), resp_str.size());
-            }
-            // Default 404
-            else {
+            } else {
                 std::string body = "{\"error\":\"Not Found\"}";
                 std::ostringstream resp;
                 resp << "HTTP/1.1 404 Not Found\r\n"
@@ -444,7 +476,7 @@ int main(int argc, char* argv[]) {
     std::cout << "   Auto Burst Time Engine (ATM/UPI/SJF/FCFS)       \n";
     std::cout << "====================================================\n";
 
-    g_scheduler.start_cpu_worker();
+    g_scheduler.start();
     run_ipc_bridge(port);
 
     g_scheduler.stop();

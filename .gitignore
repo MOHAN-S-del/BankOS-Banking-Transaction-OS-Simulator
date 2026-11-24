@@ -10,3 +10,5 @@ test_state_transitions.json
 __pycache__/
 *.pyc
 scheduler
+state.json*
+inbox.jsonl
