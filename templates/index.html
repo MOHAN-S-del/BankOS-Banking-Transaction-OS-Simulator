@@ -9,35 +9,36 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* ====================================================================
-           BankOS Middleware: Clean Minimalist White & Pink Aesthetic Theme
-           Crisp White (#FFFFFF), Soft Blush (#FFF5F7), Bold Rose-Pink (#E11D48)
+           BankOS Middleware: Marina Blue & Aqua Liquid Glassmorphism Theme
+           Oceanic Mist (#F0F9FF to #E0F2FE), Marina Blue (#0284C7), Aqua (#06B6D4)
            ==================================================================== */
         :root {
-            --bg-base: #FFF5F7;
-            --bg-card: #FFFFFF;
-            --bg-subtle: #FFF1F2;
-            --border-card: #FECDD3;
-            --border-subtle: #FFE4E8;
-            --border-focus: #E11D48;
+            --bg-ocean-1: #F0F9FF;
+            --bg-ocean-2: #E0F2FE;
+            --bg-ocean-3: #BAE6FD;
 
-            --pink-primary: #E11D48;
-            --pink-hover: #BE123C;
-            --pink-light: #FFF1F4;
-            --pink-border: #FDA4AF;
-            --pink-glow: rgba(225, 29, 72, 0.35);
+            --glass-bg: rgba(255, 255, 255, 0.72);
+            --glass-bg-subtle: rgba(255, 255, 255, 0.55);
+            --glass-card: rgba(255, 255, 255, 0.82);
+            --glass-border: rgba(14, 165, 233, 0.22);
+            --glass-border-focus: #0284C7;
+            --glass-shadow: 0 10px 32px rgba(2, 132, 199, 0.08);
+            --glass-glow: 0 0 20px rgba(6, 182, 212, 0.25);
 
-            --text-primary: #0F172A;
-            --text-secondary: #334155;
+            --marina-primary: #0284C7;
+            --marina-dark: #0369A1;
+            --marina-light: #E0F2FE;
+            --aqua-accent: #06B6D4;
+            --aqua-cyan: #0891B2;
+
+            --text-title: #0F172A;
+            --text-body: #334155;
             --text-muted: #64748B;
             --text-dim: #94A3B8;
 
             --emerald: #059669;
             --emerald-bg: #ECFDF5;
             --emerald-border: #A7F3D0;
-
-            --sky: #0284C7;
-            --sky-bg: #F0F9FF;
-            --sky-border: #BAE6FD;
 
             --amber: #D97706;
             --amber-bg: #FEF3C7;
@@ -50,11 +51,10 @@
             --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             --font-mono: 'JetBrains Mono', SFMono-Regular, Consolas, monospace;
 
-            --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 14px;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
             --radius-full: 9999px;
-            --shadow-card: 0 4px 18px rgba(225, 29, 72, 0.05);
         }
 
         * {
@@ -64,33 +64,72 @@
         }
 
         body {
-            background-color: var(--bg-base);
-            color: var(--text-primary);
+            background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 45%, #F0FDFA 100%);
+            color: var(--text-title);
             font-family: var(--font-sans);
             font-size: 14px;
             line-height: 1.5;
             min-height: 100vh;
             overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Ambient Liquid Glow Blobs */
+        .ambient-blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.55;
+            animation: floatBlob 18s ease-in-out infinite alternate;
+        }
+
+        .blob-1 {
+            width: 480px;
+            height: 480px;
+            background: radial-gradient(circle, rgba(14, 165, 233, 0.35) 0%, rgba(6, 182, 212, 0.1) 70%);
+            top: -120px;
+            right: -80px;
+        }
+
+        .blob-2 {
+            width: 520px;
+            height: 520px;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.28) 0%, rgba(2, 132, 199, 0.08) 70%);
+            bottom: -150px;
+            left: -100px;
+            animation-duration: 22s;
+        }
+
+        @keyframes floatBlob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            50% { transform: translate(35px, 45px) scale(1.08); }
+            100% { transform: translate(-30px, -20px) scale(0.96); }
         }
 
         /* Top Sticky Header */
         .app-header {
-            background: #FFFFFF;
-            border-bottom: 1.5px solid var(--border-card);
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid var(--glass-border);
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 2px 10px rgba(225, 29, 72, 0.04);
+            box-shadow: 0 4px 20px rgba(2, 132, 199, 0.05);
         }
 
         .header-wrap {
-            max-width: 1520px;
+            max-width: 1560px;
             margin: 0 auto;
-            padding: 12px 24px;
+            padding: 12px 28px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 20px;
+            position: relative;
+            z-index: 1;
         }
 
         .brand-block {
@@ -100,42 +139,55 @@
         }
 
         .brand-icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, var(--pink-primary), #FB7185);
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #0284C7 0%, #06B6D4 100%);
             border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
             color: #FFFFFF;
-            font-size: 1.15rem;
-            font-weight: 800;
-            box-shadow: 0 3px 8px rgba(225, 29, 72, 0.25);
+            font-size: 1.25rem;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
         }
 
         .brand-title {
-            font-size: 1.15rem;
+            font-size: 1.18rem;
             font-weight: 800;
-            color: var(--text-primary);
-            letter-spacing: -0.3px;
+            color: var(--text-title);
+            letter-spacing: -0.4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .brand-tag {
-            font-size: 0.72rem;
-            color: var(--pink-primary);
-            font-weight: 700;
-            text-transform: uppercase;
+        .brand-badge {
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: var(--marina-primary);
+            background: var(--marina-light);
+            border: 1px solid var(--glass-border);
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
             letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .brand-desc {
+            font-size: 0.74rem;
+            color: var(--text-muted);
+            font-weight: 500;
         }
 
         /* 3-Slide Navigation Pills */
         .slide-nav-pills {
             display: flex;
-            background: var(--bg-subtle);
-            padding: 4px;
+            background: rgba(224, 242, 254, 0.55);
+            padding: 5px;
             border-radius: var(--radius-full);
-            border: 1px solid var(--border-card);
-            gap: 4px;
+            border: 1px solid var(--glass-border);
+            gap: 5px;
+            backdrop-filter: blur(12px);
         }
 
         .nav-pill {
@@ -146,24 +198,24 @@
             border-radius: var(--radius-full);
             border: none;
             background: transparent;
-            color: var(--text-secondary);
+            color: var(--text-body);
             font-size: 0.82rem;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.25s ease;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
             white-space: nowrap;
         }
 
         .nav-pill:hover {
-            color: var(--pink-primary);
-            background: rgba(255, 255, 255, 0.6);
+            color: var(--marina-primary);
+            background: rgba(255, 255, 255, 0.65);
         }
 
         .nav-pill.active {
             background: #FFFFFF;
-            color: var(--pink-primary);
-            box-shadow: 0 2px 8px rgba(225, 29, 72, 0.15);
-            border: 1px solid var(--border-card);
+            color: var(--marina-primary);
+            box-shadow: 0 3px 10px rgba(2, 132, 199, 0.18);
+            border: 1px solid rgba(14, 165, 233, 0.3);
         }
 
         .header-actions {
@@ -178,25 +230,31 @@
             gap: 6px;
             font-size: 0.76rem;
             font-weight: 700;
-            padding: 6px 12px;
+            padding: 6px 14px;
             border-radius: var(--radius-full);
             background: var(--emerald-bg);
             color: var(--emerald);
             border: 1px solid var(--emerald-border);
         }
 
+        .status-pill.in-memory {
+            background: var(--amber-bg);
+            color: var(--amber);
+            border-color: var(--amber-border);
+        }
+
         .pulse-dot {
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            background: var(--emerald);
-            animation: pulse-dot 1.6s infinite;
+            background: currentColor;
+            animation: pulse-dot 1.8s infinite;
         }
 
         @keyframes pulse-dot {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(5, 150, 105, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
         }
 
         .btn {
@@ -213,27 +271,27 @@
             transition: all 0.2s ease;
         }
 
-        .btn-pink {
-            background: var(--pink-primary);
+        .btn-marina {
+            background: linear-gradient(135deg, var(--marina-primary) 0%, var(--aqua-cyan) 100%);
             color: #FFFFFF;
-            box-shadow: 0 2px 8px rgba(225, 29, 72, 0.2);
+            box-shadow: 0 3px 10px rgba(2, 132, 199, 0.28);
         }
 
-        .btn-pink:hover {
-            background: var(--pink-hover);
+        .btn-marina:hover {
             transform: translateY(-1px);
+            box-shadow: 0 5px 14px rgba(2, 132, 199, 0.38);
         }
 
         .btn-outline {
-            background: #FFFFFF;
-            border: 1.5px solid var(--border-card);
-            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid var(--glass-border);
+            color: var(--text-body);
         }
 
         .btn-outline:hover {
-            border-color: var(--pink-primary);
-            color: var(--pink-primary);
-            background: var(--pink-light);
+            border-color: var(--marina-primary);
+            color: var(--marina-primary);
+            background: #FFFFFF;
         }
 
         /* ====================================================================
@@ -243,28 +301,33 @@
             width: 100%;
             overflow: hidden;
             position: relative;
+            z-index: 1;
         }
 
         .slides-track {
             display: flex;
             width: 300%;
-            transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+            will-change: transform;
         }
 
         .slide-page {
             width: 33.333333%;
-            flex-shrink: 0;
-            padding: 24px;
-            max-width: 1520px;
+            padding: 24px 28px 48px;
+            max-width: 1560px;
             margin: 0 auto;
+            flex-shrink: 0;
         }
 
-        .card-panel {
-            background: var(--bg-card);
-            border: 1.5px solid var(--border-card);
+        /* Glass Cards */
+        .glass-panel {
+            background: var(--glass-card);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--glass-border);
             border-radius: var(--radius-lg);
             padding: 22px;
-            box-shadow: var(--shadow-card);
+            box-shadow: var(--glass-shadow);
         }
 
         .panel-header {
@@ -272,719 +335,853 @@
             align-items: center;
             justify-content: space-between;
             margin-bottom: 18px;
+            border-bottom: 1px solid var(--glass-border);
             padding-bottom: 12px;
-            border-bottom: 1px solid var(--border-subtle);
         }
 
         .panel-title {
-            font-size: 1.05rem;
+            font-size: 1.02rem;
             font-weight: 800;
-            color: var(--text-primary);
+            color: var(--text-title);
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .panel-subtitle {
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            margin-top: 2px;
+        .panel-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            background: var(--marina-light);
+            color: var(--marina-primary);
+            border: 1px solid var(--glass-border);
         }
 
         /* ====================================================================
-           SLIDE 1: LIVE MIDDLEWARE & DEMO TEST CONSOLE
+           SLIDE 1: MLFQ OS CORE & INJECTOR
            ==================================================================== */
-        .slide-1-grid {
+        .grid-slide-1 {
             display: grid;
-            grid-template-columns: 440px 1fr;
+            grid-template-columns: 460px 1fr;
             gap: 24px;
         }
 
-        @media (max-width: 1100px) {
-            .slide-1-grid {
+        @media (max-width: 1200px) {
+            .grid-slide-1 {
                 grid-template-columns: 1fr;
             }
         }
 
+        /* Form Controls */
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 14px;
         }
 
         .form-label {
             display: block;
-            font-size: 0.76rem;
-            font-weight: 800;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-body);
+            margin-bottom: 5px;
         }
 
-        .form-control {
+        .form-select, .form-input {
             width: 100%;
             padding: 10px 14px;
-            background: #FFFFFF;
-            border: 1.5px solid var(--border-card);
             border-radius: var(--radius-md);
-            color: var(--text-primary);
-            font-size: 0.85rem;
-            font-family: inherit;
+            border: 1.5px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.9);
+            font-family: var(--font-sans);
+            font-size: 0.86rem;
+            color: var(--text-title);
             outline: none;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
 
-        .form-control:focus {
-            border-color: var(--pink-primary);
-            box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12);
-        }
-
-        .auto-burst-note {
-            background: var(--bg-subtle);
-            border: 1px solid var(--border-card);
-            border-radius: var(--radius-md);
-            padding: 10px 12px;
-            margin: 14px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.78rem;
-            color: var(--pink-primary);
-            font-weight: 600;
-        }
-
-        .btn-proceed {
-            width: 100%;
-            padding: 13px;
-            font-size: 0.92rem;
-            font-weight: 800;
-            letter-spacing: 0.3px;
-        }
-
-        /* Dedicated Tracked Test Transaction Banner */
-        .test-tracker-banner {
+        .form-select:focus, .form-input:focus {
+            border-color: var(--marina-primary);
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
             background: #FFFFFF;
-            border: 2px solid var(--pink-primary);
-            border-radius: var(--radius-lg);
-            padding: 16px 20px;
-            margin-bottom: 18px;
-            box-shadow: 0 0 16px var(--pink-glow);
         }
 
-        .test-tracker-header {
+        /* Auto Burst Calculated Badge (No manual input!) */
+        .auto-burst-badge-wrap {
+            background: linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(6, 182, 212, 0.08) 100%);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
+            margin: 12px 0 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 10px;
         }
 
-        .badge-your-test {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            background: var(--pink-primary);
-            color: #FFFFFF;
-            font-size: 0.74rem;
+        .auto-burst-label {
+            font-size: 0.78rem;
+            color: var(--text-body);
+            font-weight: 600;
+        }
+
+        .auto-burst-value {
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
             font-weight: 800;
-            padding: 4px 10px;
-            border-radius: var(--radius-full);
-            box-shadow: 0 0 10px rgba(225, 29, 72, 0.4);
-            letter-spacing: 0.5px;
+            color: var(--marina-primary);
+            background: #FFFFFF;
+            padding: 3px 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.1);
         }
 
-        .tracker-pipeline {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .pipeline-pill {
-            padding: 8px 10px;
+        /* 4-Step Test Transaction Stepper */
+        .test-tracker-card {
+            margin-top: 18px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid var(--glass-border);
             border-radius: var(--radius-md);
-            background: var(--bg-subtle);
-            border: 1.5px solid var(--border-subtle);
+            padding: 14px;
+        }
+
+        .tracker-title {
+            font-size: 0.76rem;
+            font-weight: 800;
+            color: var(--marina-dark);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .stepper-track {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            margin: 8px 0;
+        }
+
+        .stepper-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            position: relative;
+            z-index: 2;
+            width: 25%;
             text-align: center;
-            font-size: 0.72rem;
+        }
+
+        .step-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #FFFFFF;
+            border: 2px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.74rem;
             font-weight: 800;
             color: var(--text-muted);
             transition: all 0.3s ease;
         }
 
-        .pipeline-pill.active {
-            background: #FFFFFF;
-            border-color: var(--pink-primary);
-            color: var(--pink-primary);
-            box-shadow: 0 2px 8px rgba(225, 29, 72, 0.15);
+        .step-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            line-height: 1.2;
         }
 
-        .pipeline-pill.completed {
-            background: var(--emerald-bg);
+        .stepper-step.active .step-circle {
+            background: linear-gradient(135deg, var(--marina-primary), var(--aqua-accent));
+            border-color: #FFFFFF;
+            color: #FFFFFF;
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.5);
+            transform: scale(1.15);
+        }
+
+        .stepper-step.active .step-label {
+            color: var(--marina-primary);
+            font-weight: 800;
+        }
+
+        .stepper-step.done .step-circle {
+            background: var(--emerald);
             border-color: var(--emerald-border);
+            color: #FFFFFF;
+        }
+
+        .stepper-step.done .step-label {
             color: var(--emerald);
         }
 
-        /* CPU Active Slot Card */
-        .cpu-card {
-            background: linear-gradient(135deg, #FFFFFF, var(--bg-subtle));
-            border: 1.5px solid var(--border-card);
+        /* CPU Execution Core Card */
+        .cpu-core-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(240, 249, 255, 0.9) 100%);
+            border: 1.5px solid var(--glass-border);
             border-radius: var(--radius-lg);
-            padding: 16px 20px;
-            margin-bottom: 18px;
-        }
-
-        .cpu-progress-bar {
-            height: 8px;
-            background: var(--border-card);
-            border-radius: var(--radius-full);
+            padding: 18px 22px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 18px rgba(2, 132, 199, 0.06);
+            position: relative;
             overflow: hidden;
-            margin: 8px 0;
         }
 
-        .cpu-progress-fill {
+        .cpu-core-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .cpu-core-title {
+            font-size: 0.94rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cpu-state-pill {
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            background: var(--emerald-bg);
+            color: var(--emerald);
+            border: 1px solid var(--emerald-border);
+        }
+
+        .cpu-state-pill.idle {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-muted);
+            border-color: rgba(148, 163, 184, 0.3);
+        }
+
+        /* Animated Fluid Wave Progress Bar */
+        .wave-progress-wrap {
+            height: 18px;
+            border-radius: var(--radius-full);
+            background: rgba(224, 242, 254, 0.6);
+            border: 1px solid var(--glass-border);
+            position: relative;
+            overflow: hidden;
+            margin: 10px 0 6px;
+        }
+
+        .wave-progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--pink-primary), #FB7185);
-            width: 0%;
-            transition: width 0.25s linear;
+            background: linear-gradient(90deg, #0284C7 0%, #06B6D4 50%, #38BDF8 100%);
+            border-radius: var(--radius-full);
+            transition: width 0.3s ease;
+            position: relative;
+            background-size: 200% 100%;
+            animation: waveFlow 2s linear infinite;
         }
 
-        /* 3-Level MLFQ Queue Containers */
+        @keyframes waveFlow {
+            0% { background-position: 100% 0%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        /* 3-Tier MLFQ Queues Visual Grid */
         .queues-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 16px;
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 992px) {
             .queues-grid {
                 grid-template-columns: 1fr;
             }
         }
 
         .queue-col {
-            background: #FFFFFF;
-            border: 1.5px solid var(--border-card);
+            background: rgba(255, 255, 255, 0.65);
+            border: 1.5px solid var(--glass-border);
             border-radius: var(--radius-md);
-            padding: 14px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            min-height: 280px;
+            min-height: 380px;
         }
 
-        .queue-header {
+        .queue-col-header {
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+
+        .queue-col-title {
+            font-size: 0.88rem;
+            font-weight: 800;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1.5px solid var(--border-subtle);
         }
 
-        .queue-title {
-            font-size: 0.82rem;
-            font-weight: 800;
+        .queue-col-desc {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 3px;
         }
 
-        .q1-title { color: var(--sky); }
-        .q2-title { color: var(--emerald); }
-        .q3-title { color: var(--purple); }
-
-        .queue-badge {
-            font-size: 0.68rem;
-            font-weight: 800;
-            padding: 2px 7px;
-            border-radius: var(--radius-full);
-            background: var(--pink-light);
-            color: var(--pink-primary);
-        }
-
-        .queue-list {
-            flex: 1;
+        .queue-process-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
             overflow-y: auto;
-            max-height: 320px;
+            max-height: 420px;
+            padding-right: 4px;
         }
 
         .process-card {
             background: #FFFFFF;
-            border: 1px solid var(--border-card);
+            border: 1px solid var(--glass-border);
             border-radius: var(--radius-sm);
             padding: 10px 12px;
-            transition: all 0.2s;
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.05);
+            transition: all 0.2s ease;
         }
 
-        /* HIGHLIGHT FOR USER TEST TRANSACTIONS */
-        .process-card.is-test-highlight {
-            border: 2px solid var(--pink-primary) !important;
-            background: #FFF9FA !important;
-            box-shadow: 0 0 12px var(--pink-glow) !important;
+        .process-card:hover {
+            border-color: var(--marina-primary);
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.12);
         }
 
-        .pcb-top {
+        .process-card.test-highlight {
+            border: 1.5px solid var(--aqua-accent);
+            background: linear-gradient(135deg, #FFFFFF 0%, #F0FDFA 100%);
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.25);
+        }
+
+        .process-card-top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
 
-        .pcb-id {
+        .process-id {
             font-family: var(--font-mono);
-            font-size: 0.78rem;
             font-weight: 800;
+            font-size: 0.82rem;
+            color: var(--marina-primary);
         }
 
-        .type-tag {
+        .process-type-badge {
             font-size: 0.68rem;
             font-weight: 800;
             padding: 2px 6px;
-            border-radius: 4px;
+            border-radius: var(--radius-full);
+            background: var(--marina-light);
+            color: var(--marina-dark);
         }
 
-        .type-atm { background: var(--amber-bg); color: var(--amber); }
-        .type-upi { background: var(--sky-bg); color: var(--sky); }
-        .type-standard { background: var(--emerald-bg); color: var(--emerald); }
-        .type-payroll { background: var(--purple-bg); color: var(--purple); }
+        .process-aging-indicator {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--amber);
+            background: var(--amber-bg);
+            border: 1px solid var(--amber-border);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            display: inline-block;
+            margin-top: 4px;
+        }
 
-        .empty-msg {
-            text-align: center;
-            color: var(--text-dim);
-            font-size: 0.76rem;
-            padding: 30px 10px;
-            font-style: italic;
+        .process-aged-promoted {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--purple);
+            background: var(--purple-bg);
+            border: 1px solid var(--purple-border);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            display: inline-block;
+            margin-top: 4px;
         }
 
         /* ====================================================================
-           SLIDE 2: MYSQL JOINED LEDGER
+           SLIDE 2: JOINED TRANSACTION LEDGER & OS LOGS
            ==================================================================== */
-        .ledger-toolbar {
+        .slide-2-controls {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 12px;
+            gap: 16px;
             margin-bottom: 16px;
+            flex-wrap: wrap;
         }
 
-        .filter-tabs {
+        .view-switcher-group {
             display: flex;
-            gap: 6px;
+            background: rgba(224, 242, 254, 0.6);
+            border: 1px solid var(--glass-border);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            gap: 4px;
         }
 
-        .filter-btn {
-            font-size: 0.78rem;
-            font-weight: 700;
+        .view-switch-btn {
             padding: 6px 14px;
-            border-radius: var(--radius-full);
-            background: #FFFFFF;
-            border: 1px solid var(--border-card);
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .filter-btn.active {
-            background: var(--pink-primary);
-            color: #FFFFFF;
-            border-color: var(--pink-primary);
-        }
-
-        .search-box {
-            position: relative;
-            min-width: 260px;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 8px 14px 8px 32px;
-            background: #FFFFFF;
-            border: 1.5px solid var(--border-card);
-            border-radius: var(--radius-md);
-            font-size: 0.82rem;
-            outline: none;
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
             font-size: 0.8rem;
-            color: var(--text-muted);
+            font-weight: 700;
+            color: var(--text-body);
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
-        .table-wrap {
+        .view-switch-btn.active {
+            background: #FFFFFF;
+            color: var(--marina-primary);
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.12);
+        }
+
+        .table-responsive {
+            width: 100%;
             overflow-x: auto;
-            border: 1.5px solid var(--border-card);
             border-radius: var(--radius-md);
             background: #FFFFFF;
+            border: 1px solid var(--glass-border);
         }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.82rem;
-        }
-
-        .data-table thead {
-            background: var(--bg-subtle);
-            border-bottom: 2px solid var(--border-card);
+            text-align: left;
         }
 
         .data-table th {
-            text-align: left;
-            padding: 11px 14px;
-            font-size: 0.72rem;
+            background: rgba(240, 249, 255, 0.85);
+            color: var(--marina-dark);
             font-weight: 800;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
+            padding: 12px 14px;
+            border-bottom: 1.5px solid var(--glass-border);
+            white-space: nowrap;
         }
 
         .data-table td {
-            padding: 10px 14px;
-            border-bottom: 1px solid var(--border-subtle);
-            color: var(--text-primary);
+            padding: 11px 14px;
+            border-bottom: 1px solid rgba(224, 242, 254, 0.7);
+            color: var(--text-body);
             vertical-align: middle;
         }
 
-        .data-table tbody tr:hover {
-            background: #FFF9FA;
+        .data-table tr:hover td {
+            background: rgba(240, 249, 255, 0.45);
         }
-
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-family: var(--font-mono);
-            font-size: 0.7rem;
-            font-weight: 800;
-            padding: 3px 8px;
-            border-radius: 4px;
-        }
-
-        .status-completed { background: var(--emerald-bg); color: var(--emerald); border: 1px solid var(--emerald-border); }
-        .status-running { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
-        .status-queued { background: var(--bg-subtle); color: var(--text-muted); border: 1px solid var(--border-subtle); }
 
         /* ====================================================================
-           SLIDE 3: LIVE ACCOUNT BALANCES & ARCHITECTURE
+           SLIDE 3: SCHEDULER METRICS & VERIFIED BALANCES
            ==================================================================== */
-        .arch-summary-box {
-            background: #FFFFFF;
-            border: 1.5px solid var(--border-card);
-            border-radius: var(--radius-lg);
-            padding: 22px;
-            margin-bottom: 22px;
-        }
-
-        .rules-grid {
+        .metrics-cards-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-            margin-top: 14px;
+            gap: 20px;
+            margin-bottom: 24px;
         }
 
-        @media (max-width: 900px) {
-            .rules-grid {
+        @media (max-width: 992px) {
+            .metrics-cards-grid {
                 grid-template-columns: 1fr;
             }
         }
 
-        .rule-card {
-            background: var(--bg-subtle);
-            border: 1.5px solid var(--border-card);
-            border-radius: var(--radius-md);
-            padding: 14px;
-        }
-
-        .rule-card-title {
-            font-size: 0.84rem;
-            font-weight: 800;
-            margin-bottom: 6px;
-        }
-
-        .rule-card-body {
-            font-size: 0.76rem;
-            color: var(--text-secondary);
-            line-height: 1.4;
-        }
-
-        /* Toast */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
+        .metric-card {
             background: #FFFFFF;
-            border: 2px solid var(--pink-primary);
-            border-radius: var(--radius-md);
-            padding: 12px 18px;
-            box-shadow: 0 4px 18px rgba(225, 29, 72, 0.2);
-            display: none;
+            border: 1.5px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--glass-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--marina-primary), var(--aqua-accent));
+        }
+
+        .metric-card-header {
+            display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .metric-card-title {
+            font-size: 0.94rem;
+            font-weight: 800;
+            color: var(--text-title);
+        }
+
+        .metric-stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .stat-box {
+            background: rgba(240, 249, 255, 0.55);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 10px;
+        }
+
+        .stat-label {
+            font-size: 0.68rem;
             font-weight: 700;
-            font-size: 0.85rem;
-            z-index: 1000;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--marina-primary);
+            margin-top: 2px;
+        }
+
+        .stat-sub {
+            font-size: 0.68rem;
+            color: var(--text-dim);
+        }
+
+        /* Pulse for Balance Updates */
+        @keyframes balancePulse {
+            0% { transform: scale(1); background-color: rgba(6, 182, 212, 0.2); }
+            50% { transform: scale(1.05); background-color: rgba(6, 182, 212, 0.4); }
+            100% { transform: scale(1); background-color: transparent; }
+        }
+
+        .balance-updated {
+            animation: balancePulse 1.2s ease;
         }
     </style>
 </head>
 <body>
 
-    <!-- ====================================================================
-         STICKY HEADER & 3-SLIDE HORIZONTAL NAVIGATION BAR
-         ==================================================================== -->
+    <!-- Ambient Liquid Blur Blobs -->
+    <div class="ambient-blob blob-1"></div>
+    <div class="ambient-blob blob-2"></div>
+
+    <!-- Top Sticky Header -->
     <header class="app-header">
         <div class="header-wrap">
             <div class="brand-block">
                 <div class="brand-icon">⚡</div>
                 <div>
-                    <h1 class="brand-title">BankOS Middleware</h1>
-                    <div class="brand-tag">C++17 MLFQ OS Engine &bull; MySQL Ledger</div>
+                    <div class="brand-title">
+                        BankOS Middleware
+                        <span class="brand-badge">C++17 MLFQ & MySQL</span>
+                    </div>
+                    <div class="brand-desc">Multi-Level Feedback Queue OS Scheduler & ACID Banking Ledger</div>
                 </div>
             </div>
 
-            <!-- 3 Horizontal Sliding Views -->
+            <!-- 3-Slide Horizontal Navigation Switcher -->
             <nav class="slide-nav-pills" id="slideNav">
-                <button class="nav-pill active" data-slide="0">
-                    <span>⚡ Slide 1: Live Middleware &amp; Testing Console</span>
+                <button class="nav-pill active" onclick="switchSlide(0)">
+                    <span>⚡ Slide 1: MLFQ OS Core & Injector</span>
                 </button>
-                <button class="nav-pill" data-slide="1">
-                    <span>📊 Slide 2: MySQL Joined Ledger</span>
+                <button class="nav-pill" onclick="switchSlide(1)">
+                    <span>📊 Slide 2: Joined Ledger & OS Logs</span>
                 </button>
-                <button class="nav-pill" data-slide="2">
-                    <span>👥 Slide 3: Live Account Balances &amp; Architecture</span>
+                <button class="nav-pill" onclick="switchSlide(2)">
+                    <span>📈 Slide 3: Live Telemetry & Verified Balances</span>
                 </button>
             </nav>
 
-            <!-- Action Tools -->
             <div class="header-actions">
-                <div class="status-pill" id="engineStatus">
+                <div class="status-pill" id="dbStatusPill">
                     <span class="pulse-dot"></span>
-                    <span id="engineStatusText">C++ &amp; MYSQL ACTIVE</span>
+                    <span id="dbStatusText">MySQL Synchronized</span>
                 </div>
-                <button class="btn btn-outline" id="btnTrafficToggle" title="Start or Pause background traffic">
-                    <span id="trafficIcon">⏸</span>
-                    <span id="trafficLabel">Traffic: Active</span>
+                <button class="btn btn-outline" id="trafficToggleBtn" onclick="toggleTraffic()">
+                    <span id="trafficIcon">▶</span>
+                    <span id="trafficText">Start Traffic</span>
                 </button>
-                <button class="btn btn-outline" id="btnReset" title="Reset queues and test accounts">
-                    <span>🔄 Reset</span>
+                <button class="btn btn-outline" onclick="resetSystem()" title="Reset to Seed Defaults">
+                    <span>↺ Reset</span>
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- ====================================================================
-         SLIDING VIEWPORT (CSS translateX Carousel)
-         ==================================================================== -->
+    <!-- Horizontal Slides Viewport -->
     <main class="slides-viewport">
         <div class="slides-track" id="slidesTrack">
 
-            <!-- ================================================================
-                 SLIDE 1: LIVE MIDDLEWARE & DEMO TEST CONSOLE
-                 ================================================================ -->
-            <section class="slide-page" id="slide0">
-                <div class="slide-1-grid">
+            <!-- ========================================================== -->
+            <!-- SLIDE 1: MLFQ OS CORE & TRANSACTION INJECTOR               -->
+            <!-- ========================================================== -->
+            <section class="slide-page">
+                <div class="grid-slide-1">
 
-                    <!-- LEFT PANEL: TEST TRANSACTION INJECTOR -->
-                    <div class="card-panel">
+                    <!-- Left: Transaction Admission & Stepper -->
+                    <div class="glass-panel">
                         <div class="panel-header">
-                            <div>
-                                <h2 class="panel-title">🎯 Manual Test Injector</h2>
-                                <p class="panel-subtitle">Inject real-time transactions into the C++ OS Scheduler</p>
-                            </div>
-                            <span class="queue-badge">DEMO PANEL</span>
+                            <h2 class="panel-title">
+                                <span>⚡ Admit Banking Transaction</span>
+                            </h2>
+                            <span class="panel-badge">Auto Burst Engine</span>
                         </div>
 
-                        <form id="formInject">
+                        <form id="injectForm" onsubmit="handleFormSubmit(event)">
                             <div class="form-group">
-                                <label class="form-label" for="inpSender">Sender Customer Account</label>
-                                <select class="form-control" id="inpSender" required>
-                                    <option value="ACC1001">ACC1001: Rajesh Sharma (SAVINGS)</option>
-                                    <option value="ACC1002">ACC1002: Priya Patel (SAVINGS)</option>
-                                    <option value="ACC1003">ACC1003: Amit Verma (CURRENT)</option>
-                                    <option value="ACC1004">ACC1004: Sneha Kulkarni (SAVINGS)</option>
-                                    <option value="ACC1005">ACC1005: TechCorp Ltd (CORPORATE)</option>
-                                    <option value="ACC1006">ACC1006: Metro ATM Vault (VAULT)</option>
+                                <label class="form-label">Sender Account</label>
+                                <select class="form-select" id="senderSelect" required>
+                                    <option value="ACC1001">ACC1001 — Rajesh Sharma (₹150,000.00)</option>
+                                    <option value="ACC1002">ACC1002 — Priya Patel (₹85,000.00)</option>
+                                    <option value="ACC1003">ACC1003 — Amit Verma (₹240,000.00)</option>
+                                    <option value="ACC1004">ACC1004 — Sneha Kulkarni (₹95,000.00)</option>
+                                    <option value="ACC1005">ACC1005 — TechCorp Ltd (₹1,500,000.00)</option>
+                                    <option value="ACC1006">ACC1006 — Metro ATM Vault (₹800,000.00)</option>
                                 </select>
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label" for="inpReceiver">Receiver Customer Account</label>
-                                <select class="form-control" id="inpReceiver" required>
-                                    <option value="ACC1002">ACC1002: Priya Patel (SAVINGS)</option>
-                                    <option value="ACC1001">ACC1001: Rajesh Sharma (SAVINGS)</option>
-                                    <option value="ACC1004">ACC1004: Sneha Kulkarni (SAVINGS)</option>
-                                    <option value="ACC1003">ACC1003: Amit Verma (CURRENT)</option>
-                                    <option value="ACC1005">ACC1005: TechCorp Ltd (CORPORATE)</option>
-                                    <option value="ACC1006">ACC1006: Metro ATM Vault (VAULT)</option>
+                                <label class="form-label">Receiver Account</label>
+                                <select class="form-select" id="receiverSelect" required>
+                                    <option value="ACC1002">ACC1002 — Priya Patel</option>
+                                    <option value="ACC1001">ACC1001 — Rajesh Sharma</option>
+                                    <option value="ACC1003">ACC1003 — Amit Verma</option>
+                                    <option value="ACC1004">ACC1004 — Sneha Kulkarni</option>
+                                    <option value="ACC1005">ACC1005 — TechCorp Ltd</option>
+                                    <option value="ACC1006">ACC1006 — Metro ATM Vault</option>
                                 </select>
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label" for="inpType">Transaction Type</label>
-                                <select class="form-control" id="inpType" required>
-                                    <option value="UPI">⚡ UPI Transfer (Auto Burst = 2s &bull; Queue 1 Priority)</option>
-                                    <option value="ATM">🏧 ATM Withdrawal (Auto Burst = 1s &bull; Queue 1 Priority)</option>
-                                    <option value="STANDARD">⏱️ Standard Transfer (Auto Burst = 3s or 5s &bull; Q2 SJF / Q3 FCFS)</option>
-                                    <option value="PAYROLL">🏢 Company Payroll (Auto Burst = 7s &bull; Queue 3 FCFS)</option>
+                                <label class="form-label">Transaction Category</label>
+                                <select class="form-select" id="categorySelect" onchange="updateCategoryFields()" required>
+                                    <option value="UPI">UPI (Instant Peer Transfer)</option>
+                                    <option value="ATM">ATM (Cash Withdrawal / Debit)</option>
+                                    <option value="STANDARD">STANDARD (Account Transfer)</option>
+                                    <option value="PAYROLL">PAYROLL (Corporate Bulk Disbursement)</option>
                                 </select>
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label" for="inpAmount">Transfer Amount (₹)</label>
-                                <input type="number" step="0.01" min="1" max="1500000" class="form-control" id="inpAmount" value="3500.00" required>
+                                <label class="form-label">Amount (₹ INR)</label>
+                                <input type="number" step="0.01" min="1" max="1000000" class="form-input" id="amountInput" value="2500.00" oninput="updateBurstPreview()" required>
                             </div>
 
-                            <!-- NOTE: NO MANUAL BURST TIME FIELD -->
-                            <div class="auto-burst-note">
-                                <span>ℹ️</span>
-                                <span>Burst time &amp; MLFQ queue assigned automatically by C++ Engine upon arrival.</span>
+                            <!-- Conditional Channel Specific Fields -->
+                            <div id="channelFieldsWrap">
+                                <div class="form-group" id="atmFieldGroup" style="display:none;">
+                                    <label class="form-label">ATM Location</label>
+                                    <input type="text" class="form-input" id="atmLocationInput" value="Connaught Place South ATM #04">
+                                </div>
+                                <div class="form-group" id="referenceFieldGroup">
+                                    <label class="form-label" id="refLabel">UPI Handle / Reference ID</label>
+                                    <input type="text" class="form-input" id="referenceInput" value="priya@okhdfcbank">
+                                </div>
                             </div>
 
-                            <button type="submit" class="btn btn-pink btn-proceed" id="btnProceed">
-                                <span>PROCEED &amp; INJECT TRANSACTION</span>
+                            <!-- Dynamic Auto-Burst Calculation Preview (User never types burst time!) -->
+                            <div class="auto-burst-badge-wrap">
+                                <div>
+                                    <div class="auto-burst-label">C++ Calculated Auto Burst Time</div>
+                                    <div style="font-size:0.7rem; color:var(--text-muted);" id="autoBurstReason">Auto-determined by C++ OS process complexity</div>
+                                </div>
+                                <div class="auto-burst-value" id="autoBurstDisplay">2 Seconds</div>
+                            </div>
+
+                            <button type="submit" class="btn btn-marina" style="width:100%; padding:12px;" id="submitBtn">
+                                <span>⚡ Admit to C++ MLFQ Scheduler</span>
                             </button>
                         </form>
+
+                        <!-- Glowing 4-Step Test Transaction Tracker -->
+                        <div class="test-tracker-card" id="testTrackerCard">
+                            <div class="tracker-title">
+                                <span>Live Test Transaction Pipeline</span>
+                                <span style="font-family:var(--font-mono); font-size:0.75rem;" id="trackerTxnId">TXN-READY</span>
+                            </div>
+                            <div class="stepper-track">
+                                <div class="stepper-step active" id="step1">
+                                    <div class="step-circle">1</div>
+                                    <div class="step-label">Enqueued in RAM</div>
+                                </div>
+                                <div class="stepper-step" id="step2">
+                                    <div class="step-circle">2</div>
+                                    <div class="step-label">Scheduled in MLFQ</div>
+                                </div>
+                                <div class="stepper-step" id="step3">
+                                    <div class="step-circle">3</div>
+                                    <div class="step-label">C++ CPU Burst</div>
+                                </div>
+                                <div class="stepper-step" id="step4">
+                                    <div class="step-circle">4</div>
+                                    <div class="step-label">MySQL ACID Commit</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- RIGHT PANEL: LIVE C++ MLFQ VISUALIZER & TRACKER -->
+                    <!-- Right: Active CPU Core & 3-Tier MLFQ Queues -->
                     <div>
-                        <!-- HIGHLIGHTED TRACKED TEST TRANSACTION BANNER -->
-                        <div class="test-tracker-banner" id="testTrackerBanner">
-                            <div class="test-tracker-header">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span class="badge-your-test">★ YOUR TEST TXN</span>
-                                    <strong id="trackedTestId" style="font-family: var(--font-mono); color: var(--pink-primary);">AWAITING TEST INJECTION</strong>
+                        <!-- Active CPU Core Execution Card -->
+                        <div class="cpu-core-card">
+                            <div class="cpu-core-top">
+                                <div class="cpu-core-title">
+                                    <span>⚙️ Active CPU Core 0</span>
+                                    <span class="cpu-state-pill" id="cpuStateBadge">IDLE</span>
                                 </div>
-                                <span class="queue-badge" id="trackedTestPill">Ready</span>
+                                <div style="font-size:0.76rem; color:var(--text-muted); font-family:var(--font-mono);" id="cpuProcessMeta">
+                                    No active process running
+                                </div>
                             </div>
 
-                            <p style="font-size: 0.8rem; color: var(--text-secondary);" id="trackedTestInfo">
-                                Inject a transaction from the left panel. It will appear with a glowing bright pink border and track its path through the C++ CPU to MySQL.
-                            </p>
-
-                            <!-- Live 3-Step Tracker Pill -->
-                            <div class="tracker-pipeline">
-                                <div class="pipeline-pill" id="pillQueued">1. Queued</div>
-                                <div class="pipeline-pill" id="pillCpu">2. Running in C++ CPU</div>
-                                <div class="pipeline-pill" id="pillCommitted">3. Committed to MySQL</div>
-                            </div>
-                        </div>
-
-                        <!-- ACTIVE CPU SLOT -->
-                        <div class="cpu-card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <strong style="font-size: 0.86rem;">⚙️ Active C++ CPU Worker (Core 0 ALU)</strong>
-                                <span class="queue-badge" id="cpuBadge">MLFQ DISPATCHER</span>
+                            <div class="wave-progress-wrap">
+                                <div class="wave-progress-fill" id="cpuWaveFill" style="width: 0%;"></div>
                             </div>
 
-                            <div id="cpuDetails" style="font-size: 0.82rem; color: var(--text-secondary);">
-                                <em>CPU Core 0 Idle. Monitoring ready queues...</em>
-                            </div>
-
-                            <div class="cpu-progress-bar">
-                                <div class="cpu-progress-fill" id="cpuProgressFill"></div>
-                            </div>
-
-                            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted);">
-                                <span id="cpuProgressText">Progress: 0%</span>
-                                <span id="cpuBurstText">Remaining: 0s</span>
+                            <div style="display:flex; justify-content:space-between; font-size:0.74rem; font-family:var(--font-mono); color:var(--text-muted); margin-top:4px;">
+                                <span id="cpuProgressText">Execution: 0%</span>
+                                <span id="cpuQuantumText">Quantum Slice: Idle</span>
                             </div>
                         </div>
 
-                        <!-- 3-LEVEL MLFQ QUEUE MONITORS -->
+                        <!-- 3-Tier MLFQ Queues -->
                         <div class="queues-grid">
-                            <!-- QUEUE 1: PRIORITY -->
-                            <div class="queue-col">
-                                <div class="queue-header">
-                                    <span class="queue-title q1-title">⚡ Queue 1 (Priority)</span>
-                                    <span class="queue-badge" id="cntQ1">0</span>
+                            <!-- Queue 1: High Priority -->
+                            <div class="queue-col" style="border-top: 3px solid var(--marina-primary);">
+                                <div class="queue-col-header">
+                                    <div class="queue-col-title">
+                                        <span>Queue 1: Priority</span>
+                                        <span class="panel-badge" style="background:#E0F2FE; color:#0284C7;">q = 2s</span>
+                                    </div>
+                                    <div class="queue-col-desc">ATM & UPI (Highest urgency). Preempts Q2/Q3.</div>
                                 </div>
-                                <p style="font-size: 0.68rem; color: var(--text-muted); margin-bottom: 6px;">ATM (1s) &amp; UPI (2s) urgent micro-bursts.</p>
-                                <div class="queue-list" id="listQ1">
-                                    <div class="empty-msg">Queue 1 empty</div>
-                                </div>
-                            </div>
-
-                            <!-- QUEUE 2: SJF -->
-                            <div class="queue-col">
-                                <div class="queue-header">
-                                    <span class="queue-title q2-title">⏱️ Queue 2 (SJF)</span>
-                                    <span class="queue-badge" id="cntQ2">0</span>
-                                </div>
-                                <p style="font-size: 0.68rem; color: var(--text-muted); margin-bottom: 6px;">Standard &le; 3s (Sorted Shortest Job First).</p>
-                                <div class="queue-list" id="listQ2">
-                                    <div class="empty-msg">Queue 2 empty</div>
+                                <div class="queue-process-list" id="q1ProcessList">
+                                    <div style="color:var(--text-dim); text-align:center; padding:30px 0; font-size:0.8rem;">Queue is empty</div>
                                 </div>
                             </div>
 
-                            <!-- QUEUE 3: FCFS -->
-                            <div class="queue-col">
-                                <div class="queue-header">
-                                    <span class="queue-title q3-title">🏢 Queue 3 (FCFS)</span>
-                                    <span class="queue-badge" id="cntQ3">0</span>
+                            <!-- Queue 2: Medium Priority (SJF) -->
+                            <div class="queue-col" style="border-top: 3px solid var(--aqua-accent);">
+                                <div class="queue-col-header">
+                                    <div class="queue-col-title">
+                                        <span>Queue 2: SJF</span>
+                                        <span class="panel-badge" style="background:#ECFEFF; color:#0891B2;">q = 4s</span>
+                                    </div>
+                                    <div class="queue-col-desc">Shortest Job First. Standard transfers & promoted Q3.</div>
                                 </div>
-                                <p style="font-size: 0.68rem; color: var(--text-muted); margin-bottom: 6px;">Payroll (7s) &amp; Large &gt; 3s (First-Come, First-Served).</p>
-                                <div class="queue-list" id="listQ3">
-                                    <div class="empty-msg">Queue 3 empty</div>
+                                <div class="queue-process-list" id="q2ProcessList">
+                                    <div style="color:var(--text-dim); text-align:center; padding:30px 0; font-size:0.8rem;">Queue is empty</div>
+                                </div>
+                            </div>
+
+                            <!-- Queue 3: Low Priority (FCFS) -->
+                            <div class="queue-col" style="border-top: 3px solid #64748B;">
+                                <div class="queue-col-header">
+                                    <div class="queue-col-title">
+                                        <span>Queue 3: FCFS</span>
+                                        <span class="panel-badge" style="background:#F1F5F9; color:#475569;">FIFO</span>
+                                    </div>
+                                    <div class="queue-col-desc">Payroll batches & heavy jobs. Aged promotion if wait >= 6s.</div>
+                                </div>
+                                <div class="queue-process-list" id="q3ProcessList">
+                                    <div style="color:var(--text-dim); text-align:center; padding:30px 0; font-size:0.8rem;">Queue is empty</div>
                                 </div>
                             </div>
                         </div>
-
                     </div>
+
                 </div>
             </section>
 
-            <!-- ================================================================
-                 SLIDE 2: MYSQL JOINED LEDGER
-                 ================================================================ -->
-            <section class="slide-page" id="slide1">
-                <div class="card-panel">
+            <!-- ========================================================== -->
+            <!-- SLIDE 2: JOINED TRANSACTION LEDGER & OS LOGS               -->
+            <!-- ========================================================== -->
+            <section class="slide-page">
+                <div class="glass-panel">
                     <div class="panel-header">
-                        <div>
-                            <h2 class="panel-title">📊 MySQL Multi-Table Joined Ledger</h2>
-                            <p class="panel-subtitle">Fetched via clean SQL INNER/LEFT JOIN across accounts, balance, transactions, atm_transactions &amp; upi_payroll_transactions</p>
+                        <h2 class="panel-title">
+                            <span>📊 BankOS Relational Data & Telemetry</span>
+                        </h2>
+                        <div class="slide-2-controls">
+                            <div class="view-switcher-group">
+                                <button class="view-switch-btn active" id="tabLedgerBtn" onclick="switchSlide2Tab('ledger')">
+                                    📑 Joined Transaction Ledger
+                                </button>
+                                <button class="view-switch-btn" id="tabLogsBtn" onclick="switchSlide2Tab('logs')">
+                                    📋 PCB State-Transition Logs
+                                </button>
+                            </div>
+
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <select class="form-select" id="ledgerCategoryFilter" style="width:140px; padding:7px 10px;" onchange="loadSlide2Data()">
+                                    <option value="ALL">All Categories</option>
+                                    <option value="ATM">ATM Only</option>
+                                    <option value="UPI">UPI Only</option>
+                                    <option value="STANDARD">Standard</option>
+                                    <option value="PAYROLL">Payroll Only</option>
+                                </select>
+                                <input type="text" class="form-input" id="ledgerSearchInput" placeholder="Search txn or customer..." style="width:200px; padding:7px 12px;" oninput="debounceLedgerSearch()">
+                            </div>
                         </div>
-                        <button class="btn btn-outline" id="btnExportCsv">
-                            <span>⬇️ Export CSV</span>
-                        </button>
                     </div>
 
-                    <div class="ledger-toolbar">
-                        <div class="filter-tabs">
-                            <button class="filter-btn active" data-cat="ALL">All Categories</button>
-                            <button class="filter-btn" data-cat="ATM">🏧 ATM</button>
-                            <button class="filter-btn" data-cat="UPI">⚡ UPI</button>
-                            <button class="filter-btn" data-cat="STANDARD">⏱️ Standard</button>
-                            <button class="filter-btn" data-cat="PAYROLL">🏢 Payroll</button>
-                        </div>
-
-                        <div class="search-box">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" class="search-input" id="inpSearch" placeholder="Search TxID, Customer, Channel...">
-                        </div>
-                    </div>
-
-                    <div class="table-wrap">
-                        <table class="data-table">
+                    <!-- View A: Joined Transaction Ledger Table -->
+                    <div id="viewLedgerContainer" class="table-responsive">
+                        <table class="data-table" id="ledgerTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 140px;">Txn ID</th>
-                                    <th style="width: 220px;">Customer (Sender ➔ Receiver)</th>
-                                    <th style="width: 100px;">Type</th>
+                                    <th>Txn ID</th>
+                                    <th>Sender (Customer & Bal)</th>
+                                    <th>Receiver (Customer & Bal)</th>
+                                    <th>Category</th>
+                                    <th>Amount (₹)</th>
+                                    <th>Auto Burst</th>
+                                    <th>Queue</th>
                                     <th>Channel Details</th>
-                                    <th style="width: 90px;">Auto Burst</th>
-                                    <th style="width: 130px;">Queue Assigned</th>
-                                    <th style="width: 110px;">Status</th>
-                                    <th style="width: 140px;">Updated Balance</th>
+                                    <th>Status</th>
+                                    <th>Timestamp</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbodyLedger">
+                            <tbody id="ledgerTableBody">
                                 <tr>
-                                    <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">
-                                        Loading joined database transactions...
-                                    </td>
+                                    <td colspan="10" style="text-align:center; padding:30px; color:var(--text-muted);">Loading transaction ledger...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- View B: PCB State-Transition Logs Table -->
+                    <div id="viewLogsContainer" class="table-responsive" style="display:none;">
+                        <table class="data-table" id="logsTable">
+                            <thead>
+                                <tr>
+                                    <th>Log ID</th>
+                                    <th>Txn ID</th>
+                                    <th>State Transition</th>
+                                    <th>Queue Level</th>
+                                    <th>OS Event Reason / Audit Note</th>
+                                    <th>Logged Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logsTableBody">
+                                <tr>
+                                    <td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">Loading OS state-transition logs...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -992,68 +1189,123 @@
                 </div>
             </section>
 
-            <!-- ================================================================
-                 SLIDE 3: LIVE ACCOUNT BALANCES & ARCHITECTURE
-                 ================================================================ -->
-            <section class="slide-page" id="slide2">
-                <!-- Visual MLFQ Routing Rules -->
-                <div class="arch-summary-box">
-                    <h3 class="panel-title" style="margin-bottom: 4px;">🏛️ C++17 Multi-Level Feedback Queue (MLFQ) Rules</h3>
-                    <p style="font-size: 0.78rem; color: var(--text-muted);">Deterministic process classification with auto burst time assignment &amp; ACID settlement</p>
-
-                    <div class="rules-grid">
-                        <div class="rule-card" style="border-left: 4px solid var(--sky);">
-                            <div class="rule-card-title" style="color: var(--sky);">⚡ Queue 1: Priority Scheduling</div>
-                            <div class="rule-card-body">
-                                <strong>Workload:</strong> ATM (1s) &amp; UPI (2s)<br>
-                                <strong>Algorithm:</strong> Strict Preemptive Priority<br>
-                                <strong>Reason:</strong> Low latency instant customer settlement.
+            <!-- ========================================================== -->
+            <!-- SLIDE 3: LIVE TELEMETRY & VERIFIED BALANCES               -->
+            <!-- ========================================================== -->
+            <section class="slide-page">
+                <!-- 3 Top Cards for scheduler_metrics -->
+                <div class="metrics-cards-grid" id="metricsCardsWrap">
+                    <div class="metric-card">
+                        <div class="metric-card-header">
+                            <div class="metric-card-title">Queue 1: Priority</div>
+                            <span class="panel-badge" style="background:#E0F2FE; color:#0284C7;">ATM & UPI</span>
+                        </div>
+                        <div class="metric-stats-row">
+                            <div class="stat-box">
+                                <div class="stat-label">Total Processed</div>
+                                <div class="stat-value" id="m1_processed">0</div>
+                                <div class="stat-sub">transactions</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">CPU Util %</div>
+                                <div class="stat-value" id="m1_cpu">0.0%</div>
+                                <div class="stat-sub">time slice</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Avg Wait Time</div>
+                                <div class="stat-value" id="m1_wait">0.00s</div>
+                                <div class="stat-sub">in ready state</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Avg Turnaround</div>
+                                <div class="stat-value" id="m1_turnaround">0.00s</div>
+                                <div class="stat-sub">arrival to commit</div>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="rule-card" style="border-left: 4px solid var(--emerald);">
-                            <div class="rule-card-title" style="color: var(--emerald);">⏱️ Queue 2: Shortest Job First</div>
-                            <div class="rule-card-body">
-                                <strong>Workload:</strong> STANDARD &le; ₹10,000 (3s)<br>
-                                <strong>Algorithm:</strong> Shortest Job First (SJF)<br>
-                                <strong>Reason:</strong> Minimizes average waiting time for standard wires.
+                    <div class="metric-card">
+                        <div class="metric-card-header">
+                            <div class="metric-card-title">Queue 2: SJF</div>
+                            <span class="panel-badge" style="background:#ECFEFF; color:#0891B2;">Standard & Aging</span>
+                        </div>
+                        <div class="metric-stats-row">
+                            <div class="stat-box">
+                                <div class="stat-label">Total Processed</div>
+                                <div class="stat-value" id="m2_processed">0</div>
+                                <div class="stat-sub">transactions</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">CPU Util %</div>
+                                <div class="stat-value" id="m2_cpu">0.0%</div>
+                                <div class="stat-sub">time slice</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Avg Wait Time</div>
+                                <div class="stat-value" id="m2_wait">0.00s</div>
+                                <div class="stat-sub">in ready state</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Avg Turnaround</div>
+                                <div class="stat-value" id="m2_turnaround">0.00s</div>
+                                <div class="stat-sub">arrival to commit</div>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="rule-card" style="border-left: 4px solid var(--purple);">
-                            <div class="rule-card-title" style="color: var(--purple);">🏢 Queue 3: First-Come, First-Served</div>
-                            <div class="rule-card-body">
-                                <strong>Workload:</strong> PAYROLL (7s) &amp; Large &gt; ₹10,000 (5s)<br>
-                                <strong>Algorithm:</strong> FCFS FIFO Queue<br>
-                                <strong>Reason:</strong> Executes batch corporate transfers without starvation.
+                    <div class="metric-card">
+                        <div class="metric-card-header">
+                            <div class="metric-card-title">Queue 3: FCFS</div>
+                            <span class="panel-badge" style="background:#F1F5F9; color:#475569;">Payroll & Bulk</span>
+                        </div>
+                        <div class="metric-stats-row">
+                            <div class="stat-box">
+                                <div class="stat-label">Total Processed</div>
+                                <div class="stat-value" id="m3_processed">0</div>
+                                <div class="stat-sub">transactions</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">CPU Util %</div>
+                                <div class="stat-value" id="m3_cpu">0.0%</div>
+                                <div class="stat-sub">time slice</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Avg Wait Time</div>
+                                <div class="stat-value" id="m3_wait">0.00s</div>
+                                <div class="stat-sub">in ready state</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Avg Turnaround</div>
+                                <div class="stat-value" id="m3_turnaround">0.00s</div>
+                                <div class="stat-sub">arrival to commit</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Live Verified Balances Table -->
-                <div class="card-panel">
+                <!-- Verified Customer Balances Table -->
+                <div class="glass-panel">
                     <div class="panel-header">
-                        <div>
-                            <h3 class="panel-title">👥 Verified Customer Balances</h3>
-                            <p class="panel-subtitle">Updated in real time inside MySQL ACID transactions (SELECT FOR UPDATE)</p>
-                        </div>
-                        <span class="queue-badge">MySQL bankos_db</span>
+                        <h2 class="panel-title">
+                            <span>💳 Verified Customer Balances (accounts JOIN balance)</span>
+                        </h2>
+                        <span class="panel-badge">ACID Protected</span>
                     </div>
 
-                    <div class="table-wrap">
-                        <table class="data-table">
+                    <div class="table-responsive">
+                        <table class="data-table" id="accountsTable">
                             <thead>
                                 <tr>
                                     <th>Account ID</th>
                                     <th>Customer Name</th>
                                     <th>Account Type</th>
-                                    <th>Real-Time Balance (₹)</th>
+                                    <th>Current Verified Balance (₹ INR)</th>
+                                    <th>Last Updated</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbodyAccounts">
+                            <tbody id="accountsTableBody">
                                 <tr>
-                                    <td colspan="4" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading verified balances...</td>
+                                    <td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);">Loading account balances...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1064,453 +1316,484 @@
         </div>
     </main>
 
-    <!-- Notification Toast -->
-    <div class="toast" id="toast">
-        <span id="toastIcon">🚀</span>
-        <span id="toastMsg">Notification message</span>
-    </div>
-
-    <!-- ====================================================================
-         CLIENT LOGIC: 3-SLIDE CAROUSEL, POLLING & REST API
-         ==================================================================== -->
+    <!-- JavaScript Implementation -->
     <script>
-        (function () {
-            'use strict';
+        let currentSlide = 0;
+        let activeSlide2Tab = 'ledger';
+        let latestTestTxnId = null;
+        let testTxnStage = 0; // 1: Enqueued, 2: Scheduled, 3: CPU Running, 4: Committed
+        let previousBalances = {};
+        let searchTimeout = null;
 
-            let currentSlide = 0;
-            let currentFilter = 'ALL';
-            let searchQuery = '';
-            let toastTimer = null;
+        // Slide Navigation
+        function switchSlide(index) {
+            currentSlide = index;
+            const track = document.getElementById('slidesTrack');
+            track.style.transform = `translateX(-${index * 33.333333}%)`;
 
-            const dom = {
-                navPills: document.querySelectorAll('.nav-pill'),
-                slidesTrack: document.getElementById('slidesTrack'),
-                btnTrafficToggle: document.getElementById('btnTrafficToggle'),
-                trafficIcon: document.getElementById('trafficIcon'),
-                trafficLabel: document.getElementById('trafficLabel'),
-                btnReset: document.getElementById('btnReset'),
-                engineStatusText: document.getElementById('engineStatusText'),
+            const buttons = document.querySelectorAll('#slideNav .nav-pill');
+            buttons.forEach((btn, i) => {
+                btn.classList.toggle('active', i === index);
+            });
 
-                // Form
-                formInject: document.getElementById('formInject'),
-                inpSender: document.getElementById('inpSender'),
-                inpReceiver: document.getElementById('inpReceiver'),
-                inpType: document.getElementById('inpType'),
-                inpAmount: document.getElementById('inpAmount'),
-                btnProceed: document.getElementById('btnProceed'),
+            if (index === 1) {
+                loadSlide2Data();
+            } else if (index === 2) {
+                loadSlide3Data();
+            }
+        }
 
-                // Test Tracker Banner
-                trackedTestId: document.getElementById('trackedTestId'),
-                trackedTestPill: document.getElementById('trackedTestPill'),
-                trackedTestInfo: document.getElementById('trackedTestInfo'),
-                pillQueued: document.getElementById('pillQueued'),
-                pillCpu: document.getElementById('pillCpu'),
-                pillCommitted: document.getElementById('pillCommitted'),
+        function switchSlide2Tab(tab) {
+            activeSlide2Tab = tab;
+            document.getElementById('tabLedgerBtn').classList.toggle('active', tab === 'ledger');
+            document.getElementById('tabLogsBtn').classList.toggle('active', tab === 'logs');
+            document.getElementById('viewLedgerContainer').style.display = (tab === 'ledger') ? 'block' : 'none';
+            document.getElementById('viewLogsContainer').style.display = (tab === 'logs') ? 'block' : 'none';
+            loadSlide2Data();
+        }
 
-                // CPU
-                cpuDetails: document.getElementById('cpuDetails'),
-                cpuProgressFill: document.getElementById('cpuProgressFill'),
-                cpuProgressText: document.getElementById('cpuProgressText'),
-                cpuBurstText: document.getElementById('cpuBurstText'),
-                cpuBadge: document.getElementById('cpuBadge'),
+        // Automatic Burst Time Preview Calculation (User never types burst time!)
+        function updateBurstPreview() {
+            const cat = document.getElementById('categorySelect').value;
+            const amount = parseFloat(document.getElementById('amountInput').value) || 0;
+            let burst = 2;
+            let reason = "";
 
-                // Queues
-                cntQ1: document.getElementById('cntQ1'),
-                listQ1: document.getElementById('listQ1'),
-                cntQ2: document.getElementById('cntQ2'),
-                listQ2: document.getElementById('listQ2'),
-                cntQ3: document.getElementById('cntQ3'),
-                listQ3: document.getElementById('listQ3'),
+            if (cat === 'ATM') {
+                burst = 1;
+                reason = "Lightweight single-account cash debit verification";
+            } else if (cat === 'UPI') {
+                burst = 2;
+                reason = "Peer-to-peer fast cryptographic authentication";
+            } else if (cat === 'STANDARD') {
+                if (amount <= 10000.0) {
+                    burst = 3;
+                    reason = "Standard transfer (Amount <= ₹10,000)";
+                } else {
+                    burst = 5;
+                    reason = "Extended transfer audit (Amount > ₹10,000)";
+                }
+            } else if (cat === 'PAYROLL') {
+                burst = 7;
+                reason = "Heavy batch employee verification & tax computation";
+            }
 
-                // Ledger
-                filterBtns: document.querySelectorAll('.filter-btn'),
-                inpSearch: document.getElementById('inpSearch'),
-                tbodyLedger: document.getElementById('tbodyLedger'),
-                btnExportCsv: document.getElementById('btnExportCsv'),
+            document.getElementById('autoBurstDisplay').textContent = `${burst} Seconds`;
+            document.getElementById('autoBurstReason').textContent = reason;
+        }
 
-                // Accounts
-                tbodyAccounts: document.getElementById('tbodyAccounts'),
+        function updateCategoryFields() {
+            const cat = document.getElementById('categorySelect').value;
+            const atmGroup = document.getElementById('atmFieldGroup');
+            const refGroup = document.getElementById('referenceFieldGroup');
+            const refLabel = document.getElementById('refLabel');
+            const refInput = document.getElementById('referenceInput');
 
-                // Toast
-                toast: document.getElementById('toast'),
-                toastIcon: document.getElementById('toastIcon'),
-                toastMsg: document.getElementById('toastMsg')
+            if (cat === 'ATM') {
+                atmGroup.style.display = 'block';
+                refGroup.style.display = 'none';
+            } else {
+                atmGroup.style.display = 'none';
+                refGroup.style.display = 'block';
+                if (cat === 'PAYROLL') {
+                    refLabel.textContent = "Corporate Payroll Batch Ref";
+                    refInput.value = "BATCH-" + Math.floor(1000 + Math.random() * 9000);
+                } else {
+                    refLabel.textContent = "UPI Handle / Reference ID";
+                    refInput.value = "priya@okhdfcbank";
+                }
+            }
+            updateBurstPreview();
+        }
+
+        // Form Submit: Inject Transaction
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const sender = document.getElementById('senderSelect').value;
+            const receiver = document.getElementById('receiverSelect').value;
+            const cat = document.getElementById('categorySelect').value;
+            const amount = parseFloat(document.getElementById('amountInput').value);
+
+            if (sender === receiver) {
+                alert("Sender and Receiver cannot be identical!");
+                return;
+            }
+
+            const payload = {
+                sender_id: sender,
+                receiver_id: receiver,
+                txn_type: cat,
+                amount: amount,
+                atm_location: document.getElementById('atmLocationInput').value,
+                reference_id: document.getElementById('referenceInput').value
             };
 
-            // ================================================================
-            // 3-SLIDE HORIZONTAL NAVIGATION (CSS translateX)
-            // ================================================================
-            function switchSlide(index) {
-                currentSlide = Math.max(0, Math.min(2, index));
-                const offset = -(currentSlide * (100 / 3));
-                dom.slidesTrack.style.transform = `translateX(${offset}%)`;
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
 
-                dom.navPills.forEach((p, idx) => {
-                    p.classList.toggle('active', idx === currentSlide);
+            try {
+                const res = await fetch('/api/inject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
-
-                if (currentSlide === 1) fetchLedger();
-                if (currentSlide === 2) fetchAccounts();
-            }
-
-            dom.navPills.forEach((pill, idx) => {
-                pill.addEventListener('click', () => switchSlide(idx));
-            });
-
-            // Keyboard navigation
-            document.addEventListener('keydown', (e) => {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-                if (e.key === 'ArrowRight' && currentSlide < 2) switchSlide(currentSlide + 1);
-                if (e.key === 'ArrowLeft' && currentSlide > 0) switchSlide(currentSlide - 1);
-            });
-
-            function showToast(icon, msg) {
-                if (toastTimer) clearTimeout(toastTimer);
-                dom.toastIcon.textContent = icon;
-                dom.toastMsg.textContent = msg;
-                dom.toast.style.display = 'flex';
-                toastTimer = setTimeout(() => { dom.toast.style.display = 'none'; }, 3000);
-            }
-
-            // ================================================================
-            // FORM SUBMIT: INJECT TEST TRANSACTION (is_test = true)
-            // ================================================================
-            dom.formInject.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                dom.btnProceed.disabled = true;
-                dom.btnProceed.innerHTML = '<span>ADMITTING TO C++ MLFQ...</span>';
-
-                const payload = {
-                    sender_id: dom.inpSender.value,
-                    receiver_id: dom.inpReceiver.value,
-                    txn_type: dom.inpType.value,
-                    amount: parseFloat(dom.inpAmount.value)
-                };
-
-                try {
-                    const res = await fetch('/api/inject', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
-                        showToast('🚀', `Admitted Test #${data.process.txn_id} into ${data.process.assigned_queue}!`);
-                        await fetchState();
-                    } else {
-                        showToast('⚠️', 'Error admitting transaction');
-                    }
-                } catch (err) {
-                    showToast('⚠️', 'Server error');
-                } finally {
-                    dom.btnProceed.disabled = false;
-                    dom.btnProceed.innerHTML = '<span>PROCEED &amp; INJECT TRANSACTION</span>';
-                }
-            });
-
-            // Traffic Toggle
-            dom.btnTrafficToggle.addEventListener('click', async () => {
-                const res = await fetch('/api/traffic/toggle', { method: 'POST' });
                 const data = await res.json();
-                const active = data.traffic_active;
-                dom.trafficIcon.textContent = active ? '⏸' : '▶';
-                dom.trafficLabel.textContent = active ? 'Traffic: Active' : 'Traffic: Paused';
-                showToast(active ? '⚡' : '⏸', `Background traffic ${active ? 'resumed' : 'paused'}`);
-            });
-
-            // Reset
-            dom.btnReset.addEventListener('click', async () => {
-                if (confirm('Reset queues and restore baseline customer balances?')) {
-                    await fetch('/api/reset', { method: 'POST' });
-                    showToast('🔄', 'Queues and balances reset');
-                    fetchState();
-                    fetchLedger();
-                    fetchAccounts();
+                if (data.success) {
+                    latestTestTxnId = data.txn_id;
+                    setTestStepperStage(1, latestTestTxnId);
                 }
-            });
-
-            // ================================================================
-            // REAL-TIME STATE POLLING (C++ MLFQ & TEST TRACKER)
-            // ================================================================
-            async function fetchState() {
-                try {
-                    const res = await fetch('/api/state');
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    renderState(data);
-                } catch (e) {}
+            } catch (err) {
+                console.error("Injection error:", err);
+            } finally {
+                submitBtn.disabled = false;
             }
+        }
 
-            function renderState(data) {
-                if (data.mysql_connected) {
-                    dom.engineStatusText.textContent = 'C++ & MYSQL 8.4 CONNECTED';
+        // Stepper Stage Updater
+        function setTestStepperStage(stage, txnId) {
+            testTxnStage = stage;
+            document.getElementById('trackerTxnId').textContent = txnId || 'TXN-ACTIVE';
+
+            for (let i = 1; i <= 4; i++) {
+                const el = document.getElementById(`step${i}`);
+                el.classList.remove('active', 'done');
+                if (i < stage) el.classList.add('done');
+                else if (i === stage) el.classList.add('active');
+            }
+        }
+
+        // Poll Live State
+        async function fetchState() {
+            try {
+                const res = await fetch('/api/state');
+                const data = await res.json();
+
+                // DB Status
+                const dbPill = document.getElementById('dbStatusPill');
+                const dbText = document.getElementById('dbStatusText');
+                if (data.db_connected) {
+                    dbPill.className = "status-pill";
+                    dbText.textContent = "MySQL Synchronized";
                 } else {
-                    dom.engineStatusText.textContent = 'C++ MLFQ ENGINE ACTIVE';
+                    dbPill.className = "status-pill in-memory";
+                    dbText.textContent = "In-Memory Engine";
                 }
 
-                // Render Tracked Test Transaction
-                renderTrackedTest(data.tracked_test_txn);
+                // Traffic toggle text
+                const trafficBtn = document.getElementById('trafficToggleBtn');
+                const trafficIcon = document.getElementById('trafficIcon');
+                const trafficText = document.getElementById('trafficText');
+                if (data.traffic_active) {
+                    trafficIcon.textContent = "⏸";
+                    trafficText.textContent = "Pause Traffic";
+                    trafficBtn.style.borderColor = "var(--amber)";
+                    trafficBtn.style.color = "var(--amber)";
+                } else {
+                    trafficIcon.textContent = "▶";
+                    trafficText.textContent = "Start Traffic";
+                    trafficBtn.style.borderColor = "var(--glass-border)";
+                    trafficBtn.style.color = "var(--text-body)";
+                }
 
-                // Render CPU Slot
-                renderCpu(data.active_process);
+                // CPU Core Card
+                renderCpuCore(data.active_process);
 
                 // Render Queues
-                renderQueue(dom.listQ1, dom.cntQ1, data.queue_1 || [], 'Queue 1 empty');
-                renderQueue(dom.listQ2, dom.cntQ2, data.queue_2 || [], 'Queue 2 empty');
-                renderQueue(dom.listQ3, dom.cntQ3, data.queue_3 || [], 'Queue 3 empty');
+                renderQueue(data.queue_1 || [], 'q1ProcessList');
+                renderQueue(data.queue_2 || [], 'q2ProcessList');
+                renderQueue(data.queue_3 || [], 'q3ProcessList');
+
+                // Track test transaction progress
+                if (latestTestTxnId) {
+                    let foundInQueues = false;
+                    ['queue_1', 'queue_2', 'queue_3'].forEach(q => {
+                        (data[q] || []).forEach(p => {
+                            if (p.txn_id === latestTestTxnId) foundInQueues = true;
+                        });
+                    });
+
+                    if (data.active_process && data.active_process.txn_id === latestTestTxnId) {
+                        setTestStepperStage(3, latestTestTxnId);
+                    } else if (foundInQueues) {
+                        setTestStepperStage(2, latestTestTxnId);
+                    } else {
+                        // Check if in completed
+                        let isCompleted = false;
+                        (data.completed || []).forEach(cp => {
+                            if (cp.txn_id === latestTestTxnId) isCompleted = true;
+                        });
+                        if (isCompleted) {
+                            setTestStepperStage(4, latestTestTxnId);
+                        }
+                    }
+                }
+
+                // Update Metrics on Slide 3
+                if (data.metrics) {
+                    renderMetrics(data.metrics);
+                }
+
+            } catch (err) {
+                console.error("State polling error:", err);
+            }
+        }
+
+        function renderCpuCore(active) {
+            const badge = document.getElementById('cpuStateBadge');
+            const meta = document.getElementById('cpuProcessMeta');
+            const wave = document.getElementById('cpuWaveFill');
+            const prog = document.getElementById('cpuProgressText');
+            const quant = document.getElementById('cpuQuantumText');
+
+            if (active) {
+                badge.className = "cpu-state-pill";
+                badge.textContent = `RUNNING (${active.current_queue || active.assigned_queue})`;
+                meta.innerHTML = `<strong style="color:var(--marina-primary);">${active.txn_id}</strong> &bull; ₹${parseFloat(active.amount).toLocaleString('en-IN')} &bull; ${active.sender_id} ➔ ${active.receiver_id}`;
+                wave.style.width = `${active.progress_pct || 25}%`;
+                prog.textContent = `Burst: ${active.auto_burst_time - active.remaining_burst}s / ${active.auto_burst_time}s (${active.progress_pct || 0}%)`;
+                quant.textContent = `Remaining Burst: ${active.remaining_burst}s`;
+            } else {
+                badge.className = "cpu-state-pill idle";
+                badge.textContent = "IDLE";
+                meta.textContent = "Core 0 awaiting process dispatch...";
+                wave.style.width = "0%";
+                prog.textContent = "Execution: 0%";
+                quant.textContent = "Quantum: Ready";
+            }
+        }
+
+        function renderQueue(queue, containerId) {
+            const container = document.getElementById(containerId);
+            if (!queue || queue.length === 0) {
+                container.innerHTML = `<div style="color:var(--text-dim); text-align:center; padding:30px 0; font-size:0.8rem;">Queue is empty</div>`;
+                return;
             }
 
-            function renderTrackedTest(txn) {
-                if (!txn) {
-                    dom.trackedTestId.textContent = 'AWAITING TEST INJECTION';
-                    dom.trackedTestPill.textContent = 'Ready';
-                    dom.trackedTestInfo.textContent = 'Inject a transaction from the left panel. It will appear with a glowing bright pink border and track its path through the C++ CPU to MySQL.';
-                    dom.pillQueued.className = 'pipeline-pill';
-                    dom.pillCpu.className = 'pipeline-pill';
-                    dom.pillCommitted.className = 'pipeline-pill';
-                    return;
+            container.innerHTML = queue.map(p => {
+                const isTest = (p.txn_id === latestTestTxnId) || p.is_test;
+                const highlightClass = isTest ? "test-highlight" : "";
+
+                let agingBadge = "";
+                if (p.current_queue === "Q3_FCFS") {
+                    const timeLeft = Math.max(0, 6 - (p.time_in_current_queue || 0));
+                    agingBadge = `<div class="process-aging-indicator">Aging in ${timeLeft}s ➔ Q2</div>`;
+                } else if (p.current_queue === "Q2_SJF") {
+                    const timeLeft = Math.max(0, 5 - (p.time_in_current_queue || 0));
+                    agingBadge = `<div class="process-aging-indicator">Aging in ${timeLeft}s ➔ Q1</div>`;
                 }
 
-                dom.trackedTestId.textContent = txn.txn_id;
-                dom.trackedTestPill.textContent = txn.phase || 'Queued';
-
-                const amtFmt = `₹${Number(txn.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-                dom.trackedTestInfo.innerHTML = `<strong>${txn.txn_type}</strong> transfer of <strong>${amtFmt}</strong> from <code>${txn.sender_id}</code> ➔ <code>${txn.receiver_id}</code> (Auto Burst: <strong>${txn.auto_burst_time}s</strong>)`;
-
-                dom.pillQueued.className = 'pipeline-pill';
-                dom.pillCpu.className = 'pipeline-pill';
-                dom.pillCommitted.className = 'pipeline-pill';
-
-                if (txn.status === 'QUEUED') {
-                    dom.pillQueued.className = 'pipeline-pill active';
-                } else if (txn.status === 'RUNNING') {
-                    dom.pillQueued.className = 'pipeline-pill completed';
-                    dom.pillCpu.className = 'pipeline-pill active';
-                } else if (txn.status === 'COMPLETED') {
-                    dom.pillQueued.className = 'pipeline-pill completed';
-                    dom.pillCpu.className = 'pipeline-pill completed';
-                    dom.pillCommitted.className = 'pipeline-pill completed';
-                }
-            }
-
-            function renderCpu(active) {
-                if (!active) {
-                    dom.cpuDetails.innerHTML = '<em>CPU Core 0 Idle. Monitoring ready queues...</em>';
-                    dom.cpuProgressFill.style.width = '0%';
-                    dom.cpuProgressText.textContent = 'Progress: 0%';
-                    dom.cpuBurstText.textContent = 'Idle';
-                    dom.cpuBadge.textContent = 'MLFQ IDLE';
-                    return;
-                }
-
-                const isTest = active.is_test;
-                const testTag = isTest ? '<span class="badge-your-test" style="font-size: 0.65rem; margin-right: 6px;">★ YOUR TEST TXN</span>' : '';
-                const amtFmt = `₹${Number(active.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-
-                dom.cpuDetails.innerHTML = `
-                    ${testTag}
-                    <strong style="color: var(--pink-primary); font-family: var(--font-mono);">${active.txn_id}</strong>
-                    &bull; <strong>${active.txn_type}</strong> of <strong>${amtFmt}</strong>
-                    (<code>${active.sender_id}</code> ➔ <code>${active.receiver_id}</code>)
-                    &bull; ${active.assigned_queue}
-                `;
-
-                const pct = active.progress_pct || 0;
-                dom.cpuProgressFill.style.width = `${pct}%`;
-                dom.cpuProgressText.textContent = `Progress: ${pct}%`;
-                dom.cpuBurstText.textContent = `Burst: ${active.auto_burst_time}s`;
-
-                if (active.assigned_queue && active.assigned_queue.includes('Priority')) dom.cpuBadge.textContent = 'PRIORITY DISPATCH';
-                else if (active.assigned_queue && active.assigned_queue.includes('SJF')) dom.cpuBadge.textContent = 'SHORTEST JOB FIRST';
-                else dom.cpuBadge.textContent = 'FCFS FIFO';
-            }
-
-            function renderQueue(container, countBadge, list, emptyText) {
-                countBadge.textContent = list.length;
-                if (!list.length) {
-                    container.innerHTML = `<div class="empty-msg">${emptyText}</div>`;
-                    return;
-                }
-
-                container.innerHTML = list.map(p => {
-                    const isTest = p.is_test;
-                    const catClass = `type-${p.txn_type.toLowerCase()}`;
-                    const amtFmt = `₹${Number(p.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-                    const testBadge = isTest ? '<span class="badge-your-test" style="font-size: 0.62rem; padding: 2px 6px;">★ YOUR TEST TXN</span>' : '';
-
-                    return `
-                        <div class="process-card ${isTest ? 'is-test-highlight' : ''}">
-                            <div class="pcb-top">
-                                <span class="pcb-id">${p.txn_id}</span>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    ${testBadge}
-                                    <span class="type-tag ${catClass}">${p.txn_type}</span>
-                                </div>
-                            </div>
-                            <div style="font-size: 0.72rem; color: var(--text-muted);">
-                                <code>${p.sender_id}</code> ➔ <code>${p.receiver_id}</code>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-family: var(--font-mono); font-size: 0.74rem;">
-                                <strong>${amtFmt}</strong>
-                                <span style="color: var(--pink-primary); font-weight: 700;">Burst: ${p.auto_burst_time}s</span>
-                            </div>
+                return `
+                    <div class="process-card ${highlightClass}">
+                        <div class="process-card-top">
+                            <span class="process-id">${p.txn_id}</span>
+                            <span class="process-type-badge">${p.txn_type}</span>
                         </div>
-                    `;
-                }).join('');
-            }
+                        <div style="font-size:0.75rem; color:var(--text-body); margin-bottom:4px;">
+                            ${p.sender_id} ➔ ${p.receiver_id} &bull; <strong>₹${parseFloat(p.amount).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-muted); font-family:var(--font-mono);">
+                            <span>Remaining: ${p.remaining_burst}s</span>
+                            <span>Wait: ${p.wait_time_sec || 0}s</span>
+                        </div>
+                        ${agingBadge}
+                    </div>
+                `;
+            }).join('');
+        }
 
-            // ================================================================
-            // SLIDE 2: MYSQL JOINED LEDGER
-            // ================================================================
-            async function fetchLedger() {
-                try {
-                    const url = `/api/ledger?category=${encodeURIComponent(currentFilter)}&search=${encodeURIComponent(searchQuery)}`;
-                    const res = await fetch(url);
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    renderLedger(data.transactions || []);
-                } catch (e) {}
+        // Slide 2: Joined Ledger & State-Transition Logs
+        async function loadSlide2Data() {
+            if (activeSlide2Tab === 'ledger') {
+                loadLedger();
+            } else {
+                loadLogs();
             }
+        }
 
-            function renderLedger(txns) {
-                if (!txns.length) {
-                    dom.tbodyLedger.innerHTML = `
-                        <tr>
-                            <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                                No transaction records matching your filter.
-                            </td>
-                        </tr>
-                    `;
+        function debounceLedgerSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(loadLedger, 300);
+        }
+
+        async function loadLedger() {
+            const cat = document.getElementById('ledgerCategoryFilter').value;
+            const search = document.getElementById('ledgerSearchInput').value;
+            const tbody = document.getElementById('ledgerTableBody');
+
+            try {
+                const url = `/api/ledger?category=${encodeURIComponent(cat)}&search=${encodeURIComponent(search)}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (!data.transactions || data.transactions.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">No transactions found matching query</td></tr>`;
                     return;
                 }
 
-                dom.tbodyLedger.innerHTML = txns.map(t => {
-                    const isTest = t.txn_id.startsWith('TEST');
-                    const testTag = isTest ? '<span class="badge-your-test" style="font-size: 0.62rem; margin-right: 4px;">★ TEST</span>' : '';
-                    const catClass = `type-${t.txn_type.toLowerCase()}`;
-                    const amtFmt = `₹${Number(t.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-                    const balFmt = `₹${Number(t.sender_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                tbody.innerHTML = data.transactions.map(t => {
+                    const isLatest = (t.txn_id === latestTestTxnId);
+                    const rowBg = isLatest ? "background:rgba(224, 242, 254, 0.4);" : "";
 
-                    let channelInfo = '-';
-                    if (t.txn_type === 'ATM' && t.atm_location) {
-                        channelInfo = `📍 ${escapeHtml(t.atm_location)} (Card ****${t.card_last4 || '0000'})`;
+                    let channelInfo = "-";
+                    if (t.atm_location) {
+                        channelInfo = `ATM: ${t.atm_location} (Card: ••${t.card_last4 || ''})`;
                     } else if (t.reference_id) {
-                        channelInfo = `🔗 <code>${escapeHtml(t.reference_id)}</code>`;
+                        channelInfo = `${t.channel_mode || 'UPI'}: ${t.reference_id}`;
                     }
 
-                    let statusClass = 'status-queued';
-                    if (t.status === 'COMPLETED') statusClass = 'status-completed';
-                    else if (t.status === 'RUNNING') statusClass = 'status-running';
+                    const statusClass = t.status === 'COMPLETED' ? 'color:var(--emerald); font-weight:800;' : 'color:var(--amber); font-weight:800;';
 
                     return `
-                        <tr>
-                            <td style="font-family: var(--font-mono); font-weight: 700;">
-                                ${testTag}#${t.txn_id}
+                        <tr style="${rowBg}">
+                            <td style="font-family:var(--font-mono); font-weight:800; color:var(--marina-primary);">${t.txn_id}</td>
+                            <td>
+                                <div><strong>${t.sender_name || t.sender_id}</strong></div>
+                                <div style="font-size:0.7rem; color:var(--text-muted); font-family:var(--font-mono);">₹${(t.sender_balance || 0).toLocaleString('en-IN')}</div>
                             </td>
                             <td>
-                                <div style="font-weight: 700;">${escapeHtml(t.sender_name)} ➔ ${escapeHtml(t.receiver_name)}</div>
-                                <div style="font-size: 0.7rem; color: var(--text-muted);">${t.sender_id} ➔ ${t.receiver_id}</div>
+                                <div><strong>${t.receiver_name || t.receiver_id}</strong></div>
+                                <div style="font-size:0.7rem; color:var(--text-muted); font-family:var(--font-mono);">₹${(t.receiver_balance || 0).toLocaleString('en-IN')}</div>
                             </td>
-                            <td><span class="type-tag ${catClass}">${t.txn_type}</span></td>
-                            <td style="font-size: 0.74rem;">${channelInfo}</td>
-                            <td style="font-family: var(--font-mono); font-weight: 700;">${t.auto_burst_time}s</td>
-                            <td><span class="queue-badge">${t.assigned_queue}</span></td>
-                            <td><span class="status-badge ${statusClass}">${t.status}</span></td>
-                            <td style="font-family: var(--font-mono); font-weight: 800; color: var(--emerald);">${balFmt}</td>
+                            <td><span class="process-type-badge">${t.txn_type}</span></td>
+                            <td style="font-family:var(--font-mono); font-weight:800;">₹${parseFloat(t.amount).toLocaleString('en-IN')}</td>
+                            <td style="font-family:var(--font-mono);">${t.auto_burst_time}s</td>
+                            <td style="font-size:0.75rem;">${t.assigned_queue}</td>
+                            <td style="font-size:0.75rem; color:var(--text-muted);">${channelInfo}</td>
+                            <td style="${statusClass}">${t.status}</td>
+                            <td style="font-size:0.72rem; color:var(--text-muted);">${t.created_at || '-'}</td>
                         </tr>
                     `;
                 }).join('');
+
+            } catch (err) {
+                console.error("Ledger fetch error:", err);
             }
+        }
 
-            dom.filterBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    dom.filterBtns.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    currentFilter = btn.getAttribute('data-cat');
-                    fetchLedger();
-                });
-            });
-
-            dom.inpSearch.addEventListener('input', (e) => {
-                searchQuery = e.target.value.trim();
-                fetchLedger();
-            });
-
-            dom.btnExportCsv.addEventListener('click', async () => {
-                const res = await fetch('/api/ledger?limit=500');
+        async function loadLogs() {
+            const tbody = document.getElementById('logsTableBody');
+            try {
+                const res = await fetch('/api/logs?limit=50');
                 const data = await res.json();
-                const txns = data.transactions || [];
-                if (!txns.length) {
-                    showToast('⚠️', 'No transactions to export');
+
+                if (!data.logs || data.logs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No state-transition logs recorded yet</td></tr>`;
                     return;
                 }
 
-                const headers = ['TxnID', 'SenderID', 'SenderName', 'ReceiverID', 'ReceiverName', 'Type', 'Amount', 'AutoBurst', 'Queue', 'Status'];
-                const rows = txns.map(t => [
-                    t.txn_id, t.sender_id, `"${t.sender_name}"`, t.receiver_id, `"${t.receiver_name}"`,
-                    t.txn_type, t.amount, t.auto_burst_time, t.assigned_queue, t.status
-                ]);
+                tbody.innerHTML = data.logs.map(log => {
+                    const isLatest = (log.txn_id === latestTestTxnId);
+                    const rowBg = isLatest ? "background:rgba(224, 242, 254, 0.4);" : "";
 
-                const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `bankos_ledger_${Date.now()}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-                showToast('⬇️', `Exported ${txns.length} records to CSV!`);
-            });
-
-            // ================================================================
-            // SLIDE 3: LIVE ACCOUNT BALANCES
-            // ================================================================
-            async function fetchAccounts() {
-                try {
-                    const res = await fetch('/api/accounts');
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    renderAccounts(data.accounts || []);
-                } catch (e) {}
-            }
-
-            function renderAccounts(accs) {
-                if (!accs.length) return;
-                dom.tbodyAccounts.innerHTML = accs.map(a => {
-                    const balFmt = `₹${Number(a.current_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
                     return `
-                        <tr>
-                            <td style="font-family: var(--font-mono); font-weight: 800; color: var(--pink-primary);">${a.account_id}</td>
-                            <td style="font-weight: 700;">${escapeHtml(a.customer_name)}</td>
-                            <td><span class="queue-badge">${escapeHtml(a.account_type)}</span></td>
-                            <td style="font-family: var(--font-mono); font-weight: 800; color: var(--emerald);">${balFmt}</td>
+                        <tr style="${rowBg}">
+                            <td style="font-family:var(--font-mono); color:var(--text-dim);">${log.log_id}</td>
+                            <td style="font-family:var(--font-mono); font-weight:800; color:var(--marina-primary);">${log.txn_id}</td>
+                            <td>
+                                <span style="font-family:var(--font-mono); font-size:0.75rem; background:var(--marina-light); color:var(--marina-dark); padding:2px 6px; border-radius:4px;">
+                                    ${log.from_state} ➔ ${log.to_state}
+                                </span>
+                            </td>
+                            <td style="font-size:0.76rem; font-weight:700;">${log.queue_level}</td>
+                            <td style="font-size:0.78rem;">${log.event_note || ''}</td>
+                            <td style="font-size:0.72rem; color:var(--text-muted); font-family:var(--font-mono);">${log.logged_at}</td>
                         </tr>
                     `;
                 }).join('');
+
+            } catch (err) {
+                console.error("Logs fetch error:", err);
             }
+        }
 
-            function escapeHtml(str) {
-                if (!str) return '';
-                return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            }
-
-            // ================================================================
-            // INITIALIZATION & POLLING
-            // ================================================================
-            document.addEventListener('DOMContentLoaded', () => {
-                fetchState();
-                fetchLedger();
-                fetchAccounts();
-
-                // Live polling loop every 450ms for smooth UI updates
-                setInterval(() => {
-                    fetchState();
-                    if (currentSlide === 1) fetchLedger();
-                    if (currentSlide === 2) fetchAccounts();
-                }, 450);
+        // Slide 3: Metrics & Accounts
+        function renderMetrics(metrics) {
+            metrics.forEach(m => {
+                if (m.queue_level === 'Q1_PRIORITY') {
+                    document.getElementById('m1_processed').textContent = m.total_processed;
+                    document.getElementById('m1_cpu').textContent = `${m.cpu_utilization_pct}%`;
+                    document.getElementById('m1_wait').textContent = `${m.avg_wait_time}s`;
+                    document.getElementById('m1_turnaround').textContent = `${m.avg_turnaround_time}s`;
+                } else if (m.queue_level === 'Q2_SJF') {
+                    document.getElementById('m2_processed').textContent = m.total_processed;
+                    document.getElementById('m2_cpu').textContent = `${m.cpu_utilization_pct}%`;
+                    document.getElementById('m2_wait').textContent = `${m.avg_wait_time}s`;
+                    document.getElementById('m2_turnaround').textContent = `${m.avg_turnaround_time}s`;
+                } else if (m.queue_level === 'Q3_FCFS') {
+                    document.getElementById('m3_processed').textContent = m.total_processed;
+                    document.getElementById('m3_cpu').textContent = `${m.cpu_utilization_pct}%`;
+                    document.getElementById('m3_wait').textContent = `${m.avg_wait_time}s`;
+                    document.getElementById('m3_turnaround').textContent = `${m.avg_turnaround_time}s`;
+                }
             });
+        }
 
-        })();
+        async function loadSlide3Data() {
+            // Load accounts & balances
+            const tbody = document.getElementById('accountsTableBody');
+            try {
+                const res = await fetch('/api/accounts');
+                const data = await res.json();
+
+                if (!data.accounts) return;
+
+                tbody.innerHTML = data.accounts.map(acc => {
+                    const prevBal = previousBalances[acc.account_id];
+                    const changed = (prevBal !== undefined && prevBal !== acc.current_balance);
+                    previousBalances[acc.account_id] = acc.current_balance;
+
+                    const pulseClass = changed ? "balance-updated" : "";
+
+                    return `
+                        <tr>
+                            <td style="font-family:var(--font-mono); font-weight:800; color:var(--marina-primary);">${acc.account_id}</td>
+                            <td><strong>${acc.customer_name}</strong></td>
+                            <td><span class="panel-badge">${acc.account_type}</span></td>
+                            <td class="${pulseClass}" style="font-family:var(--font-mono); font-size:1.02rem; font-weight:800; color:var(--marina-dark);">
+                                ₹${parseFloat(acc.current_balance).toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                            </td>
+                            <td style="font-size:0.72rem; color:var(--text-muted); font-family:var(--font-mono);">${acc.last_updated}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error("Accounts fetch error:", err);
+            }
+        }
+
+        // Header Actions
+        async function toggleTraffic() {
+            try {
+                await fetch('/api/traffic/toggle', { method: 'POST' });
+                fetchState();
+            } catch (err) {
+                console.error("Toggle traffic error:", err);
+            }
+        }
+
+        async function resetSystem() {
+            if (!confirm("Reset all BankOS tables and C++ MLFQ queues to clean seed defaults?")) return;
+            try {
+                await fetch('/api/reset', { method: 'POST' });
+                latestTestTxnId = null;
+                setTestStepperStage(0, 'TXN-READY');
+                fetchState();
+                loadSlide2Data();
+                loadSlide3Data();
+            } catch (err) {
+                console.error("Reset error:", err);
+            }
+        }
+
+        // Initial Boot
+        document.addEventListener('DOMContentLoaded', () => {
+            updateBurstPreview();
+            fetchState();
+            loadSlide2Data();
+            loadSlide3Data();
+            setInterval(fetchState, 500); // 500ms real-time state polling
+        });
     </script>
 </body>
 </html>

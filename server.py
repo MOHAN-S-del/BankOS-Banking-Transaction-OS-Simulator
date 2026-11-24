@@ -1,12 +1,14 @@
 # ============================================================================
 # BankOS Middleware: Python Flask Bridge (server.py)
 # Connects C++ MLFQ OS Engine, MySQL (bankos_db), and 3-Slide Web Dashboard
+# Synchronizes 8 Relational & OS-Telemetry Tables in Real-Time
 # ============================================================================
 
 import os
 import time
 import json
 import random
+import socket
 import urllib.request
 import urllib.parse
 import subprocess
@@ -40,7 +42,10 @@ except ImportError:
 
 mysql_pool = None
 
-# In-memory transactional fallback store (ensures 100% demo uptime)
+# ----------------------------------------------------------------------------
+# In-Memory Transactional Fallback Store (Ensures 100% Demo Reliability)
+# Synchronizes all 8 tables in RAM if MySQL service is unavailable
+# ----------------------------------------------------------------------------
 in_memory_accounts = {
     'ACC1001': {'customer_name': 'Rajesh Sharma', 'account_type': 'SAVINGS'},
     'ACC1002': {'customer_name': 'Priya Patel', 'account_type': 'SAVINGS'},
@@ -63,25 +68,25 @@ in_memory_transactions = [
     {
         'txn_id': 'TXN-1001', 'sender_id': 'ACC1001', 'receiver_id': 'ACC1006',
         'txn_type': 'ATM', 'amount': Decimal('2500.00'), 'auto_burst_time': 1,
-        'assigned_queue': 'Queue 1 (Priority)', 'status': 'COMPLETED',
+        'assigned_queue': 'Q1_PRIORITY', 'status': 'COMPLETED',
         'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     },
     {
         'txn_id': 'TXN-1002', 'sender_id': 'ACC1002', 'receiver_id': 'ACC1004',
         'txn_type': 'UPI', 'amount': Decimal('1800.00'), 'auto_burst_time': 2,
-        'assigned_queue': 'Queue 1 (Priority)', 'status': 'COMPLETED',
+        'assigned_queue': 'Q1_PRIORITY', 'status': 'COMPLETED',
         'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     },
     {
         'txn_id': 'TXN-1003', 'sender_id': 'ACC1003', 'receiver_id': 'ACC1001',
         'txn_type': 'STANDARD', 'amount': Decimal('8500.00'), 'auto_burst_time': 3,
-        'assigned_queue': 'Queue 2 (SJF)', 'status': 'COMPLETED',
+        'assigned_queue': 'Q2_SJF', 'status': 'COMPLETED',
         'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     },
     {
         'txn_id': 'TXN-1004', 'sender_id': 'ACC1005', 'receiver_id': 'ACC1002',
         'txn_type': 'PAYROLL', 'amount': Decimal('65000.00'), 'auto_burst_time': 7,
-        'assigned_queue': 'Queue 3 (FCFS)', 'status': 'COMPLETED',
+        'assigned_queue': 'Q3_FCFS', 'status': 'COMPLETED',
         'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
 ]
@@ -95,6 +100,98 @@ in_memory_upi_payroll = {
     'TXN-1004': {'channel_mode': 'PAYROLL', 'reference_id': 'BATCH-DEC-TECHCORP-01'}
 }
 
+# Table 6: transaction_queue (RAM snapshot of waiting processes)
+in_memory_queue = {}
+
+# Table 7: transaction_logs (OS state-transition audit trail)
+in_memory_logs = [
+    {
+        'log_id': 1, 'txn_id': 'TXN-1001', 'from_state': 'NEW', 'to_state': 'READY',
+        'queue_level': 'Q1_PRIORITY', 'event_note': 'Admitted to Queue 1 (Priority) via ATM gateway',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 2, 'txn_id': 'TXN-1001', 'from_state': 'READY', 'to_state': 'RUNNING',
+        'queue_level': 'Q1_PRIORITY', 'event_note': 'Dispatched to CPU Core 0 for 1s debit execution',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 3, 'txn_id': 'TXN-1001', 'from_state': 'RUNNING', 'to_state': 'TERMINATED',
+        'queue_level': 'Q1_PRIORITY', 'event_note': 'Burst finished; MySQL ACID balance deduction committed',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 4, 'txn_id': 'TXN-1002', 'from_state': 'NEW', 'to_state': 'READY',
+        'queue_level': 'Q1_PRIORITY', 'event_note': 'Admitted to Queue 1 (Priority) via UPI gateway',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 5, 'txn_id': 'TXN-1002', 'from_state': 'READY', 'to_state': 'RUNNING',
+        'queue_level': 'Q1_PRIORITY', 'event_note': 'Dispatched to CPU Core 0 for 2s peer transfer',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 6, 'txn_id': 'TXN-1002', 'from_state': 'RUNNING', 'to_state': 'TERMINATED',
+        'queue_level': 'Q1_PRIORITY', 'event_note': 'Burst finished; MySQL ACID balance transfer committed',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 7, 'txn_id': 'TXN-1003', 'from_state': 'NEW', 'to_state': 'READY',
+        'queue_level': 'Q2_SJF', 'event_note': 'Admitted to Queue 2 (SJF) for lightweight standard transfer',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 8, 'txn_id': 'TXN-1003', 'from_state': 'READY', 'to_state': 'RUNNING',
+        'queue_level': 'Q2_SJF', 'event_note': 'Dispatched to CPU Core 0 (Shortest remaining burst = 3s)',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 9, 'txn_id': 'TXN-1003', 'from_state': 'RUNNING', 'to_state': 'TERMINATED',
+        'queue_level': 'Q2_SJF', 'event_note': 'Burst finished; MySQL ACID balance transfer committed',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 10, 'txn_id': 'TXN-1004', 'from_state': 'NEW', 'to_state': 'READY',
+        'queue_level': 'Q3_FCFS', 'event_note': 'Admitted to Queue 3 (FCFS) for heavy corporate payroll batch',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 11, 'txn_id': 'TXN-1004', 'from_state': 'READY', 'to_state': 'RUNNING',
+        'queue_level': 'Q3_FCFS', 'event_note': 'Dispatched to CPU Core 0 for 7s batch verification',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    {
+        'log_id': 12, 'txn_id': 'TXN-1004', 'from_state': 'RUNNING', 'to_state': 'TERMINATED',
+        'queue_level': 'Q3_FCFS', 'event_note': 'Batch burst finished; MySQL ACID bulk balance credit committed',
+        'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+]
+
+# Table 8: scheduler_metrics (Live & historical MLFQ performance telemetry)
+in_memory_metrics = {
+    'Q1_PRIORITY': {
+        'queue_level': 'Q1_PRIORITY', 'total_processed': 2,
+        'avg_wait_time': Decimal('0.45'), 'avg_turnaround_time': Decimal('1.95'),
+        'cpu_utilization_pct': Decimal('24.50'),
+        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    'Q2_SJF': {
+        'queue_level': 'Q2_SJF', 'total_processed': 1,
+        'avg_wait_time': Decimal('1.20'), 'avg_turnaround_time': Decimal('4.20'),
+        'cpu_utilization_pct': Decimal('31.00'),
+        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    'Q3_FCFS': {
+        'queue_level': 'Q3_FCFS', 'total_processed': 1,
+        'avg_wait_time': Decimal('3.50'), 'avg_turnaround_time': Decimal('10.50'),
+        'cpu_utilization_pct': Decimal('44.50'),
+        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+}
+
+seen_synced_transitions = set()
+committed_txns = set(['TXN-1001', 'TXN-1002', 'TXN-1003', 'TXN-1004'])
+
 # ----------------------------------------------------------------------------
 # Database Connection & Initialization
 # ----------------------------------------------------------------------------
@@ -105,14 +202,12 @@ def init_mysql():
         return False
 
     try:
-        # Create database if it does not exist
         srv = mysql.connector.connect(host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD)
         cur = srv.cursor()
         cur.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}`;")
         cur.close()
         srv.close()
 
-        # Create connection pool
         mysql_pool = pooling.MySQLConnectionPool(
             pool_name="bankos_pool",
             pool_size=5,
@@ -123,7 +218,6 @@ def init_mysql():
             database=DB_NAME
         )
 
-        # Run schema.sql
         schema_file = os.path.join(os.path.dirname(__file__), "schema.sql")
         if os.path.exists(schema_file):
             conn = mysql_pool.get_connection()
@@ -142,11 +236,11 @@ def init_mysql():
             conn.close()
 
         is_mysql_connected = True
-        print(f"[MySQL] ✓ Connected to MySQL ({DB_HOST}:{DB_PORT}/{DB_NAME}) with pooling.")
+        print(f"[MySQL] ✓ Connected to MySQL ({DB_HOST}:{DB_PORT}/{DB_NAME}) with 8 synchronized tables.")
         return True
     except Exception as e:
         is_mysql_connected = False
-        print(f"[MySQL] Notice: MySQL offline ({e}). Using In-Memory ACID engine.")
+        print(f"[MySQL] Notice: MySQL service offline ({e}). Using In-Memory ACID engine.")
         return False
 
 def get_db():
@@ -156,6 +250,33 @@ def get_db():
         except Exception:
             return None
     return None
+
+# ----------------------------------------------------------------------------
+# Helper: Auto Burst Time and Initial Queue Determination
+# ----------------------------------------------------------------------------
+def calculate_auto_burst_time(txn_type, amount):
+    if txn_type == 'ATM':
+        return 1
+    elif txn_type == 'UPI':
+        return 2
+    elif txn_type == 'STANDARD':
+        return 3 if amount <= 10000.0 else 5
+    elif txn_type == 'PAYROLL':
+        return 7
+    return 3
+
+def determine_queue(txn_type, burst_time):
+    if txn_type in ('ATM', 'UPI'):
+        return 'Q1_PRIORITY'
+    if txn_type == 'STANDARD' and burst_time <= 3:
+        return 'Q2_SJF'
+    return 'Q3_FCFS'
+
+def determine_priority_score(txn_type, queue_level):
+    if txn_type == 'ATM': return 10
+    if txn_type == 'UPI': return 8
+    if queue_level == 'Q2_SJF': return 5
+    return 2
 
 # ----------------------------------------------------------------------------
 # Mandatory SQL JOINs for Ledger
@@ -255,7 +376,7 @@ def query_joined_ledger(category=None, search=None, limit=100):
                 'auto_burst_time': t['auto_burst_time'],
                 'assigned_queue': t['assigned_queue'],
                 'status': t['status'],
-                'created_at': str(t['created_at']),
+                'created_at': t['created_at'],
                 'atm_location': atm_row.get('atm_location'),
                 'card_last4': atm_row.get('card_last4'),
                 'channel_mode': up_row.get('channel_mode'),
@@ -263,15 +384,15 @@ def query_joined_ledger(category=None, search=None, limit=100):
             }
 
             if search:
-                s_l = search.lower()
-                matches = (
-                    s_l in row['txn_id'].lower() or
-                    s_l in row['sender_name'].lower() or
-                    s_l in row['receiver_name'].lower() or
-                    (row['atm_location'] and s_l in row['atm_location'].lower()) or
-                    (row['reference_id'] and s_l in row['reference_id'].lower())
+                term = search.lower()
+                matched = (
+                    term in row['txn_id'].lower() or
+                    term in row['sender_name'].lower() or
+                    term in row['receiver_name'].lower() or
+                    (row['atm_location'] and term in row['atm_location'].lower()) or
+                    (row['reference_id'] and term in row['reference_id'].lower())
                 )
-                if not matches:
+                if not matched:
                     continue
 
             res.append(row)
@@ -279,7 +400,79 @@ def query_joined_ledger(category=None, search=None, limit=100):
                 break
         return res
 
-def query_accounts():
+# ----------------------------------------------------------------------------
+# Query Live State-Transition Logs (Table 7: transaction_logs)
+# ----------------------------------------------------------------------------
+def query_transaction_logs(limit=100):
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT log_id, txn_id, from_state, to_state, queue_level, event_note, logged_at
+                FROM transaction_logs
+                ORDER BY log_id DESC
+                LIMIT %s;
+            """, (limit,))
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            for r in rows:
+                if isinstance(r.get('logged_at'), datetime):
+                    r['logged_at'] = r['logged_at'].strftime('%Y-%m-%d %H:%M:%S')
+            return rows
+        except Exception as e:
+            print("[SQL] Query transaction_logs error:", e)
+
+    with db_lock:
+        logs_copy = list(reversed(in_memory_logs))[:limit]
+        return logs_copy
+
+# ----------------------------------------------------------------------------
+# Query Live Scheduler Metrics (Table 8: scheduler_metrics)
+# ----------------------------------------------------------------------------
+def query_scheduler_metrics():
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT metric_id, queue_level, total_processed, avg_wait_time, avg_turnaround_time, cpu_utilization_pct, last_updated
+                FROM scheduler_metrics
+                ORDER BY metric_id ASC;
+            """)
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            for r in rows:
+                r['avg_wait_time'] = float(r['avg_wait_time'])
+                r['avg_turnaround_time'] = float(r['avg_turnaround_time'])
+                r['cpu_utilization_pct'] = float(r['cpu_utilization_pct'])
+                if isinstance(r.get('last_updated'), datetime):
+                    r['last_updated'] = r['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+            return rows
+        except Exception as e:
+            print("[SQL] Query scheduler_metrics error:", e)
+
+    with db_lock:
+        res = []
+        for k in ['Q1_PRIORITY', 'Q2_SJF', 'Q3_FCFS']:
+            m = in_memory_metrics.get(k)
+            if m:
+                res.append({
+                    'queue_level': m['queue_level'],
+                    'total_processed': m['total_processed'],
+                    'avg_wait_time': float(m['avg_wait_time']),
+                    'avg_turnaround_time': float(m['avg_turnaround_time']),
+                    'cpu_utilization_pct': float(m['cpu_utilization_pct']),
+                    'last_updated': m['last_updated']
+                })
+        return res
+
+# ----------------------------------------------------------------------------
+# Query Accounts & Balances (accounts JOIN balance)
+# ----------------------------------------------------------------------------
+def query_accounts_and_balances():
     conn = get_db()
     if conn:
         try:
@@ -289,7 +482,8 @@ def query_accounts():
                     a.account_id,
                     a.customer_name,
                     a.account_type,
-                    b.current_balance
+                    b.current_balance,
+                    b.last_updated
                 FROM accounts a
                 INNER JOIN balance b ON a.account_id = b.account_id
                 ORDER BY a.account_id ASC;
@@ -299,124 +493,398 @@ def query_accounts():
             conn.close()
             for r in rows:
                 r['current_balance'] = float(r['current_balance'])
+                if isinstance(r.get('last_updated'), datetime):
+                    r['last_updated'] = r['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
             return rows
-        except Exception:
-            pass
+        except Exception as e:
+            print("[SQL] Query accounts error:", e)
 
     with db_lock:
-        return [
-            {
+        res = []
+        for aid, acc in in_memory_accounts.items():
+            res.append({
                 'account_id': aid,
                 'customer_name': acc['customer_name'],
                 'account_type': acc['account_type'],
-                'current_balance': float(in_memory_balances.get(aid, Decimal('0.00')))
-            }
-            for aid, acc in sorted(in_memory_accounts.items())
-        ]
+                'current_balance': float(in_memory_balances.get(aid, Decimal('0.00'))),
+                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+        return res
 
 # ----------------------------------------------------------------------------
-# ACID Balance Transfer Execution
+# Commit ACID Balance Transfer on Completion
 # ----------------------------------------------------------------------------
-def execute_acid_transfer(txn_id, sender_id, receiver_id, amount):
-    amt = Decimal(str(amount))
+def commit_acid_transfer(txn_id, sender_id, receiver_id, amount):
+    amount_dec = Decimal(str(amount))
     conn = get_db()
     if conn:
         try:
-            conn.autocommit = False
-            cur = conn.cursor(dictionary=True)
+            cur = conn.cursor()
+            cur.execute("START TRANSACTION;")
 
-            # START TRANSACTION & SELECT FOR UPDATE
+            # Lock sender & receiver balance rows
             cur.execute("SELECT current_balance FROM balance WHERE account_id = %s FOR UPDATE;", (sender_id,))
             s_row = cur.fetchone()
-            if not s_row:
-                conn.rollback()
+            cur.execute("SELECT current_balance FROM balance WHERE account_id = %s FOR UPDATE;", (receiver_id,))
+            r_row = cur.fetchone()
+
+            if not s_row or not r_row:
+                cur.execute("ROLLBACK;")
                 cur.close()
                 conn.close()
-                return False
+                return False, "Account balance record missing"
 
-            sender_bal = Decimal(str(s_row['current_balance']))
-            # Deduct balance if sufficient funds (or if sender is vault)
-            if sender_id != 'ACC1006' and sender_bal < amt:
-                conn.rollback()
-                cur.close()
-                conn.close()
-                return False
+            # Execute atomic transfer
+            cur.execute("UPDATE balance SET current_balance = current_balance - %s WHERE account_id = %s;", (amount_dec, sender_id))
+            cur.execute("UPDATE balance SET current_balance = current_balance + %s WHERE account_id = %s;", (amount_dec, receiver_id))
 
-            # Deduct sender, credit receiver
-            cur.execute("UPDATE balance SET current_balance = current_balance - %s WHERE account_id = %s;", (amt, sender_id))
-            cur.execute("UPDATE balance SET current_balance = current_balance + %s WHERE account_id = %s;", (amt, receiver_id))
+            # Mark transaction completed
             cur.execute("UPDATE transactions SET status = 'COMPLETED' WHERE txn_id = %s;", (txn_id,))
+
+            # Remove from waiting queue table
+            cur.execute("DELETE FROM transaction_queue WHERE txn_id = %s;", (txn_id,))
+
+            # Append completed state transition log
+            cur.execute("""
+                INSERT INTO transaction_logs (txn_id, from_state, to_state, queue_level, event_note)
+                VALUES (%s, 'RUNNING', 'TERMINATED', 'COMMITTED', 'ACID balance deduction and credit committed to MySQL');
+            """, (txn_id,))
+
+            cur.execute("COMMIT;")
+            cur.close()
+            conn.close()
+            return True, "MySQL ACID transfer committed"
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                    conn.close()
+                except Exception:
+                    pass
+            print(f"[ACID] Transfer failed for {txn_id}: {e}")
+
+    # In-memory ACID transfer
+    with db_lock:
+        if sender_id in in_memory_balances and receiver_id in in_memory_balances:
+            in_memory_balances[sender_id] -= amount_dec
+            in_memory_balances[receiver_id] += amount_dec
+
+            for t in in_memory_transactions:
+                if t['txn_id'] == txn_id:
+                    t['status'] = 'COMPLETED'
+                    break
+
+            in_memory_queue.pop(txn_id, None)
+
+            in_memory_logs.append({
+                'log_id': len(in_memory_logs) + 1,
+                'txn_id': txn_id,
+                'from_state': 'RUNNING',
+                'to_state': 'TERMINATED',
+                'queue_level': 'COMMITTED',
+                'event_note': f"ACID balance transfer of ₹{amount_dec:,.2f} executed atomically",
+                'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+            return True, "In-memory ACID transfer committed"
+        return False, "Invalid sender or receiver"
+
+# ----------------------------------------------------------------------------
+# Insert Transaction into Database & Queue
+# ----------------------------------------------------------------------------
+def insert_admitted_transaction(p_data):
+    txn_id = p_data['txn_id']
+    sender_id = p_data['sender_id']
+    receiver_id = p_data['receiver_id']
+    txn_type = p_data['txn_type']
+    amount = Decimal(str(p_data['amount']))
+    burst = int(p_data.get('auto_burst_time', 1))
+    queue = p_data.get('assigned_queue', 'Q1_PRIORITY')
+    priority = int(p_data.get('priority_score', 5))
+
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO transactions (txn_id, sender_id, receiver_id, txn_type, amount, auto_burst_time, assigned_queue, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'QUEUED');
+            """, (txn_id, sender_id, receiver_id, txn_type, amount, burst, queue))
+
+            if txn_type == 'ATM':
+                atm_loc = p_data.get('atm_location', 'Connaught Place South ATM #04')
+                card = p_data.get('card_last4', '4821')
+                cur.execute("INSERT INTO atm_transactions (txn_id, atm_location, card_last4) VALUES (%s, %s, %s);", (txn_id, atm_loc, card))
+            else:
+                mode = 'PAYROLL' if txn_type == 'PAYROLL' else 'UPI'
+                ref = p_data.get('reference_id', f"TXN-{random.randint(100000, 999999)}")
+                cur.execute("INSERT INTO upi_payroll_transactions (txn_id, channel_mode, reference_id) VALUES (%s, %s, %s);", (txn_id, mode, ref))
+
+            cur.execute("""
+                INSERT INTO transaction_queue (txn_id, queue_level, priority_score, remaining_burst, wait_time_sec)
+                VALUES (%s, %s, %s, %s, 0)
+                ON DUPLICATE KEY UPDATE remaining_burst = VALUES(remaining_burst);
+            """, (txn_id, queue, priority, burst))
+
+            cur.execute("""
+                INSERT INTO transaction_logs (txn_id, from_state, to_state, queue_level, event_note)
+                VALUES (%s, 'NEW', 'READY', %s, %s);
+            """, (txn_id, queue, f"Admitted to MLFQ {queue} (Auto burst: {burst}s)"))
 
             conn.commit()
             cur.close()
             conn.close()
             return True
         except Exception as e:
-            try:
-                conn.rollback()
-                conn.close()
-            except Exception:
-                pass
-            return False
+            if conn:
+                try: conn.close()
+                except Exception: pass
+            print(f"[SQL] Error inserting transaction {txn_id}: {e}")
 
+    # In-memory storage
     with db_lock:
-        s_bal = in_memory_balances.get(sender_id, Decimal('0.00'))
-        if sender_id != 'ACC1006' and s_bal < amt:
-            return False
-        in_memory_balances[sender_id] -= amt
-        in_memory_balances[receiver_id] = in_memory_balances.get(receiver_id, Decimal('0.00')) + amt
-        for t in in_memory_transactions:
-            if t['txn_id'] == txn_id:
-                t['status'] = 'COMPLETED'
-                break
-        return True
+        in_memory_transactions.append({
+            'txn_id': txn_id,
+            'sender_id': sender_id,
+            'receiver_id': receiver_id,
+            'txn_type': txn_type,
+            'amount': amount,
+            'auto_burst_time': burst,
+            'assigned_queue': queue,
+            'status': 'QUEUED',
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+        if txn_type == 'ATM':
+            in_memory_atm[txn_id] = {
+                'atm_location': p_data.get('atm_location', 'Connaught Place South ATM #04'),
+                'card_last4': p_data.get('card_last4', '4821')
+            }
+        else:
+            in_memory_upi_payroll[txn_id] = {
+                'channel_mode': 'PAYROLL' if txn_type == 'PAYROLL' else 'UPI',
+                'reference_id': p_data.get('reference_id', f"TXN-{random.randint(100000, 999999)}")
+            }
+
+        in_memory_queue[txn_id] = {
+            'txn_id': txn_id, 'queue_level': queue, 'priority_score': priority,
+            'remaining_burst': burst, 'wait_time_sec': 0
+        }
+
+        in_memory_logs.append({
+            'log_id': len(in_memory_logs) + 1,
+            'txn_id': txn_id,
+            'from_state': 'NEW',
+            'to_state': 'READY',
+            'queue_level': queue,
+            'event_note': f"Admitted to MLFQ {queue} (Auto burst: {burst}s)",
+            'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+    return True
 
 # ----------------------------------------------------------------------------
-# C++ Scheduler Subprocess & IPC Bridge
+# Real-Time Telemetry & Sync Loop (C++ State <-> MySQL 8 Tables)
+# ----------------------------------------------------------------------------
+def sync_scheduler_telemetry():
+    while True:
+        try:
+            state = fetch_cpp_state()
+            if state:
+                # 1. Sync State Transitions into transaction_logs
+                transitions = state.get('transitions', [])
+                for tr in reversed(transitions):
+                    key = f"{tr['txn_id']}:{tr['from_state']}:{tr['to_state']}:{tr['event_note']}"
+                    if key not in seen_synced_transitions:
+                        seen_synced_transitions.add(key)
+                        log_entry(tr['txn_id'], tr['from_state'], tr['to_state'], tr['queue_level'], tr['event_note'])
+
+                # 2. Sync Completed Transactions & Execute ACID Transfers
+                completed_list = state.get('completed', [])
+                for cp in completed_list:
+                    cid = cp['txn_id']
+                    if cid not in committed_txns:
+                        committed_txns.add(cid)
+                        commit_acid_transfer(cid, cp['sender_id'], cp['receiver_id'], cp['amount'])
+
+                # 3. Sync Active Waiting Processes in transaction_queue
+                waiting_pcbs = []
+                for qname in ('queue_1', 'queue_2', 'queue_3'):
+                    for item in state.get(qname, []):
+                        waiting_pcbs.append(item)
+
+                sync_waiting_queue_table(waiting_pcbs)
+
+                # 4. Sync scheduler_metrics table
+                metrics_list = state.get('metrics', [])
+                if metrics_list:
+                    sync_metrics_table(metrics_list)
+
+        except Exception as e:
+            pass
+        time.sleep(0.5)
+
+def log_entry(txn_id, from_st, to_st, queue, note):
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO transaction_logs (txn_id, from_state, to_state, queue_level, event_note)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, from_st, to_st, queue, note))
+            conn.commit()
+            cur.close()
+            conn.close()
+            return
+        except Exception:
+            if conn:
+                try: conn.close()
+                except Exception: pass
+
+    with db_lock:
+        in_memory_logs.append({
+            'log_id': len(in_memory_logs) + 1,
+            'txn_id': txn_id,
+            'from_state': from_st,
+            'to_state': to_st,
+            'queue_level': queue,
+            'event_note': note,
+            'logged_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+def sync_waiting_queue_table(waiting_pcbs):
+    active_ids = {p['txn_id'] for p in waiting_pcbs}
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor()
+            for p in waiting_pcbs:
+                cur.execute("""
+                    INSERT INTO transaction_queue (txn_id, queue_level, priority_score, remaining_burst, wait_time_sec)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                        queue_level = VALUES(queue_level),
+                        priority_score = VALUES(priority_score),
+                        remaining_burst = VALUES(remaining_burst),
+                        wait_time_sec = VALUES(wait_time_sec);
+                """, (p['txn_id'], p.get('queue_level', 'Q1_PRIORITY'), p.get('priority_score', 0), p.get('remaining_burst', 1), p.get('wait_time_sec', 0)))
+
+            if active_ids:
+                format_strings = ','.join(['%s'] * len(active_ids))
+                cur.execute(f"DELETE FROM transaction_queue WHERE txn_id NOT IN ({format_strings});", tuple(active_ids))
+            else:
+                cur.execute("DELETE FROM transaction_queue;")
+
+            conn.commit()
+            cur.close()
+            conn.close()
+            return
+        except Exception:
+            if conn:
+                try: conn.close()
+                except Exception: pass
+
+    with db_lock:
+        in_memory_queue.clear()
+        for p in waiting_pcbs:
+            in_memory_queue[p['txn_id']] = {
+                'txn_id': p['txn_id'],
+                'queue_level': p.get('queue_level', 'Q1_PRIORITY'),
+                'priority_score': p.get('priority_score', 0),
+                'remaining_burst': p.get('remaining_burst', 1),
+                'wait_time_sec': p.get('wait_time_sec', 0)
+            }
+
+def sync_metrics_table(metrics_list):
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor()
+            for m in metrics_list:
+                cur.execute("""
+                    INSERT INTO scheduler_metrics (queue_level, total_processed, avg_wait_time, avg_turnaround_time, cpu_utilization_pct)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        total_processed = VALUES(total_processed),
+                        avg_wait_time = VALUES(avg_wait_time),
+                        avg_turnaround_time = VALUES(avg_turnaround_time),
+                        cpu_utilization_pct = VALUES(cpu_utilization_pct);
+                """, (m['queue_level'], m['total_processed'], m['avg_wait_time'], m['avg_turnaround_time'], m['cpu_utilization_pct']))
+            conn.commit()
+            cur.close()
+            conn.close()
+            return
+        except Exception:
+            if conn:
+                try: conn.close()
+                except Exception: pass
+
+    with db_lock:
+        for m in metrics_list:
+            k = m['queue_level']
+            in_memory_metrics[k] = {
+                'queue_level': k,
+                'total_processed': m['total_processed'],
+                'avg_wait_time': Decimal(str(m['avg_wait_time'])),
+                'avg_turnaround_time': Decimal(str(m['avg_turnaround_time'])),
+                'cpu_utilization_pct': Decimal(str(m['cpu_utilization_pct'])),
+                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+
+# ----------------------------------------------------------------------------
+# C++ Scheduler Subprocess & IPC Communication
 # ----------------------------------------------------------------------------
 cpp_process = None
 
 def ensure_cpp_scheduler_running():
     global cpp_process
-    # Check if C++ scheduler is already answering
+    bin_path = os.path.join(os.path.dirname(__file__), "scheduler")
+    if not os.path.exists(bin_path):
+        src_path = os.path.join(os.path.dirname(__file__), "scheduler.cpp")
+        if os.path.exists(src_path):
+            print("[C++ Engine] Compiling scheduler.cpp...")
+            subprocess.run(["g++", "-O2", "-std=c++17", src_path, "-o", bin_path, "-pthread"], check=True)
+
     try:
-        req = urllib.request.Request(f"{CPP_SCHEDULER_URL}/state")
-        with urllib.request.urlopen(req, timeout=0.8) as resp:
-            if resp.status == 200:
-                return True
+        # Check if already running on port
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.3)
+        res = s.connect_ex(('127.0.0.1', CPP_SCHEDULER_PORT))
+        s.close()
+        if res == 0:
+            return
     except Exception:
         pass
 
-    # Compile if binary does not exist
-    binary = "./scheduler"
-    if not os.path.exists(binary):
-        print("[C++ Engine] Compiling scheduler.cpp -> ./scheduler...")
-        subprocess.run(["g++", "-O2", "-std=c++17", "scheduler.cpp", "-o", "scheduler", "-pthread"], check=True)
+    try:
+        cpp_process = subprocess.Popen([bin_path, str(CPP_SCHEDULER_PORT)],
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+        time.sleep(0.4)
+        print("[C++ Engine] ✓ Launched background scheduler binary.")
+    except Exception as e:
+        print("[C++ Engine] Notice: Could not launch binary directly:", e)
 
-    # Launch binary as subprocess
-    print(f"[C++ Engine] Starting ./scheduler on port {CPP_SCHEDULER_PORT}...")
-    cpp_process = subprocess.Popen([binary, str(CPP_SCHEDULER_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(0.4)
-    return True
-
-# Track the most recent user demo test transaction
-tracked_test_txn = None
-
-def get_cpp_scheduler_state():
-    # 1. Try TCP Socket
+def fetch_cpp_state():
+    # Attempt 1: Fast TCP Socket
     try:
         req = urllib.request.Request(f"{CPP_SCHEDULER_URL}/state")
-        with urllib.request.urlopen(req, timeout=0.5) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            return data
+        with urllib.request.urlopen(req, timeout=0.4) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode('utf-8'))
+                return data
     except Exception:
         pass
 
-    # 2. Resilient File Bridge fallback (state.json)
+    # Attempt 2: Resilient Atomic File Bridge (state.json)
     try:
-        if os.path.exists("state.json"):
-            with open("state.json", "r", encoding="utf-8") as f:
+        state_file = os.path.join(os.path.dirname(__file__), "state.json")
+        if os.path.exists(state_file):
+            with open(state_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+                if 'metrics' not in data or not data['metrics']:
+                    data['metrics'] = query_scheduler_metrics()
+                if 'transitions' not in data:
+                    data['transitions'] = []
                 return data
     except Exception:
         pass
@@ -427,286 +895,208 @@ def get_cpp_scheduler_state():
         "queue_2": [],
         "queue_3": [],
         "completed": [],
-        "stats": {"total_admitted": 0, "total_completed": 0}
+        "transitions": [],
+        "metrics": query_scheduler_metrics(),
+        "stats": {"total_admitted": 0, "total_completed": 0, "cpu_active": False}
     }
 
-def inject_into_cpp_scheduler(txn_id, sender, receiver, txn_type, amount, is_test):
-    burst = 1 if txn_type == 'ATM' else (2 if txn_type == 'UPI' else (3 if amount <= 10000.0 else (7 if txn_type == 'PAYROLL' else 5)))
-    queue = "Queue 1 (Priority)" if txn_type in ('ATM', 'UPI') else ("Queue 2 (SJF)" if burst <= 3 else "Queue 3 (FCFS)")
-
-    # 1. Try TCP Socket
-    query = urllib.parse.urlencode({
-        "txn_id": txn_id,
-        "sender_id": sender,
-        "receiver_id": receiver,
-        "txn_type": txn_type,
-        "amount": amount,
-        "is_test": "1" if is_test else "0"
-    })
-    url = f"{CPP_SCHEDULER_URL}/inject?{query}"
+def send_txn_to_cpp(txn_data):
+    # Send via file inbox for guaranteed sandbox delivery
     try:
-        req = urllib.request.Request(url, method="POST")
-        with urllib.request.urlopen(req, timeout=0.6) as resp:
-            return json.loads(resp.read().decode('utf-8'))
-    except Exception:
-        pass
+        inbox_file = os.path.join(os.path.dirname(__file__), "inbox.jsonl")
+        line = (f"cmd=inject;txn_id={txn_data['txn_id']};sender={txn_data['sender_id']};"
+                f"receiver={txn_data['receiver_id']};type={txn_data['txn_type']};"
+                f"amount={txn_data['amount']};is_test={str(txn_data.get('is_test', False)).lower()}\n")
+        with open(inbox_file, 'a', encoding='utf-8') as f:
+            f.write(line)
+    except Exception as e:
+        print("[IPC] Inbox write error:", e)
 
-    # 2. Resilient File Bridge fallback (inbox.jsonl)
+    # Also notify TCP bridge if reachable
     try:
-        with open("inbox.jsonl", "a", encoding="utf-8") as f:
-            f.write(f"txn_id={txn_id};sender_id={sender};receiver_id={receiver};txn_type={txn_type};amount={amount};is_test={1 if is_test else 0}\n")
-    except Exception:
-        pass
-
-    return {
-        "txn_id": txn_id,
-        "sender_id": sender,
-        "receiver_id": receiver,
-        "txn_type": txn_type,
-        "amount": amount,
-        "auto_burst_time": burst,
-        "assigned_queue": queue,
-        "status": "QUEUED",
-        "is_test": is_test
-    }
-
-# ----------------------------------------------------------------------------
-# Background Worker: Syncs C++ Completed Transactions to MySQL ACID Balances
-# ----------------------------------------------------------------------------
-processed_completed_ids = set()
-
-def background_db_sync_loop():
-    global tracked_test_txn
-    while True:
-        try:
-            state = get_cpp_scheduler_state()
-            completed_list = state.get("completed", [])
-
-            for p in completed_list:
-                tid = p["txn_id"]
-                if tid not in processed_completed_ids:
-                    processed_completed_ids.add(tid)
-                    # Execute ACID balance transfer
-                    execute_acid_transfer(tid, p["sender_id"], p["receiver_id"], p["amount"])
-
-                    # Update tracked test status if applicable
-                    if tracked_test_txn and tracked_test_txn["txn_id"] == tid:
-                        tracked_test_txn["phase"] = "Committed to MySQL"
-                        tracked_test_txn["status"] = "COMPLETED"
-                        tracked_test_txn["progress"] = 100
-
-            # Update tracked test if it is running in C++
-            active = state.get("active_process")
-            if tracked_test_txn:
-                if active and active["txn_id"] == tracked_test_txn["txn_id"]:
-                    tracked_test_txn["phase"] = "Running in C++ CPU"
-                    tracked_test_txn["status"] = "RUNNING"
-                    tracked_test_txn["progress"] = active.get("progress_pct", 50)
-                elif tracked_test_txn["status"] == "QUEUED":
-                    tracked_test_txn["phase"] = f"Queued in {tracked_test_txn['assigned_queue']}"
-
-        except Exception:
+        req = urllib.request.Request(f"{CPP_SCHEDULER_URL}/inject", data=b"{}", headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=0.2):
             pass
-        time.sleep(0.3)
+    except Exception:
+        pass
 
 # ----------------------------------------------------------------------------
-# Background Simulation Traffic Generator
+# Background Automated Traffic Simulation
 # ----------------------------------------------------------------------------
-is_traffic_active = True
+is_traffic_active = False
+traffic_thread = None
 
-def background_traffic_generator():
-    acc_keys = ['ACC1001', 'ACC1002', 'ACC1003', 'ACC1004', 'ACC1005', 'ACC1006']
-    while True:
+def traffic_worker():
+    global is_traffic_active
+    accounts = ['ACC1001', 'ACC1002', 'ACC1003', 'ACC1004', 'ACC1005', 'ACC1006']
+    categories = ['ATM', 'UPI', 'STANDARD', 'PAYROLL']
+    weights = [0.35, 0.40, 0.18, 0.07]
+
+    while is_traffic_active:
+        time.sleep(random.uniform(2.5, 5.0))
         if not is_traffic_active:
-            time.sleep(1.0)
-            continue
+            break
 
-        try:
-            state = get_cpp_scheduler_state()
-            q_total = len(state.get("queue_1", [])) + len(state.get("queue_2", [])) + len(state.get("queue_3", []))
+        cat = random.choices(categories, weights=weights, k=1)[0]
+        sender = random.choice(accounts)
+        receiver = random.choice([a for a in accounts if a != sender])
 
-            if q_total < 8:
-                roll = random.random()
-                txn_id = f"TXN-{random.randint(2000, 9999)}"
+        if cat == 'ATM':
+            amount = round(random.uniform(500, 10000), 2)
+            receiver = 'ACC1006' # Vault
+        elif cat == 'UPI':
+            amount = round(random.uniform(100, 5000), 2)
+        elif cat == 'STANDARD':
+            amount = round(random.uniform(5000, 25000), 2)
+        else: # PAYROLL
+            sender = 'ACC1005' # TechCorp Ltd
+            amount = round(random.uniform(30000, 95000), 2)
 
-                if roll < 0.45:
-                    # UPI -> Queue 1 (2s)
-                    sender = random.choice(['ACC1001', 'ACC1002', 'ACC1003', 'ACC1004'])
-                    receiver = random.choice([a for a in acc_keys if a != sender and a != 'ACC1006'])
-                    amt = round(random.uniform(250.0, 4800.0), 2)
-                    ttype = 'UPI'
-                    channel_meta = {'channel_mode': 'UPI', 'reference_id': f"{sender.lower()}@upi"}
+        burst = calculate_auto_burst_time(cat, amount)
+        queue = determine_queue(cat, burst)
+        priority = determine_priority_score(cat, queue)
+        txn_id = f"TXN-{random.randint(1000, 9999)}"
 
-                elif roll < 0.70:
-                    # ATM -> Queue 1 (1s)
-                    sender = random.choice(['ACC1001', 'ACC1002', 'ACC1003', 'ACC1004'])
-                    receiver = 'ACC1006'
-                    amt = float(random.choice([500, 1000, 2000, 4000]))
-                    ttype = 'ATM'
-                    channel_meta = {'atm_location': 'Cyber City Branch ATM #02', 'card_last4': str(random.randint(1000, 9999))}
+        p_data = {
+            'txn_id': txn_id,
+            'sender_id': sender,
+            'receiver_id': receiver,
+            'txn_type': cat,
+            'amount': amount,
+            'auto_burst_time': burst,
+            'assigned_queue': queue,
+            'priority_score': priority,
+            'is_test': False
+        }
 
-                elif roll < 0.90:
-                    # STANDARD -> Queue 2 (3s if <= 10k)
-                    sender = random.choice(['ACC1001', 'ACC1003', 'ACC1004'])
-                    receiver = random.choice([a for a in acc_keys if a != sender and a != 'ACC1006'])
-                    amt = round(random.uniform(2000.0, 9500.0), 2)
-                    ttype = 'STANDARD'
-                    channel_meta = {}
+        if cat == 'ATM':
+            p_data['atm_location'] = random.choice(['Indira Nagar ATM #02', 'Bandra West ATM #11', 'Salt Lake Sector V ATM'])
+            p_data['card_last4'] = str(random.randint(1000, 9999))
+        else:
+            p_data['reference_id'] = f"{cat.lower()}_{random.randint(100000, 999999)}"
 
-                else:
-                    # PAYROLL -> Queue 3 (7s)
-                    sender = 'ACC1005'
-                    receiver = random.choice(['ACC1001', 'ACC1002', 'ACC1004'])
-                    amt = round(random.uniform(40000.0, 80000.0), 2)
-                    ttype = 'PAYROLL'
-                    channel_meta = {'channel_mode': 'PAYROLL', 'reference_id': 'BATCH-CORP-PAYROLL'}
+        insert_admitted_transaction(p_data)
+        send_txn_to_cpp(p_data)
 
-                # Inject into C++ MLFQ
-                proc = inject_into_cpp_scheduler(txn_id, sender, receiver, ttype, amt, False)
+# ----------------------------------------------------------------------------
+# Flask Web Application & Endpoints
+# ----------------------------------------------------------------------------
+app = Flask(__name__, template_folder="templates")
 
-                # Record in Database
-                record_transaction_in_db(proc, channel_meta)
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-            time.sleep(random.uniform(2.5, 4.0))
+@app.route('/api/state', methods=['GET'])
+def get_state():
+    state = fetch_cpp_state()
+    state['db_connected'] = is_mysql_connected
+    state['traffic_active'] = is_traffic_active
+    return jsonify(state)
 
-        except Exception:
-            time.sleep(1.0)
+@app.route('/api/inject', methods=['POST'])
+def inject_transaction():
+    try:
+        data = request.get_json(force=True)
+        sender_id = data.get('sender_id', 'ACC1001')
+        receiver_id = data.get('receiver_id', 'ACC1002')
+        txn_type = data.get('txn_type', 'UPI').upper()
+        amount = float(data.get('amount', 1000.0))
 
-def record_transaction_in_db(proc, channel_meta):
-    tid = proc['txn_id']
-    sender = proc['sender_id']
-    receiver = proc['receiver_id']
-    ttype = proc['txn_type']
-    amt = Decimal(str(proc['amount']))
-    burst = proc['auto_burst_time']
-    queue = proc['assigned_queue']
+        if sender_id == receiver_id:
+            return jsonify({'success': False, 'error': 'Sender and receiver cannot be identical'}), 400
+
+        auto_burst = calculate_auto_burst_time(txn_type, amount)
+        assigned_q = determine_queue(txn_type, auto_burst)
+        priority = determine_priority_score(txn_type, assigned_q)
+        txn_id = f"TXN-{random.randint(1000, 9999)}"
+
+        p_data = {
+            'txn_id': txn_id,
+            'sender_id': sender_id,
+            'receiver_id': receiver_id,
+            'txn_type': txn_type,
+            'amount': amount,
+            'auto_burst_time': auto_burst,
+            'assigned_queue': assigned_q,
+            'priority_score': priority,
+            'is_test': True,
+            'atm_location': data.get('atm_location', 'Connaught Place South ATM #04'),
+            'card_last4': data.get('card_last4', '4821'),
+            'reference_id': data.get('reference_id', f"TEST-{random.randint(100000, 999999)}")
+        }
+
+        insert_admitted_transaction(p_data)
+        send_txn_to_cpp(p_data)
+
+        return jsonify({
+            'success': True,
+            'txn_id': txn_id,
+            'auto_burst_time': auto_burst,
+            'assigned_queue': assigned_q,
+            'priority_score': priority,
+            'message': f'Transaction {txn_id} admitted with auto-burst {auto_burst}s into {assigned_q}'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ledger', methods=['GET'])
+def get_ledger():
+    cat = request.args.get('category', 'ALL')
+    search = request.args.get('search', '')
+    limit = int(request.args.get('limit', 100))
+    rows = query_joined_ledger(category=cat, search=search, limit=limit)
+    return jsonify({'success': True, 'count': len(rows), 'transactions': rows})
+
+@app.route('/api/logs', methods=['GET'])
+def get_logs():
+    limit = int(request.args.get('limit', 100))
+    rows = query_transaction_logs(limit=limit)
+    return jsonify({'success': True, 'count': len(rows), 'logs': rows})
+
+@app.route('/api/metrics', methods=['GET'])
+def get_metrics():
+    rows = query_scheduler_metrics()
+    return jsonify({'success': True, 'metrics': rows})
+
+@app.route('/api/accounts', methods=['GET'])
+def get_accounts():
+    rows = query_accounts_and_balances()
+    return jsonify({'success': True, 'accounts': rows})
+
+@app.route('/api/traffic/toggle', methods=['POST'])
+def toggle_traffic():
+    global is_traffic_active, traffic_thread
+    is_traffic_active = not is_traffic_active
+    if is_traffic_active:
+        traffic_thread = threading.Thread(target=traffic_worker, daemon=True)
+        traffic_thread.start()
+    return jsonify({'success': True, 'traffic_active': is_traffic_active})
+
+@app.route('/api/reset', methods=['POST'])
+def reset_database():
+    global is_traffic_active, in_memory_transactions, in_memory_logs, in_memory_queue, committed_txns, seen_synced_transitions
+    is_traffic_active = False
 
     conn = get_db()
     if conn:
         try:
+            schema_file = os.path.join(os.path.dirname(__file__), "schema.sql")
             cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO transactions (txn_id, sender_id, receiver_id, txn_type, amount, auto_burst_time, assigned_queue, status, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'QUEUED', NOW());
-            """, (tid, sender, receiver, ttype, amt, burst, queue))
-
-            if ttype == 'ATM':
-                loc = channel_meta.get('atm_location', 'Connaught Place South ATM #04')
-                card = channel_meta.get('card_last4', '1234')
-                cur.execute("INSERT INTO atm_transactions (txn_id, atm_location, card_last4) VALUES (%s, %s, %s);", (tid, loc, card))
-            elif ttype in ('UPI', 'PAYROLL'):
-                mode = channel_meta.get('channel_mode', ttype)
-                ref = channel_meta.get('reference_id', f"{sender.lower()}@channel")
-                cur.execute("INSERT INTO upi_payroll_transactions (txn_id, channel_mode, reference_id) VALUES (%s, %s, %s);", (tid, mode, ref))
-
+            with open(schema_file, 'r', encoding='utf-8') as f:
+                statements = f.read().split(';')
+                for stmt in statements:
+                    stmt = stmt.strip()
+                    if stmt and not stmt.upper().startswith("CREATE DATABASE") and not stmt.upper().startswith("USE "):
+                        try:
+                            cur.execute(stmt)
+                        except Exception:
+                            pass
             conn.commit()
             cur.close()
             conn.close()
-            return
-        except Exception:
-            pass
-
-    with db_lock:
-        in_memory_transactions.append({
-            'txn_id': tid, 'sender_id': sender, 'receiver_id': receiver,
-            'txn_type': ttype, 'amount': amt, 'auto_burst_time': burst,
-            'assigned_queue': queue, 'status': 'QUEUED',
-            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        })
-        if ttype == 'ATM':
-            in_memory_atm[tid] = {
-                'atm_location': channel_meta.get('atm_location', 'Branch ATM Cash Kiosk'),
-                'card_last4': channel_meta.get('card_last4', '5678')
-            }
-        elif ttype in ('UPI', 'PAYROLL'):
-            in_memory_upi_payroll[tid] = {
-                'channel_mode': ttype,
-                'reference_id': channel_meta.get('reference_id', f"{sender.lower()}@vpa")
-            }
-
-# ----------------------------------------------------------------------------
-# Flask Web Application & REST API
-# ----------------------------------------------------------------------------
-app = Flask(__name__, template_folder="templates")
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/api/inject", methods=["POST"])
-def api_inject_transaction():
-    global tracked_test_txn
-    data = request.get_json(force=True) or {}
-    sender_id = data.get("sender_id", "ACC1001").strip()
-    receiver_id = data.get("receiver_id", "ACC1002").strip()
-    txn_type = data.get("txn_type", "UPI").strip().upper()
-    amount = float(data.get("amount", 2000.0))
-
-    # Clean unique Txn ID for test
-    txn_id = f"TEST-{random.randint(100, 999)}"
-
-    # Inject into C++ Scheduler (C++ auto-computes auto_burst_time and assigned_queue)
-    proc = inject_into_cpp_scheduler(txn_id, sender_id, receiver_id, txn_type, amount, is_test=True)
-
-    # Channel metadata
-    channel_meta = {}
-    if txn_type == "ATM":
-        channel_meta = {'atm_location': 'Connaught Place South ATM #04', 'card_last4': '9988'}
-    elif txn_type == "UPI":
-        channel_meta = {'channel_mode': 'UPI', 'reference_id': f"{sender_id.lower()}@demo"}
-    elif txn_type == "PAYROLL":
-        channel_meta = {'channel_mode': 'PAYROLL', 'reference_id': 'BATCH-TECHCORP-DEMO'}
-
-    # Save to Database as QUEUED
-    record_transaction_in_db(proc, channel_meta)
-
-    # Set as active tracked test transaction
-    tracked_test_txn = {
-        "txn_id": proc["txn_id"],
-        "sender_id": proc["sender_id"],
-        "receiver_id": proc["receiver_id"],
-        "txn_type": proc["txn_type"],
-        "amount": proc["amount"],
-        "auto_burst_time": proc["auto_burst_time"],
-        "assigned_queue": proc["assigned_queue"],
-        "phase": f"Queued in {proc['assigned_queue']}",
-        "status": "QUEUED",
-        "progress": 0
-    }
-
-    return jsonify({"status": "success", "process": proc}), 201
-
-@app.route("/api/state", methods=["GET"])
-def api_scheduler_state():
-    state = get_cpp_scheduler_state()
-    state["tracked_test_txn"] = tracked_test_txn
-    state["traffic_active"] = is_traffic_active
-    state["mysql_connected"] = is_mysql_connected
-    return jsonify(state)
-
-@app.route("/api/ledger", methods=["GET"])
-def api_ledger():
-    cat = request.args.get("category", "ALL")
-    search = request.args.get("search", "").strip()
-    rows = query_joined_ledger(category=cat, search=search, limit=100)
-    return jsonify({"status": "success", "transactions": rows})
-
-@app.route("/api/accounts", methods=["GET"])
-def api_accounts():
-    accs = query_accounts()
-    return jsonify({"status": "success", "accounts": accs})
-
-@app.route("/api/traffic/toggle", methods=["POST"])
-def api_traffic_toggle():
-    global is_traffic_active
-    is_traffic_active = not is_traffic_active
-    return jsonify({"status": "success", "traffic_active": is_traffic_active})
-
-@app.route("/api/reset", methods=["POST"])
-def api_reset():
-    global tracked_test_txn, processed_completed_ids
-    tracked_test_txn = None
-    processed_completed_ids.clear()
+        except Exception as e:
+            print("[Reset] SQL reset error:", e)
 
     with db_lock:
         in_memory_balances['ACC1001'] = Decimal('150000.00')
@@ -715,53 +1105,42 @@ def api_reset():
         in_memory_balances['ACC1004'] = Decimal('95000.00')
         in_memory_balances['ACC1005'] = Decimal('1500000.00')
         in_memory_balances['ACC1006'] = Decimal('800000.00')
+        in_memory_queue.clear()
+        committed_txns = set(['TXN-1001', 'TXN-1002', 'TXN-1003', 'TXN-1004'])
+        seen_synced_transitions.clear()
 
-    conn = get_db()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute("UPDATE balance SET current_balance = 150000.00 WHERE account_id = 'ACC1001';")
-            cur.execute("UPDATE balance SET current_balance = 85000.00 WHERE account_id = 'ACC1002';")
-            cur.execute("UPDATE balance SET current_balance = 240000.00 WHERE account_id = 'ACC1003';")
-            cur.execute("UPDATE balance SET current_balance = 95000.00 WHERE account_id = 'ACC1004';")
-            cur.execute("UPDATE balance SET current_balance = 1500000.00 WHERE account_id = 'ACC1005';")
-            cur.execute("UPDATE balance SET current_balance = 800000.00 WHERE account_id = 'ACC1006';")
-            conn.commit()
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+    # Reset C++ scheduler state via inbox
+    try:
+        with open("inbox.jsonl", "a", encoding="utf-8") as f:
+            f.write("cmd=reset\n")
+    except Exception:
+        pass
 
-    return jsonify({"status": "success", "message": "Reset completed."})
+    return jsonify({'success': True, 'message': 'System state and tables reset to seed defaults'})
 
 # ----------------------------------------------------------------------------
-# Startup & Main Execution
+# Port Detection & Server Initialization
 # ----------------------------------------------------------------------------
-def find_available_port(preferred=5000):
-    import socket
-    for p in [preferred, 5001, 5050, 8080]:
+def find_available_port(ports=[5001, 5000, 5050, 8080]):
+    for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('0.0.0.0', p))
-                return p
-            except OSError:
-                continue
-    return preferred
+            if s.connect_ex(('127.0.0.1', port)) != 0:
+                return port
+    return 5001
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    print("========================================================")
+    print(" BankOS Middleware: Python Bridge Launching...")
+    print(" Synchronizing 8 MySQL Relational & Telemetry Tables")
+    print("========================================================")
+
     init_mysql()
     ensure_cpp_scheduler_running()
 
-    # Start background synchronization threads
-    t_sync = threading.Thread(target=background_db_sync_loop, daemon=True)
-    t_sync.start()
+    # Start telemetry background sync thread
+    sync_thread = threading.Thread(target=sync_scheduler_telemetry, daemon=True)
+    sync_thread.start()
 
-    t_traffic = threading.Thread(target=background_traffic_generator, daemon=True)
-    t_traffic.start()
-
-    port = find_available_port(5000)
-    print("====================================================================")
-    print(f"   BANKOS MIDDLEWARE ONLINE: http://127.0.0.1:{port}               ")
-    print("   Bridging C++17 MLFQ Engine & MySQL Relational Ledger             ")
-    print("====================================================================")
-    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+    run_port = find_available_port([5001, 5000, 5050, 8080])
+    print(f"[BankOS] ✓ Web Dashboard active at: http://127.0.0.1:{run_port}")
+    app.run(host='0.0.0.0', port=run_port, debug=False)
