@@ -284,6 +284,99 @@ int main(int argc, char* argv[]) {
     svr.Get("/api/scenario", handle_scenario);
     svr.Post("/api/scenario", handle_scenario);
 
+    // Custom Transaction Creator API
+    auto handle_create_transactions = [scheduler](const httplib::Request& req, httplib::Response& res) {
+        int total = 50;
+        int upi = 40;
+        int withdraw = 25;
+        int deposit = 15;
+        int salary = 20;
+        bool overdraft = true;
+
+        auto parse_int = [&req](const std::string& key, int default_val) -> int {
+            auto pos = req.body.find("\"" + key + "\":");
+            if (pos != std::string::npos) {
+                try {
+                    auto start = pos + key.length() + 3;
+                    auto end = req.body.find_first_of(",}\n\r", start);
+                    return std::stoi(req.body.substr(start, end - start));
+                } catch (...) {}
+            }
+            pos = req.path.find(key + "=");
+            if (pos != std::string::npos) {
+                try {
+                    auto start = pos + key.length() + 1;
+                    auto end = req.path.find_first_of("&?", start);
+                    return std::stoi(req.path.substr(start, end - start));
+                } catch (...) {}
+            }
+            return default_val;
+        };
+
+        total = parse_int("total", 400);
+        upi = parse_int("upi_pct", 40);
+        withdraw = parse_int("withdraw_pct", 25);
+        deposit = parse_int("deposit_pct", 15);
+        salary = parse_int("salary_pct", 20);
+        
+        if (req.body.find("\"overdraft\":false") != std::string::npos || req.path.find("overdraft=0") != std::string::npos) {
+            overdraft = false;
+        }
+
+        scheduler->inject_custom_batch(total, upi, withdraw, deposit, salary, overdraft);
+        std::ostringstream oss;
+        oss << "{\"status\":\"ok\",\"total_created\":" << total 
+            << ",\"upi_pct\":" << upi 
+            << ",\"withdraw_pct\":" << withdraw 
+            << ",\"deposit_pct\":" << deposit 
+            << ",\"salary_pct\":" << salary 
+            << ",\"overdraft\":" << (overdraft ? "true" : "false") << "}";
+        res.set_content(oss.str(), "application/json");
+    };
+
+    svr.Post("/api/transactions/create", handle_create_transactions);
+    svr.Get("/api/transactions/create", handle_create_transactions);
+
+    // Manual Retry Endpoints
+    svr.Post("/api/transactions/retry", [scheduler](const httplib::Request& req, httplib::Response& res) {
+        int pid = 0;
+        auto pos = req.path.find("pid=");
+        if (pos != std::string::npos) {
+            try { pid = std::stoi(req.path.substr(pos + 4)); } catch (...) {}
+        } else if (!req.body.empty()) {
+            auto bpos = req.body.find("\"pid\":");
+            if (bpos != std::string::npos) {
+                try {
+                    auto start = bpos + 6;
+                    auto end = req.body.find_first_of(",}\n\r", start);
+                    pid = std::stoi(req.body.substr(start, end - start));
+                } catch (...) {}
+            }
+        }
+        bool ok = scheduler->retry_failed_transaction(pid);
+        res.set_content("{\"status\":\"" + std::string(ok ? "ok" : "failed") + "\",\"pid\":" + std::to_string(pid) + "}", "application/json");
+    });
+
+    svr.Get("/api/transactions/retry", [scheduler](const httplib::Request& req, httplib::Response& res) {
+        int pid = 0;
+        auto pos = req.path.find("pid=");
+        if (pos != std::string::npos) {
+            try { pid = std::stoi(req.path.substr(pos + 4)); } catch (...) {}
+        }
+        bool ok = scheduler->retry_failed_transaction(pid);
+        res.set_content("{\"status\":\"" + std::string(ok ? "ok" : "failed") + "\",\"pid\":" + std::to_string(pid) + "}", "application/json");
+    });
+
+    svr.Post("/api/transactions/retry-all", [scheduler](const httplib::Request&, httplib::Response& res) {
+        int count = scheduler->retry_all_failed_transactions();
+        res.set_content("{\"status\":\"ok\",\"retried_count\":" + std::to_string(count) + "}", "application/json");
+    });
+
+    svr.Get("/api/transactions/retry-all", [scheduler](const httplib::Request&, httplib::Response& res) {
+        int count = scheduler->retry_all_failed_transactions();
+        res.set_content("{\"status\":\"ok\",\"retried_count\":" + std::to_string(count) + "}", "application/json");
+    });
+
     // Run HTTP server in background thread
     std::thread server_thread([&svr, port]() {
         svr.listen("0.0.0.0", port);

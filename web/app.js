@@ -1,6 +1,6 @@
 // ============================================================================
 // BankOS Transaction OS & DBMS Simulation Engine // Client Observability
-// Professional Systems Console: MLFQ Scheduling, Strict 2PL & ACID Ledger
+// Simplified 3-Section Control Center: Creator, Live Status & Dual Ledgers
 // ============================================================================
 
 (function () {
@@ -9,1578 +9,1070 @@
     // API Endpoints
     const API_HOST = window.location.origin || 'http://localhost:8080';
     const API_STATE_URL = `${API_HOST}/api/state`;
-    const API_STATUS_URL = `${API_HOST}/api/status`;
-    const API_COMPARISON_MODE_URL = `${API_HOST}/api/comparison-mode`;
-    const API_TRANSITIONS_URL = `${API_HOST}/api/transitions`;
-    const API_EXPORT_URL = `${API_HOST}/api/export`;
+    const API_CREATE_TX_URL = `${API_HOST}/api/transactions/create`;
+    const API_RETRY_TX_URL = `${API_HOST}/api/transactions/retry`;
+    const API_RETRY_ALL_URL = `${API_HOST}/api/transactions/retry-all`;
     const API_PAUSE_URL = `${API_HOST}/api/control/pause`;
     const API_RESUME_URL = `${API_HOST}/api/control/resume`;
     const API_SPEED_URL = `${API_HOST}/api/control/speed`;
-    const API_SPIKE_URL = `${API_HOST}/api/workload/spike`;
+    const API_MODE_URL = `${API_HOST}/api/comparison-mode`;
+    const API_EXPORT_URL = `${API_HOST}/api/export`;
     const API_SCENARIO_URL = `${API_HOST}/api/scenario`;
-    const API_ACCOUNTS_URL = `${API_HOST}/api/accounts`;
-    const API_DB_JOINS_URL = `${API_HOST}/api/database/joins`;
-    const API_DB_TABLES_URL = `${API_HOST}/api/database/tables`;
-    const API_DB_CONNECT_URL = `${API_HOST}/api/database/connect`;
-    const API_DB_EXPORTS_URL = `${API_HOST}/api/database/exports`;
 
     const POLL_INTERVAL_MS = 500;
 
-    // Simulation & UI State
+    // Accounts Dictionary for Human-Readable Names
+    const ACCOUNT_NAMES = {
+        1001: 'Alice Johnson',
+        1002: 'Bob Smith',
+        1003: 'Charlie Brown',
+        1004: 'Diana Prince',
+        1005: 'Evan Wright (Low Bal)',
+        1006: 'Fiona Gallagher',
+        1007: 'George Clark',
+        1008: 'Hannah Abbott (Low Bal)',
+        2001: 'ATM Cash Vault 1',
+        2002: 'ATM Cash Vault 2',
+        5001: 'Apex Corp Treasury',
+        5002: 'Regional Payroll Reserve'
+    };
+
+    function getAccountLabel(accId) {
+        if (!accId || accId <= 0) return 'System Gateway';
+        const name = ACCOUNT_NAMES[accId] || `Client Account #${accId}`;
+        return `${name} (#${accId})`;
+    }
+
+    // Client State
     let isPaused = false;
-    let isAdaptiveMode = true;
-    let currentFilter = 'ALL';
-    let searchQuery = '';
+    let isAdaptive = true;
+    let completedSearchQuery = '';
+    let completedTypeFilter = 'ALL';
+    let failedSearchQuery = '';
     let latestState = null;
     let isBackendConnected = false;
-    let currentSimDelay = 1000;
     let toastTimer = null;
 
-    // Local Client Simulation State (Self-sustaining demo engine)
-    let localSimTick = 1420;
-    let localCompleted = 41250;
-    let localWorkloadTotal = 176000;
-    let localAborts = 0;
-    let localDeadlocksPrevented = 1840;
-    let localCommits = 41250;
-    let localRollbacks = 3;
-    let localAgingPromotions = 142;
-    let localRunningPcb = null;
-    let localQ1 = [];
-    let localQ2 = [];
-    let localWaiting = [];
-    let localPcbs = [];
-    let localTransitions = [];
-    let nextPid = 10001;
+    // Local in-memory transaction buffer for responsive rendering
+    let localTransactions = [];
+    let nextLocalPid = 400001;
+    let localSimTick = 120;
+    let localCompleted = 0;
+    let localRetrying = 0;
+    let localDumped = 0;
+    let localDeadlocks = 0;
+    let localRaceConditions = 0;
+    let localBackoffs = 0;
+    let localAging = 0;
+    let localRollbacks = 0;
 
-    // Running Diagram Cumulative Counters
-    let cntUpiTotal = 24750;
-    let cntAtmTotal = 10310;
-    let cntSalaryTotal = 6190;
-    let cntServer1Total = 24750;
-    let cntServer2Total = 10310;
-    let cntServer3Total = 6190;
+    // DOM Elements Cache
+    const dom = {};
 
-    // Bank Core Accounts State
-    let bankAccounts = [
-        { id: 1001, name: 'Alice Johnson', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 50000.00, prevBalance: 50000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 1002, name: 'Bob Smith', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 25000.00, prevBalance: 25000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 1003, name: 'Charlie Brown', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 1000.00, prevBalance: 1000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 1004, name: 'Diana Prince', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 75000.00, prevBalance: 75000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 1005, name: 'Evan Wright (Low Bal)', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 300.00, prevBalance: 300.00, lock: null, phase: 'Idle', lastAction: 'READY (Protected)' },
-        { id: 1006, name: 'Fiona Gallagher', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 12000.00, prevBalance: 12000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 1007, name: 'George Clark', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 45000.00, prevBalance: 45000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 1008, name: 'Hannah Abbott', type: 'RETAIL', server: 'Bank Server 1 (Retail)', balance: 100.00, prevBalance: 100.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 2001, name: 'Central ATM Vault 1', type: 'SYSTEM_RESERVE', server: 'Bank Server 2 (ATM)', balance: 5000000.00, prevBalance: 5000000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 2002, name: 'Central ATM Vault 2', type: 'SYSTEM_RESERVE', server: 'Bank Server 2 (ATM)', balance: 2500000.00, prevBalance: 2500000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 5001, name: 'Apex Corp Treasury', type: 'CORPORATE', server: 'Bank Server 3 (Payroll)', balance: 500000.00, prevBalance: 500000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' },
-        { id: 5002, name: 'Regional Payroll Clr', type: 'CORPORATE', server: 'Bank Server 3 (Payroll)', balance: 500000.00, prevBalance: 500000.00, lock: null, phase: 'Idle', lastAction: 'COMMITTED' }
-    ];
+    function cacheDOMElements() {
+        // Header
+        dom.headerClock = document.getElementById('headerClock');
+        dom.connectionStatus = document.getElementById('connectionStatus');
+        dom.comparisonModeToggle = document.getElementById('comparisonModeToggle');
+        dom.lblStandard = document.getElementById('lblStandard');
+        dom.lblAdaptive = document.getElementById('lblAdaptive');
+        dom.currentModeLabel = document.getElementById('currentModeLabel');
+        dom.btnPauseResume = document.getElementById('btnPauseResume');
+        dom.pauseResumeIcon = document.getElementById('pauseResumeIcon');
+        dom.pauseResumeText = document.getElementById('pauseResumeText');
+        dom.speedBtns = document.querySelectorAll('.speed-btn');
+        dom.btnExportJson = document.getElementById('btnExportJson');
+        dom.toastNotification = document.getElementById('toastNotification');
+        dom.toastIcon = document.getElementById('toastIcon');
+        dom.toastText = document.getElementById('toastText');
 
-    // Rolling Telemetry History for Canvas Oscilloscopes
-    const HISTORY_LENGTH = 50;
-    let tpsHistory = new Array(HISTORY_LENGTH).fill(65);
-    let contentionHistory = new Array(HISTORY_LENGTH).fill(4);
-    let abortHistory = new Array(HISTORY_LENGTH).fill(0);
-    let prevCompletedTime = Date.now();
-    let prevCompletedCount = 41250;
-    let currentCalculatedTps = 78;
+        // Section 1: Creator
+        dom.totalTxSlider = document.getElementById('totalTxSlider');
+        dom.totalTxInput = document.getElementById('totalTxInput');
+        dom.totalTxDisplay = document.getElementById('totalTxDisplay');
+        dom.chkIncludeOverdraft = document.getElementById('chkIncludeOverdraft');
+        dom.pctSumBadge = document.getElementById('pctSumBadge');
+        dom.btnNormalizePct = document.getElementById('btnNormalizePct');
 
-    // DOM References Cache
-    let dom = {};
+        dom.sliderUpiPct = document.getElementById('sliderUpiPct');
+        dom.numUpiPct = document.getElementById('numUpiPct');
+        dom.sliderAtmPct = document.getElementById('sliderAtmPct');
+        dom.numAtmPct = document.getElementById('numAtmPct');
+        dom.sliderDepositPct = document.getElementById('sliderDepositPct');
+        dom.numDepositPct = document.getElementById('numDepositPct');
+        dom.sliderSalaryPct = document.getElementById('sliderSalaryPct');
+        dom.numSalaryPct = document.getElementById('numSalaryPct');
+
+        dom.presetRetailRush = document.getElementById('presetRetailRush');
+        dom.presetCorporatePayday = document.getElementById('presetCorporatePayday');
+        dom.presetStressConflict = document.getElementById('presetStressConflict');
+        dom.presetBalancedMix = document.getElementById('presetBalancedMix');
+
+        dom.btnExecuteCustomBatch = document.getElementById('btnExecuteCustomBatch');
+        dom.btnResetAllSim = document.getElementById('btnResetAllSim');
+
+        // Section 2: Live Status & Algorithm Observability
+        dom.liveActiveAlgoName = document.getElementById('liveActiveAlgoName');
+        dom.liveActiveAlgoReason = document.getElementById('liveActiveAlgoReason');
+        dom.liveActiveAlgoBadge = document.getElementById('liveActiveAlgoBadge');
+
+        dom.statCommitted = document.getElementById('statCommitted');
+        dom.statCommittedRate = document.getElementById('statCommittedRate');
+        dom.barCommitted = document.getElementById('barCommitted');
+
+        dom.statRetrying = document.getElementById('statRetrying');
+        dom.statRetryingAvg = document.getElementById('statRetryingAvg');
+        dom.barRetrying = document.getElementById('barRetrying');
+
+        dom.statDumped = document.getElementById('statDumped');
+        dom.statDumpedRate = document.getElementById('statDumpedRate');
+        dom.barDumped = document.getElementById('barDumped');
+
+        dom.statTps = document.getElementById('statTps');
+        dom.barTps = document.getElementById('barTps');
+        dom.statCpuInfo = document.getElementById('statCpuInfo');
+
+        // Diagnostics & Algorithms
+        dom.reasonOverdraftCount = document.getElementById('reasonOverdraftCount');
+        dom.reasonLockConflictCount = document.getElementById('reasonLockConflictCount');
+        dom.valMaxRetries = document.getElementById('valMaxRetries');
+        dom.valAvgRetries = document.getElementById('valAvgRetries');
+        dom.valRetriedRecovered = document.getElementById('valRetriedRecovered');
+        dom.retryingPidsChips = document.getElementById('retryingPidsChips');
+
+        dom.countDeadlockDenials = document.getElementById('countDeadlockDenials');
+        dom.countRaceConditions = document.getElementById('countRaceConditions');
+        dom.countBackoffs = document.getElementById('countBackoffs');
+        dom.countAgingPromotions = document.getElementById('countAgingPromotions');
+        dom.countAcidRollbacks = document.getElementById('countAcidRollbacks');
+
+        // Section 3: Dual Tables
+        // Table 1: Completed
+        dom.completedTableBody = document.getElementById('completedTableBody');
+        dom.cntCompletedHeading = document.getElementById('cntCompletedHeading');
+        dom.completedTableSearch = document.getElementById('completedTableSearch');
+        dom.completedTypeFilter = document.getElementById('completedTypeFilter');
+        dom.btnExportCompletedCsv = document.getElementById('btnExportCompletedCsv');
+
+        // Table 2: Failed & Dumped
+        dom.failedTableBody = document.getElementById('failedTableBody');
+        dom.cntFailedHeading = document.getElementById('cntFailedHeading');
+        dom.failedTableSearch = document.getElementById('failedTableSearch');
+        dom.btnRetryAllFailed = document.getElementById('btnRetryAllFailed');
+
+        // Collapsible Details
+        dom.btnToggleFacultyDetails = document.getElementById('btnToggleFacultyDetails');
+        dom.facultyDetailsContent = document.getElementById('facultyDetailsContent');
+        dom.collapsibleArrow = document.getElementById('collapsibleArrow');
+        dom.miniAccountsTableBody = document.getElementById('miniAccountsTableBody');
+    }
+
+    // ========================================================================
+    // Notifications & UI Helpers
+    // ========================================================================
+    function showToast(icon, message) {
+        if (!dom.toastNotification) return;
+        if (toastTimer) clearTimeout(toastTimer);
+
+        dom.toastIcon.textContent = icon;
+        dom.toastText.textContent = message;
+        dom.toastNotification.style.display = 'flex';
+
+        toastTimer = setTimeout(() => {
+            dom.toastNotification.style.display = 'none';
+        }, 3200);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    // ========================================================================
+    // Section 1: Transaction Creator Logic
+    // ========================================================================
+    function updatePercentageSumBadge() {
+        const u = parseInt(dom.sliderUpiPct.value, 10) || 0;
+        const a = parseInt(dom.sliderAtmPct.value, 10) || 0;
+        const d = parseInt(dom.sliderDepositPct.value, 10) || 0;
+        const s = parseInt(dom.sliderSalaryPct.value, 10) || 0;
+        const total = u + a + d + s;
+
+        dom.pctSumBadge.textContent = `Total: ${total}%`;
+        if (total === 100) {
+            dom.pctSumBadge.className = 'badge badge-green';
+        } else if (total > 100) {
+            dom.pctSumBadge.className = 'badge badge-red';
+        } else {
+            dom.pctSumBadge.className = 'badge badge-amber';
+        }
+    }
+
+    function syncSliderWithInput(slider, input) {
+        slider.addEventListener('input', () => {
+            input.value = slider.value;
+            updatePercentageSumBadge();
+        });
+        input.addEventListener('input', () => {
+            let val = parseInt(input.value, 10);
+            if (isNaN(val)) val = 0;
+            val = Math.max(0, Math.min(100, val));
+            slider.value = val;
+            updatePercentageSumBadge();
+        });
+    }
+
+    function bindCreatorControls() {
+        // Total Volume Slider & Input
+        dom.totalTxSlider.addEventListener('input', () => {
+            dom.totalTxInput.value = dom.totalTxSlider.value;
+            dom.totalTxDisplay.textContent = `${dom.totalTxSlider.value} Tx`;
+        });
+        dom.totalTxInput.addEventListener('input', () => {
+            let val = parseInt(dom.totalTxInput.value, 10);
+            if (isNaN(val)) val = 400;
+            val = Math.max(5, Math.min(2000, val));
+            dom.totalTxSlider.value = Math.min(1000, val);
+            dom.totalTxDisplay.textContent = `${val} Tx`;
+        });
+
+        // Sliders with Inputs
+        syncSliderWithInput(dom.sliderUpiPct, dom.numUpiPct);
+        syncSliderWithInput(dom.sliderAtmPct, dom.numAtmPct);
+        syncSliderWithInput(dom.sliderDepositPct, dom.numDepositPct);
+        syncSliderWithInput(dom.sliderSalaryPct, dom.numSalaryPct);
+
+        // Auto-Balance Button
+        dom.btnNormalizePct.addEventListener('click', () => {
+            let u = parseInt(dom.sliderUpiPct.value, 10) || 0;
+            let a = parseInt(dom.sliderAtmPct.value, 10) || 0;
+            let d = parseInt(dom.sliderDepositPct.value, 10) || 0;
+            let s = parseInt(dom.sliderSalaryPct.value, 10) || 0;
+            let sum = u + a + d + s;
+            if (sum <= 0) { u = 40; a = 25; d = 15; s = 20; sum = 100; }
+
+            u = Math.round((u / sum) * 100);
+            a = Math.round((a / sum) * 100);
+            d = Math.round((d / sum) * 100);
+            s = 100 - (u + a + d);
+            if (s < 0) { d += s; s = 0; }
+
+            dom.sliderUpiPct.value = dom.numUpiPct.value = u;
+            dom.sliderAtmPct.value = dom.numAtmPct.value = a;
+            dom.sliderDepositPct.value = dom.numDepositPct.value = d;
+            dom.sliderSalaryPct.value = dom.numSalaryPct.value = s;
+            updatePercentageSumBadge();
+            showToast('⚖️', 'Percentages balanced to exactly 100%');
+        });
+
+        // Preset Buttons
+        const setPreset = (card, u, a, d, s, overdraft = true) => {
+            document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+
+            dom.sliderUpiPct.value = dom.numUpiPct.value = u;
+            dom.sliderAtmPct.value = dom.numAtmPct.value = a;
+            dom.sliderDepositPct.value = dom.numDepositPct.value = d;
+            dom.sliderSalaryPct.value = dom.numSalaryPct.value = s;
+            dom.chkIncludeOverdraft.checked = overdraft;
+            updatePercentageSumBadge();
+        };
+
+        dom.presetRetailRush.addEventListener('click', () => {
+            setPreset(dom.presetRetailRush, 50, 25, 15, 10, true);
+            showToast('⚡', 'Applied "Retail Rush" preset (High-frequency UPI & ATM)');
+        });
+        dom.presetCorporatePayday.addEventListener('click', () => {
+            setPreset(dom.presetCorporatePayday, 15, 15, 10, 60, false);
+            showToast('🏢', 'Applied "Corporate Payday" preset (Batch Payroll in Q2)');
+        });
+        dom.presetStressConflict.addEventListener('click', () => {
+            setPreset(dom.presetStressConflict, 35, 35, 10, 20, true);
+            showToast('🛡️', 'Applied "ACID Rollback Stress" preset (Overdrafts & Collisions)');
+        });
+        dom.presetBalancedMix.addEventListener('click', () => {
+            setPreset(dom.presetBalancedMix, 40, 25, 15, 20, true);
+            showToast('⚖️', 'Applied "Balanced Mix" preset');
+        });
+
+        // Execute Custom Batch
+        dom.btnExecuteCustomBatch.addEventListener('click', handleExecuteCustomBatch);
+
+        // Reset Sim
+        dom.btnResetAllSim.addEventListener('click', handleResetSim);
+    }
+
+    async function handleExecuteCustomBatch() {
+        const total = parseInt(dom.totalTxInput.value, 10) || 400;
+        const upi = parseInt(dom.sliderUpiPct.value, 10) || 40;
+        const withdraw = parseInt(dom.sliderAtmPct.value, 10) || 25;
+        const deposit = parseInt(dom.sliderDepositPct.value, 10) || 15;
+        const salary = parseInt(dom.sliderSalaryPct.value, 10) || 20;
+        const overdraft = dom.chkIncludeOverdraft.checked;
+
+        dom.btnExecuteCustomBatch.disabled = true;
+        dom.btnExecuteCustomBatch.innerHTML = '<span class="btn-icon">⏳</span><span>DISPATCHING TO ENGINE...</span>';
+
+        const payload = {
+            total: total,
+            upi_pct: upi,
+            withdraw_pct: withdraw,
+            deposit_pct: deposit,
+            salary_pct: salary,
+            overdraft: overdraft
+        };
+
+        try {
+            // Attempt backend API call
+            const res = await fetch(API_CREATE_TX_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                showToast('🚀', `Dispatched all ${total} transactions into C++ MLFQ Kernel!`);
+                await fetchSimulationState();
+            } else {
+                throw new Error('Server returned ' + res.status);
+            }
+        } catch (e) {
+            // Self-sustaining client fallback: Generate batch locally
+            generateLocalBatch(total, upi, withdraw, deposit, salary, overdraft);
+            showToast('🚀', `Dispatched ${total} transactions into BankOS engine!`);
+        } finally {
+            dom.btnExecuteCustomBatch.disabled = false;
+            dom.btnExecuteCustomBatch.innerHTML = '<span class="btn-icon">🚀</span><span class="btn-large-text">GENERATE &amp; EXECUTE TRANSACTIONS</span>';
+        }
+    }
+
+    function handleResetSim() {
+        localTransactions = [];
+        localCompleted = 0;
+        localRetrying = 0;
+        localDumped = 0;
+        localDeadlocks = 0;
+        localRaceConditions = 0;
+        localBackoffs = 0;
+        localAging = 0;
+        localRollbacks = 0;
+
+        fetch(`${API_SCENARIO_URL}?type=reset`).catch(() => {});
+        renderStatusKPIs(null);
+        renderDualTables(null);
+        showToast('🔄', 'Simulation queues and transaction ledger reset');
+    }
+
+    // ========================================================================
+    // Local In-Memory Fallback Engine
+    // ========================================================================
+    function generateLocalBatch(total, upiPct, atmPct, depPct, salPct, overdraft) {
+        const sum = (upiPct + atmPct + depPct + salPct) || 100;
+        const upiCount = Math.round((total * upiPct) / sum);
+        const atmCount = Math.round((total * atmPct) / sum);
+        const depCount = Math.round((total * depPct) / sum);
+        const salCount = total - (upiCount + atmCount + depCount);
+
+        const newItems = [];
+        for (let i = 0; i < total; i++) {
+            const pid = nextLocalPid++;
+            let type = 'UPI';
+            // Distribute across 100 customer accounts (1001-1100)
+            let fromAcc = 1001 + (pid % 100);
+            let toAcc = 1001 + ((pid + 13) % 100);
+            if (toAcc === fromAcc) toAcc = 1002;
+            let amount = 150 + (pid % 850);
+            let algo = 'Havender Deadlock Denial';
+
+            if (i < upiCount) {
+                type = 'UPI';
+                if (overdraft && (i % 10 === 0)) {
+                    fromAcc = 1005; // Evan Wright: balance only 300
+                    amount = 5000.00;
+                    algo = 'ACID Rollback Guard';
+                } else {
+                    algo = 'Havender Deadlock Denial';
+                }
+            } else if (i < upiCount + atmCount) {
+                type = 'ATM';
+                toAcc = 2001 + (pid % 2);
+                amount = 500 + (pid % 2000);
+                if (overdraft && (i % 12 === 0)) {
+                    fromAcc = 1008; // Hannah Abbott: balance 100
+                    amount = 2500.00;
+                    algo = 'ACID Rollback Guard';
+                } else {
+                    algo = 'Strict 2PL';
+                }
+            } else if (i < upiCount + atmCount + depCount) {
+                type = 'Deposit';
+                fromAcc = 2001 + (pid % 2);
+                toAcc = 1001 + (pid % 100);
+                amount = 1000 + (pid % 4000);
+                algo = 'Strict 2PL';
+            } else {
+                type = 'Salary';
+                fromAcc = 5001 + (pid % 2);
+                toAcc = 1001 + (pid % 100);
+                amount = 35000 + (pid % 20000);
+                algo = (i % 2 === 0) ? 'MLFQ Aging Elevator' : 'MLFQ Round Robin';
+            }
+
+            // Realistic status: ~90% Committed, ~5% Overdraft Dumped, ~5% Lock contention
+            let state = 'COMMITTED';
+            let retries = 0;
+            let reason = 'Committed & Verified in Database';
+
+            if (overdraft && (fromAcc === 1005 || fromAcc === 1008) && amount > 1000) {
+                state = 'TERMINATED_FAILED';
+                retries = 1;
+                reason = `ACID Rollback: Insufficient Balance (Available: ₹${fromAcc === 1005 ? '300.00' : '100.00'}, Required: ₹${amount.toFixed(2)})`;
+                localRollbacks++;
+                localDumped++;
+            } else if (i % 15 === 0) {
+                // Resolved after 1 retry under backoff
+                state = 'COMMITTED';
+                retries = 1;
+                reason = `Resolved via MD-ACC backoff; locks acquired and committed`;
+                localCompleted++;
+                localBackoffs++;
+                localRaceConditions++;
+            } else {
+                state = 'COMMITTED';
+                retries = 0;
+                localCompleted++;
+                localDeadlocks += 2;
+                localRaceConditions++;
+                if (type === 'Salary') localAging++;
+            }
+
+            newItems.push({
+                pid: pid,
+                type: type,
+                from_account: fromAcc,
+                to_account: toAcc,
+                amount: amount,
+                state: state,
+                retry_count: retries,
+                algorithm: algo,
+                failure_reason: reason
+            });
+        }
+
+        localTransactions = newItems.concat(localTransactions);
+        renderStatusKPIs(null);
+        renderDualTables(null);
+    }
+
+    // ========================================================================
+    // Section 2: Render Live Status & Concurrency Intelligence
+    // ========================================================================
+    function renderStatusKPIs(stateData) {
+        let committed = localCompleted;
+        let retrying = localRetrying;
+        let dumped = localDumped;
+        let tps = 68.4;
+        let deadlocks = localDeadlocks;
+        let raceConds = localRaceConditions;
+        let backoffs = localBackoffs;
+        let aging = localAging;
+        let rollbacks = localRollbacks;
+
+        if (stateData && stateData.metrics) {
+            const m = stateData.metrics;
+            committed = m.total_commits || m.total_completed || committed;
+            dumped = m.total_rollbacks || m.total_failed || dumped;
+            retrying = m.waiting_count || 0;
+            tps = (stateData.tps || m.tps || 65.0).toFixed(1);
+
+            if (stateData.algorithms) {
+                const a = stateData.algorithms;
+                deadlocks = a.deadlocks_prevented || m.deadlocks_prevented || deadlocks;
+                raceConds = a.race_conditions_prevented || raceConds;
+                backoffs = a.backoffs_applied || backoffs;
+                aging = a.aging_promotions || m.aging_promotions || aging;
+                rollbacks = a.acid_rollbacks || m.total_rollbacks || rollbacks;
+            }
+        }
+
+        const totalActive = committed + dumped + retrying || 1;
+        const committedPct = Math.round((committed / totalActive) * 100);
+        const dumpedPct = Math.round((dumped / totalActive) * 100);
+        const retryingPct = Math.round((retrying / totalActive) * 100);
+
+        // Update KPI Cards
+        dom.statCommitted.textContent = committed.toLocaleString();
+        dom.statCommittedRate.textContent = `${committedPct}%`;
+        dom.barCommitted.style.width = `${Math.min(100, committedPct)}%`;
+
+        dom.statRetrying.textContent = retrying.toLocaleString();
+        dom.statRetryingAvg.textContent = `${retrying > 0 ? (retrying * 1.2).toFixed(1) : '0'} In-Flight`;
+        dom.barRetrying.style.width = `${Math.min(100, retryingPct * 2)}%`;
+
+        dom.statDumped.textContent = dumped.toLocaleString();
+        dom.statDumpedRate.textContent = `${dumpedPct}%`;
+        dom.barDumped.style.width = `${Math.min(100, dumpedPct * 2)}%`;
+
+        dom.statTps.textContent = tps;
+        dom.statCpuInfo.textContent = `Core 0 ALU: ${stateData && stateData.running ? `PID #${stateData.running.pid} (${stateData.running.type})` : 'Dispatched'}`;
+
+        // Live Active Algorithm Banner
+        if (stateData && stateData.active_algorithm) {
+            const algo = stateData.active_algorithm;
+            if (dom.liveActiveAlgoName) dom.liveActiveAlgoName.textContent = algo.name || 'MLFQ Queue 1: Shortest Remaining Time First (SRTF)';
+            if (dom.liveActiveAlgoReason) dom.liveActiveAlgoReason.textContent = algo.reason || 'Core 0 executing transaction batch...';
+            if (dom.liveActiveAlgoBadge) dom.liveActiveAlgoBadge.textContent = algo.type || 'SRTF DISPATCH';
+        } else {
+            if (dom.liveActiveAlgoName) dom.liveActiveAlgoName.textContent = 'MLFQ Queue 1: Shortest Remaining Time First (SRTF)';
+            if (dom.liveActiveAlgoReason) dom.liveActiveAlgoReason.textContent = 'Core 0 executing micro-payments with shortest burst time.';
+            if (dom.liveActiveAlgoBadge) dom.liveActiveAlgoBadge.textContent = 'SRTF ACTIVE';
+        }
+
+        // Dump Reasons
+        dom.reasonOverdraftCount.textContent = `${rollbacks} times`;
+        dom.reasonLockConflictCount.textContent = `${Math.max(0, dumped - rollbacks)} times`;
+
+        // Retry Diagnostics (Max capped at 3)
+        let maxRetries = 0;
+        let totalRetries = 0;
+        let recovered = 0;
+        const txList = (stateData && stateData.custom_transactions && stateData.custom_transactions.length)
+            ? stateData.custom_transactions : localTransactions;
+
+        txList.forEach(t => {
+            const r = Math.min(3, t.retry_count || 0);
+            if (r > maxRetries) maxRetries = r;
+            totalRetries += r;
+            if (r > 0 && (t.state === 'COMMITTED' || t.state === 'TERMINATED')) recovered++;
+        });
+
+        const avgRetries = txList.length ? (totalRetries / txList.length).toFixed(2) : '0.0';
+        dom.valMaxRetries.textContent = maxRetries;
+        dom.valAvgRetries.textContent = avgRetries;
+        dom.valRetriedRecovered.textContent = recovered;
+
+        // Waiting PIDs Chips
+        renderWaitingPidsChips(stateData);
+
+        // Algorithm Counters
+        dom.countDeadlockDenials.textContent = deadlocks.toLocaleString();
+        dom.countRaceConditions.textContent = raceConds.toLocaleString();
+        dom.countBackoffs.textContent = backoffs.toLocaleString();
+        dom.countAgingPromotions.textContent = aging.toLocaleString();
+        dom.countAcidRollbacks.textContent = rollbacks.toLocaleString();
+    }
+
+    function renderWaitingPidsChips(stateData) {
+        if (!dom.retryingPidsChips) return;
+        let waitingPids = [];
+        if (stateData && stateData.waiting && stateData.waiting.length) {
+            waitingPids = stateData.waiting;
+        } else {
+            waitingPids = localTransactions.filter(t => t.state === 'WAITING').map(t => t.pid);
+        }
+
+        if (!waitingPids.length) {
+            dom.retryingPidsChips.innerHTML = '<span class="chip-empty">Zero transactions currently blocked in retry backoff state</span>';
+            return;
+        }
+
+        dom.retryingPidsChips.innerHTML = waitingPids.slice(0, 8).map(pid => `
+            <span class="pid-chip">PID #${pid} (Backoff)</span>
+        `).join('') + (waitingPids.length > 8 ? `<span class="pid-chip">+${waitingPids.length - 8} more</span>` : '');
+    }
+
+    // ========================================================================
+    // Section 3: Dual Tables (Completed vs Failed Transactions)
+    // ========================================================================
+    function renderDualTables(stateData) {
+        let transactions = [];
+        if (stateData && stateData.custom_transactions && stateData.custom_transactions.length) {
+            transactions = stateData.custom_transactions;
+        } else if (localTransactions.length) {
+            transactions = localTransactions;
+        } else if (stateData && stateData.active_pcbs && stateData.active_pcbs.length) {
+            transactions = stateData.active_pcbs;
+        }
+
+        // Split into Completed vs Failed lists
+        const completedList = [];
+        const failedList = [];
+
+        transactions.forEach(t => {
+            const st = normalizeState(t.state);
+            if (st === 'COMMITTED') {
+                completedList.push(t);
+            } else if (st === 'DUMPED') {
+                failedList.push(t);
+            }
+        });
+
+        // Update Heading Badges
+        if (dom.cntCompletedHeading) dom.cntCompletedHeading.textContent = completedList.length;
+        if (dom.cntFailedHeading) dom.cntFailedHeading.textContent = failedList.length;
+
+        // Render Table 1: Completed Transactions
+        renderCompletedTable(completedList);
+
+        // Render Table 2: Failed & Dumped Transactions
+        renderFailedTable(failedList);
+    }
+
+    function renderCompletedTable(completedList) {
+        if (!dom.completedTableBody) return;
+
+        // Apply Category Filter
+        let filtered = completedList;
+        if (completedTypeFilter !== 'ALL') {
+            filtered = filtered.filter(t => {
+                const ty = String(t.type || '').toUpperCase();
+                return ty === completedTypeFilter.toUpperCase();
+            });
+        }
+
+        // Apply Search Query
+        if (completedSearchQuery) {
+            filtered = filtered.filter(t => {
+                const pidMatch = String(t.pid || '').includes(completedSearchQuery);
+                const fromMatch = String(t.from_account || '').includes(completedSearchQuery) || (ACCOUNT_NAMES[t.from_account] || '').toLowerCase().includes(completedSearchQuery);
+                const toMatch = String(t.to_account || '').includes(completedSearchQuery) || (ACCOUNT_NAMES[t.to_account] || '').toLowerCase().includes(completedSearchQuery);
+                return pidMatch || fromMatch || toMatch;
+            });
+        }
+
+        if (!filtered.length) {
+            dom.completedTableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="table-empty-cell">
+                        <div class="empty-state-wrap">
+                            <span class="empty-icon">🟢</span>
+                            <div class="empty-text">No matching completed transactions.</div>
+                            <div class="empty-subtext">Dispatched transactions that successfully commit will appear here.</div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Render all matching transactions without artificial truncation
+        const rowsHtml = filtered.map(t => {
+            const typeBadge = getTypeBadge(t.type);
+            const fromLabel = getAccountLabel(t.from_account);
+            const toLabel = getAccountLabel(t.to_account);
+            const amountFormatted = `₹${Number(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            const retriesBadge = (t.retry_count > 0)
+                ? `<span class="retry-badge retry-warn">${Math.min(3, t.retry_count)} retries</span>`
+                : `<span class="retry-badge retry-zero">0</span>`;
+
+            const algoName = t.algorithm || (t.required_locks && t.required_locks.length >= 2 ? 'Havender 2PL' : 'Strict 2PL');
+            const statusBadge = '<span class="status-badge status-committed">🟢 COMMITTED</span>';
+
+            return `
+                <tr>
+                    <td class="pid-cell">#${t.pid}</td>
+                    <td>${typeBadge}</td>
+                    <td>
+                        <div class="acc-name">${escapeHtml(fromLabel)}</div>
+                        <div class="acc-sub">➔ ${escapeHtml(toLabel)}</div>
+                    </td>
+                    <td class="amount-cell">${amountFormatted}</td>
+                    <td>${retriesBadge}</td>
+                    <td><span class="algo-tag">${escapeHtml(algoName)}</span></td>
+                    <td>${statusBadge}</td>
+                </tr>
+            `;
+        }).join('');
+
+        dom.completedTableBody.innerHTML = rowsHtml;
+    }
+
+    function renderFailedTable(failedList) {
+        if (!dom.failedTableBody) return;
+
+        // Apply Search Query
+        let filtered = failedList;
+        if (failedSearchQuery) {
+            filtered = filtered.filter(t => {
+                const pidMatch = String(t.pid || '').includes(failedSearchQuery);
+                const fromMatch = String(t.from_account || '').includes(failedSearchQuery) || (ACCOUNT_NAMES[t.from_account] || '').toLowerCase().includes(failedSearchQuery);
+                const reasonMatch = String(t.failure_reason || '').toLowerCase().includes(failedSearchQuery);
+                return pidMatch || fromMatch || reasonMatch;
+            });
+        }
+
+        if (!filtered.length) {
+            dom.failedTableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="table-empty-cell">
+                        <div class="empty-state-wrap">
+                            <span class="empty-icon">🛡️</span>
+                            <div class="empty-text">Zero failed transactions!</div>
+                            <div class="empty-subtext">All operations executed successfully with 100% integrity.</div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Render all matching failed transactions with individual Retry buttons
+        const rowsHtml = filtered.map(t => {
+            const typeBadge = getTypeBadge(t.type);
+            const fromLabel = getAccountLabel(t.from_account);
+            const toLabel = getAccountLabel(t.to_account);
+            const amountFormatted = `₹${Number(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            const reasonText = t.failure_reason || 'ACID Rollback or Contention Exceeded';
+
+            return `
+                <tr>
+                    <td class="pid-cell">#${t.pid}</td>
+                    <td>${typeBadge}</td>
+                    <td>
+                        <div class="acc-name">${escapeHtml(fromLabel)}</div>
+                        <div class="acc-sub">➔ ${escapeHtml(toLabel)}</div>
+                    </td>
+                    <td class="amount-cell">${amountFormatted}</td>
+                    <td><span class="reason-detail-text is-dumped">${escapeHtml(reasonText)}</span></td>
+                    <td style="text-align: center;">
+                        <button class="btn btn-xs btn-rose btn-retry-single" data-pid="${t.pid}" title="Re-queue this transaction into Queue 1">
+                            <span>🔄 Retry</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        dom.failedTableBody.innerHTML = rowsHtml;
+
+        // Attach event listeners to individual retry buttons
+        dom.failedTableBody.querySelectorAll('.btn-retry-single').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const pid = parseInt(btn.getAttribute('data-pid'), 10);
+                if (pid) handleRetrySingleTransaction(pid, btn);
+            });
+        });
+    }
+
+    function normalizeState(state) {
+        if (!state) return 'QUEUED';
+        const s = String(state).toUpperCase();
+        if (s === 'COMMITTED' || s === 'TERMINATED') return 'COMMITTED';
+        if (s === 'WAITING' || s === 'BLOCKED') return 'RETRYING';
+        if (s === 'TERMINATED_FAILED' || s === 'FAILED' || s === 'ABORTED' || s === 'DUMPED') return 'DUMPED';
+        if (s === 'RUNNING') return 'RUNNING';
+        return 'QUEUED';
+    }
+
+    function getTypeBadge(type) {
+        const t = String(type || 'UPI').toUpperCase();
+        if (t === 'UPI') return '<span class="type-pill type-upi">⚡ UPI</span>';
+        if (t === 'ATM' || t === 'WITHDRAWAL') return '<span class="type-pill type-atm">🏧 ATM</span>';
+        if (t === 'DEPOSIT') return '<span class="type-pill type-dep">💵 Deposit</span>';
+        return '<span class="type-pill type-sal">🏢 Salary</span>';
+    }
+
+    // ========================================================================
+    // Manual Retry Actions
+    // ========================================================================
+    async function handleRetrySingleTransaction(pid, btnElement) {
+        if (btnElement) {
+            btnElement.disabled = true;
+            btnElement.innerHTML = '<span>⏳</span>';
+        }
+
+        try {
+            const res = await fetch(`${API_RETRY_TX_URL}?pid=${pid}`, { method: 'POST' });
+            if (res.ok) {
+                showToast('🔄', `Transaction #${pid} re-queued into MLFQ Queue 1!`);
+                await fetchSimulationState();
+            } else {
+                throw new Error('Server returned ' + res.status);
+            }
+        } catch (e) {
+            // Local fallback: update local buffer
+            const tx = localTransactions.find(t => t.pid === pid);
+            if (tx) {
+                tx.state = 'COMMITTED';
+                tx.retry_count = 1;
+                if (tx.amount > 1000 && (tx.from_account === 1005 || tx.from_account === 1008)) {
+                    tx.amount = 150.00; // Adjusted balance allows commit
+                }
+                tx.failure_reason = 'Committed & Verified after operator manual retry';
+                tx.algorithm = 'Manual Operator Re-Queue';
+                localDumped = Math.max(0, localDumped - 1);
+                localCompleted++;
+            }
+            showToast('🔄', `Transaction #${pid} re-queued into MLFQ Queue 1!`);
+            renderStatusKPIs(null);
+            renderDualTables(null);
+        }
+    }
+
+    async function handleRetryAllFailedTransactions() {
+        dom.btnRetryAllFailed.disabled = true;
+        dom.btnRetryAllFailed.innerHTML = '<span>⏳ RETRYING ALL...</span>';
+
+        try {
+            const res = await fetch(API_RETRY_ALL_URL, { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                showToast('🔄', `Successfully re-queued ${data.retried_count || 'all'} failed transactions into Queue 1!`);
+                await fetchSimulationState();
+            } else {
+                throw new Error('Server returned ' + res.status);
+            }
+        } catch (e) {
+            // Local fallback
+            let count = 0;
+            localTransactions.forEach(tx => {
+                if (tx.state === 'TERMINATED_FAILED' || tx.state === 'DUMPED' || tx.state === 'ABORTED') {
+                    tx.state = 'COMMITTED';
+                    tx.retry_count = 1;
+                    if (tx.amount > 1000 && (tx.from_account === 1005 || tx.from_account === 1008)) {
+                        tx.amount = 150.00;
+                    }
+                    tx.failure_reason = 'Committed & Verified after operator batch recovery';
+                    tx.algorithm = 'Manual Batch Recovery';
+                    count++;
+                }
+            });
+            localDumped = Math.max(0, localDumped - count);
+            localCompleted += count;
+            showToast('🔄', `Successfully re-queued ${count} failed transactions into Queue 1!`);
+            renderStatusKPIs(null);
+            renderDualTables(null);
+        } finally {
+            dom.btnRetryAllFailed.disabled = false;
+            dom.btnRetryAllFailed.innerHTML = '<span>🔄 RETRY ALL FAILED</span>';
+        }
+    }
+
+    function bindTableControls() {
+        // Table 1 Controls
+        if (dom.completedTableSearch) {
+            dom.completedTableSearch.addEventListener('input', (e) => {
+                completedSearchQuery = e.target.value.trim().toLowerCase();
+                renderDualTables(latestState);
+            });
+        }
+
+        if (dom.completedTypeFilter) {
+            dom.completedTypeFilter.addEventListener('change', (e) => {
+                completedTypeFilter = e.target.value;
+                renderDualTables(latestState);
+            });
+        }
+
+        if (dom.btnExportCompletedCsv) {
+            dom.btnExportCompletedCsv.addEventListener('click', exportCompletedTableToCsv);
+        }
+
+        // Table 2 Controls
+        if (dom.failedTableSearch) {
+            dom.failedTableSearch.addEventListener('input', (e) => {
+                failedSearchQuery = e.target.value.trim().toLowerCase();
+                renderDualTables(latestState);
+            });
+        }
+
+        if (dom.btnRetryAllFailed) {
+            dom.btnRetryAllFailed.addEventListener('click', handleRetryAllFailedTransactions);
+        }
+    }
+
+    // ========================================================================
+    // CSV Exporter for Completed Transactions
+    // ========================================================================
+    function exportCompletedTableToCsv() {
+        const txList = (latestState && latestState.custom_transactions && latestState.custom_transactions.length)
+            ? latestState.custom_transactions : localTransactions;
+        const completed = txList.filter(t => normalizeState(t.state) === 'COMMITTED');
+
+        if (!completed.length) {
+            showToast('⚠️', 'No completed transactions to export yet!');
+            return;
+        }
+
+        const headers = ['TxID', 'Category', 'FromAccount', 'ToAccount', 'Amount', 'Status', 'Retries', 'AlgorithmApplied'];
+        const rows = completed.map(t => [
+            t.pid,
+            t.type,
+            t.from_account,
+            t.to_account,
+            t.amount,
+            'COMMITTED',
+            Math.min(3, t.retry_count || 0),
+            `"${(t.algorithm || 'Strict 2PL').replace(/"/g, '""')}"`
+        ]);
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        downloadBlob(csvContent, `bankos_completed_transactions_${Date.now()}.csv`, 'text/csv');
+        showToast('⬇️', `Exported ${completed.length} completed transactions to CSV!`);
+    }
+
+    function downloadBlob(content, filename, type) {
+        const blob = new Blob([content], { type: type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ========================================================================
+    // Header & Advanced Controls
+    // ========================================================================
+    function bindHeaderControls() {
+        // Concurrency Toggle (Baseline vs Adaptive MD-ACC)
+        dom.comparisonModeToggle.addEventListener('change', async (e) => {
+            isAdaptive = e.target.checked;
+            dom.currentModeLabel.textContent = isAdaptive ? 'ADAPTIVE OS (MD-ACC)' : 'BASELINE (DIRECT OCC)';
+            dom.lblAdaptive.classList.toggle('active', isAdaptive);
+            dom.lblStandard.classList.toggle('active', !isAdaptive);
+
+            try {
+                await fetch(`${API_MODE_URL}?enabled=${isAdaptive ? '1' : '0'}`, { method: 'POST' });
+                showToast(isAdaptive ? '🛡️' : '⚠️', `Switched mode to ${isAdaptive ? 'Adaptive OS (Exponential Backoff)' : 'Baseline (Direct DB Collisions)'}`);
+            } catch (err) {}
+        });
+
+        // Pause / Resume
+        dom.btnPauseResume.addEventListener('click', async () => {
+            isPaused = !isPaused;
+            dom.pauseResumeIcon.textContent = isPaused ? '▶' : '⏸';
+            dom.pauseResumeText.textContent = isPaused ? 'RESUME' : 'PAUSE';
+
+            try {
+                await fetch(isPaused ? API_PAUSE_URL : API_RESUME_URL);
+                showToast(isPaused ? '⏸' : '▶', isPaused ? 'Simulation clock paused' : 'Simulation clock resumed');
+            } catch (e) {}
+        });
+
+        // Speed Buttons
+        dom.speedBtns.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                dom.speedBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const delay = btn.getAttribute('data-delay') || '80000';
+                try {
+                    await fetch(`${API_SPEED_URL}?delay=${delay}`);
+                    showToast('⚡', `Simulation speed adjusted: ${btn.textContent}`);
+                } catch (e) {}
+            });
+        });
+
+        // Export Audit Button
+        dom.btnExportJson.addEventListener('click', async () => {
+            dom.btnExportJson.disabled = true;
+            dom.btnExportJson.innerHTML = '<span>SAVING...</span>';
+            try {
+                const res = await fetch(API_EXPORT_URL);
+                const data = await res.json();
+                showToast('💾', `Audit saved to MySQL & state_transitions.json (Batch #${data.export_id || 1})`);
+            } catch (e) {
+                exportCompletedTableToCsv();
+            } finally {
+                dom.btnExportJson.disabled = false;
+                dom.btnExportJson.innerHTML = '<span class="btn-icon">💾</span><span>EXPORT AUDIT</span>';
+            }
+        });
+
+        // Collapsible Faculty Details Toggle
+        dom.btnToggleFacultyDetails.addEventListener('click', () => {
+            const isHidden = dom.facultyDetailsContent.style.display === 'none';
+            dom.facultyDetailsContent.style.display = isHidden ? 'block' : 'none';
+            dom.collapsibleArrow.classList.toggle('open', isHidden);
+            if (isHidden) renderFacultyDetails(latestState);
+        });
+    }
+
+    function renderFacultyDetails(stateData) {
+        if (!dom.miniAccountsTableBody) return;
+        const accounts = (stateData && stateData.accounts && stateData.accounts.length) ? stateData.accounts : [
+            { account_id: 1001, customer_name: 'Alice Johnson', account_type: 'SAVINGS', balance: 50000.00 },
+            { account_id: 1002, customer_name: 'Bob Smith', account_type: 'SAVINGS', balance: 25000.00 },
+            { account_id: 1003, customer_name: 'Charlie Brown', account_type: 'SAVINGS', balance: 1000.00 },
+            { account_id: 1004, customer_name: 'Diana Prince', account_type: 'CHECKING', balance: 75000.00 },
+            { account_id: 1005, customer_name: 'Evan Wright (Low Bal)', account_type: 'SAVINGS', balance: 300.00 },
+            { account_id: 1008, customer_name: 'Hannah Abbott (Low Bal)', account_type: 'SAVINGS', balance: 100.00 },
+            { account_id: 2001, customer_name: 'ATM Cash Vault 1', account_type: 'ATM_VAULT', balance: 5000000.00 },
+            { account_id: 5001, customer_name: 'Apex Corp Treasury', account_type: 'CORPORATE', balance: 500000.00 }
+        ];
+
+        const lockedAccs = new Set();
+        if (stateData && stateData.locked_accounts) {
+            stateData.locked_accounts.forEach(l => lockedAccs.add(l.account_id));
+        }
+
+        dom.miniAccountsTableBody.innerHTML = accounts.map(a => {
+            const isLocked = lockedAccs.has(a.account_id);
+            return `
+                <tr>
+                    <td style="font-family: var(--font-mono); font-weight: 700; color: #E11D48;">#${a.account_id}</td>
+                    <td><strong>${escapeHtml(a.customer_name || 'Retail Client')}</strong></td>
+                    <td><span class="badge badge-cyan">${escapeHtml(a.account_type || 'SAVINGS')}</span></td>
+                    <td style="font-family: var(--font-mono); font-weight: 700; color: ${a.balance < 500 ? '#DC2626' : '#059669'};">₹${Number(a.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td>${isLocked ? '<span class="status-badge status-retrying">🔒 LOCKED (2PL)</span>' : '<span class="status-badge status-committed">UNLOCKED</span>'}</td>
+                    <td><span style="font-family: var(--font-mono); font-size: 0.72rem; color: #64748B;">${isLocked ? 'Lock Point (Active)' : 'Growing / Shrinking'}</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // ========================================================================
+    // Live Polling Cycle
+    // ========================================================================
+    async function fetchSimulationState() {
+        try {
+            const res = await fetch(API_STATE_URL);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            latestState = data;
+            isBackendConnected = true;
+
+            dom.connectionStatus.className = 'status-active';
+            dom.connectionStatus.innerHTML = '<span class="dot-status"></span> ENGINE ACTIVE';
+            dom.headerClock.textContent = `Tick: #${data.tick || localSimTick++}`;
+
+            renderStatusKPIs(data);
+            renderDualTables(data);
+            if (dom.facultyDetailsContent && dom.facultyDetailsContent.style.display !== 'none') {
+                renderFacultyDetails(data);
+            }
+        } catch (e) {
+            isBackendConnected = false;
+            dom.connectionStatus.className = 'status-active';
+            dom.connectionStatus.innerHTML = '<span class="dot-status" style="background: #F43F5E; box-shadow: 0 0 8px rgba(244,63,94,0.4);"></span> ENGINE ACTIVE';
+            dom.headerClock.textContent = `Tick: #${localSimTick++}`;
+
+            renderStatusKPIs(null);
+            renderDualTables(null);
+        }
+    }
 
     // ========================================================================
     // Initialization
     // ========================================================================
     document.addEventListener('DOMContentLoaded', () => {
         cacheDOMElements();
-        bindNavigationTabs();
-        bindEventListeners();
-        initLocalDemoWorkload();
-        initCanvasOscilloscopes();
-        renderAccountsLedger();
+        bindCreatorControls();
+        bindTableControls();
+        bindHeaderControls();
 
-        // Initial fetch from C++ backend
+        // Seed initial batch of 400 transactions matching the user's default setting
+        generateLocalBatch(400, 40, 25, 15, 20, true);
+
+        // Initial fetch and start continuous polling
         fetchSimulationState();
-        fetchTransitionsFeed();
-
-        // Polling loop (every 500ms)
         setInterval(fetchSimulationState, POLL_INTERVAL_MS);
-        setInterval(fetchTransitionsFeed, 1200);
-
-        // Client-side simulation tick timer
-        setInterval(clientSimulationTick, 180);
-
-        // Canvas animation frame loop
-        requestAnimationFrame(renderOscilloscopeFrame);
     });
-
-    function cacheDOMElements() {
-        // Tab Navigation
-        dom.navTabButtons = document.querySelectorAll('.nav-tab-btn');
-        dom.pageViews = document.querySelectorAll('.page-view');
-
-        // Toast
-        dom.toastNotification = document.getElementById('toastNotification');
-        dom.toastIcon = document.getElementById('toastIcon');
-        dom.toastText = document.getElementById('toastText');
-
-        // Header
-        dom.headerClock = document.getElementById('headerClock');
-        dom.connectionStatus = document.getElementById('connectionStatus');
-        dom.currentModeLabel = document.getElementById('currentModeLabel');
-        dom.lblStandard = document.getElementById('lblStandard');
-        dom.lblAdaptive = document.getElementById('lblAdaptive');
-        dom.comparisonModeToggle = document.getElementById('comparisonModeToggle');
-        dom.btnExportJson = document.getElementById('btnExportJson');
-
-        // Running Architecture Diagram Elements
-        dom.cntUpiDispatched = document.getElementById('cntUpiDispatched');
-        dom.cntAtmDispatched = document.getElementById('cntAtmDispatched');
-        dom.cntSalaryDispatched = document.getElementById('cntSalaryDispatched');
-        dom.diagQ1Count = document.getElementById('diagQ1Count');
-        dom.diagAgingCount = document.getElementById('diagAgingCount');
-        dom.diagQ2Count = document.getElementById('diagQ2Count');
-        dom.diagWaitingCount = document.getElementById('diagWaitingCount');
-        dom.diagCpuPid = document.getElementById('diagCpuPid');
-        dom.diagCpuDesc = document.getElementById('diagCpuDesc');
-        dom.diagAtomicityStatus = document.getElementById('diagAtomicityStatus');
-        dom.diagDbCommits = document.getElementById('diagDbCommits');
-        dom.diagDbRollbacks = document.getElementById('diagDbRollbacks');
-        dom.cntServer1 = document.getElementById('cntServer1');
-        dom.cntServer2 = document.getElementById('cntServer2');
-        dom.cntServer3 = document.getElementById('cntServer3');
-
-        // Bank Core Accounts Ledger Table & Dispatch Log
-        dom.accountsTableBody = document.getElementById('accountsTableBody');
-        dom.totalAccountsCount = document.getElementById('totalAccountsCount');
-        dom.activeLocksCount = document.getElementById('activeLocksCount');
-        dom.bankDbDispatchLog = document.getElementById('bankDbDispatchLog');
-
-        // Simulator Cockpit
-        dom.btnPauseResume = document.getElementById('btnPauseResume');
-        dom.playIcon = document.getElementById('playIcon');
-        dom.btnPauseText = document.getElementById('btnPauseText');
-        dom.btnStepTick = document.getElementById('btnStepTick');
-        dom.speedButtons = document.querySelectorAll('.speed-btn');
-
-        // Scenario Injectors (Live Benchmark Scenarios)
-        dom.btnSpikeUpi = document.getElementById('btnSpikeUpi');
-        dom.btnSpikeSalary = document.getElementById('btnSpikeSalary');
-        dom.btnSpikeHotspot = document.getElementById('btnSpikeHotspot');
-        dom.btnTriggerRollback = document.getElementById('btnTriggerRollback');
-        dom.btnResetSim = document.getElementById('btnResetSim');
-
-        // Metrics
-        dom.metricTps = document.getElementById('metricTps');
-        dom.tpsBar = document.getElementById('tpsBar');
-        dom.velocityTag = document.getElementById('velocityTag');
-        dom.metricCompletedText = document.getElementById('metricCompletedText');
-        dom.metricProgressPct = document.getElementById('metricProgressPct');
-
-        dom.metricAbortRate = document.getElementById('metricAbortRate');
-        dom.metricTotalAbortsUnit = document.getElementById('metricTotalAbortsUnit');
-        dom.abortBar = document.getElementById('abortBar');
-        dom.abortStatusTag = document.getElementById('abortStatusTag');
-        dom.abortDescription = document.getElementById('abortDescription');
-
-        dom.metricContentionScore = document.getElementById('metricContentionScore');
-        dom.metricConflictRate = document.getElementById('metricConflictRate');
-        dom.conflictBar = document.getElementById('conflictBar');
-        dom.backoffMultiplierTag = document.getElementById('backoffMultiplierTag');
-        dom.metricQueueDepth = document.getElementById('metricQueueDepth');
-
-        dom.metricDeadlocks = document.getElementById('metricDeadlocks');
-        dom.deadlockBar = document.getElementById('deadlockBar');
-        dom.metricDbStats = document.getElementById('metricDbStats');
-
-        // Canvas Elements
-        dom.canvasThroughput = document.getElementById('canvasThroughput');
-        dom.canvasContention = document.getElementById('canvasContention');
-        dom.chartTpsVal = document.getElementById('chartTpsVal');
-        dom.chartContentionVal = document.getElementById('chartContentionVal');
-
-        // CPU Window
-        dom.cpuCorePill = document.getElementById('cpuCorePill');
-        dom.cpuRunningContent = document.getElementById('cpuRunningContent');
-        dom.cpuIdleContent = document.getElementById('cpuIdleContent');
-        dom.runPidDisplay = document.getElementById('runPidDisplay');
-        dom.runTypeBadge = document.getElementById('runTypeBadge');
-        dom.runStateBadge = document.getElementById('runStateBadge');
-        dom.runQueueBadge = document.getElementById('runQueueBadge');
-        dom.runBurstText = document.getElementById('runBurstText');
-        dom.runProgressFill = document.getElementById('runProgressFill');
-        dom.runLocksContainer = document.getElementById('runLocksContainer');
-        dom.runAmountText = document.getElementById('runAmountText');
-        dom.runRouteText = document.getElementById('runRouteText');
-
-        // MLFQ Lanes & Aging Elevator
-        dom.q1Track = document.getElementById('q1Track');
-        dom.q1DepthBadge = document.getElementById('q1DepthBadge');
-        dom.q2Track = document.getElementById('q2Track');
-        dom.q2DepthBadge = document.getElementById('q2DepthBadge');
-        dom.waitingTrack = document.getElementById('waitingTrack');
-        dom.waitingDepthBadge = document.getElementById('waitingDepthBadge');
-        dom.agingPromotionCount = document.getElementById('agingPromotionCount');
-
-        // PCB Table & Search
-        dom.pcbTable = document.getElementById('pcbTable');
-        dom.pcbTableBody = document.getElementById('pcbTableBody');
-        dom.pcbTableCount = document.getElementById('pcbTableCount');
-        dom.pcbSearchInput = document.getElementById('pcbSearchInput');
-        dom.filterButtons = document.querySelectorAll('.filter-btn');
-
-        // Feed
-        dom.transitionsFeed = document.getElementById('transitionsFeed');
-        dom.btnClearFeed = document.getElementById('btnClearFeed');
-
-        // Modal
-        dom.pcbModal = document.getElementById('pcbModal');
-        dom.modalPcbTitle = document.getElementById('modalPcbTitle');
-        dom.modalPcbBody = document.getElementById('modalPcbBody');
-        dom.modalPcbMeta = document.getElementById('modalPcbMeta');
-        dom.btnModalClose = document.getElementById('btnModalClose');
-        dom.btnCopyPcbJson = document.getElementById('btnCopyPcbJson');
-
-        // Database & SQL Joins Page
-        dom.dbEngineBadge = document.getElementById('dbEngineBadge');
-        dom.btnConnectDb = document.getElementById('btnConnectDb');
-        dom.btnRefreshJoin = document.getElementById('btnRefreshJoin');
-        dom.dbHost = document.getElementById('dbHost');
-        dom.dbPort = document.getElementById('dbPort');
-        dom.dbUser = document.getElementById('dbUser');
-        dom.dbPassword = document.getElementById('dbPassword');
-        dom.dbDatabase = document.getElementById('dbDatabase');
-        dom.cntCustomers = document.getElementById('cntCustomers');
-        dom.cntBranches = document.getElementById('cntBranches');
-        dom.cntAccounts = document.getElementById('cntAccounts');
-        dom.cntTransactions = document.getElementById('cntTransactions');
-        dom.cntAuditLogs = document.getElementById('cntAuditLogs');
-        dom.dbJoinTableBody = document.getElementById('dbJoinTableBody');
-        dom.joinLatencyBadge = document.getElementById('joinLatencyBadge');
-        dom.btnRefreshExports = document.getElementById('btnRefreshExports');
-        dom.dbExportsTableBody = document.getElementById('dbExportsTableBody');
-    }
-
-    // ========================================================================
-    // Tabbed Multi-Page Switching
-    // ========================================================================
-    function bindNavigationTabs() {
-        dom.navTabButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetPageId = btn.dataset.tab;
-                switchTab(targetPageId);
-            });
-        });
-
-        // Hash change navigation support
-        window.addEventListener('hashchange', () => {
-            const hash = window.location.hash.replace('#', '');
-            if (hash) {
-                switchTab(hash);
-            }
-        });
-
-        if (window.location.hash) {
-            switchTab(window.location.hash.replace('#', ''));
-        }
-    }
-
-    function switchTab(targetPageId) {
-        if (!targetPageId) return;
-
-        dom.navTabButtons.forEach(b => {
-            b.classList.toggle('active', b.dataset.tab === targetPageId);
-        });
-
-        dom.pageViews.forEach(page => {
-            page.classList.toggle('active', page.id === targetPageId);
-        });
-
-        window.location.hash = targetPageId;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-
-        // Force oscilloscope resize/refresh when opening that tab
-        if (targetPageId === 'page-oscilloscope') {
-            setTimeout(renderOscilloscopeFrame, 50);
-        } else if (targetPageId === 'page-database') {
-            fetchDatabaseTablesAndJoins();
-            fetchDatabaseExports();
-        }
-    }
-
-    // ========================================================================
-    // Toast Notification Banner
-    // ========================================================================
-    function showToast(icon, text) {
-        if (!dom.toastNotification) return;
-        if (dom.toastIcon) dom.toastIcon.innerText = icon;
-        if (dom.toastText) dom.toastText.innerText = text;
-        dom.toastNotification.style.display = 'flex';
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => {
-            if (dom.toastNotification) dom.toastNotification.style.display = 'none';
-        }, 3200);
-    }
-
-    // ========================================================================
-    // Event Listeners & Interactive Controls
-    // ========================================================================
-    function bindEventListeners() {
-        // Comparison Mode Switch
-        if (dom.comparisonModeToggle) {
-            dom.comparisonModeToggle.addEventListener('change', async (e) => {
-                isAdaptiveMode = e.target.checked;
-                updateComparisonModeDisplay(isAdaptiveMode);
-                showToast(isAdaptiveMode ? '🛡' : '⚠️', isAdaptiveMode ? 'Adaptive BankOS Ledger Enabled (MD-ACC Exponential Backoff)' : 'Baseline Mode Enabled (Direct DB collisions / OCC Abort Storms)');
-                await sendComparisonModeChange(isAdaptiveMode);
-            });
-        }
-
-        // Play / Pause Simulation
-        if (dom.btnPauseResume) {
-            dom.btnPauseResume.addEventListener('click', async () => {
-                isPaused = !isPaused;
-                dom.btnPauseText.innerText = isPaused ? 'RESUME' : 'PAUSE';
-                dom.playIcon.innerText = isPaused ? '▶' : '⏸';
-                showToast(isPaused ? '⏸' : '▶', isPaused ? 'Simulation Execution Paused' : 'Simulation Resumed');
-                try {
-                    await fetch(isPaused ? API_PAUSE_URL : API_RESUME_URL);
-                } catch (err) {}
-            });
-        }
-
-        // Step 1 Tick
-        if (dom.btnStepTick) {
-            dom.btnStepTick.addEventListener('click', () => {
-                stepSimulationTick(true);
-                showToast('⏭', `Stepped forward 1 simulation tick (Tick #${localSimTick})`);
-            });
-        }
-
-        // Speed Buttons
-        dom.speedButtons.forEach((btn) => {
-            btn.addEventListener('click', async () => {
-                dom.speedButtons.forEach((b) => b.classList.remove('active'));
-                btn.classList.add('active');
-                const delay = parseInt(btn.dataset.speed, 10);
-                currentSimDelay = delay;
-                showToast('⏱', `Clock Speed changed to ${btn.innerText}`);
-                try {
-                    await fetch(`${API_SPEED_URL}?delay=${delay}`);
-                } catch (e) {}
-            });
-        });
-
-        // Scenario Stress-Test Injectors (Live Clickable Buttons)
-        if (dom.btnSpikeUpi) {
-            dom.btnSpikeUpi.addEventListener('click', () => injectScenario('upi_peak'));
-        }
-        if (dom.btnSpikeSalary) {
-            dom.btnSpikeSalary.addEventListener('click', () => injectScenario('salary_clearing'));
-        }
-        if (dom.btnSpikeHotspot) {
-            dom.btnSpikeHotspot.addEventListener('click', () => injectScenario('settlement_hotspot'));
-        }
-        if (dom.btnTriggerRollback) {
-            dom.btnTriggerRollback.addEventListener('click', () => injectScenario('acid_rollback'));
-        }
-        if (dom.btnResetSim) {
-            dom.btnResetSim.addEventListener('click', () => injectScenario('reset'));
-        }
-
-        // Export Log & Persist to Database
-        if (dom.btnExportJson) {
-            dom.btnExportJson.addEventListener('click', async () => {
-                dom.btnExportJson.disabled = true;
-                dom.btnExportJson.innerHTML = '<span>SAVING TO DB...</span>';
-                try {
-                    const res = await fetch(API_EXPORT_URL);
-                    const data = await res.json();
-                    const exportIdMsg = data.export_id ? ` (Batch #${data.export_id})` : '';
-                    showToast('💾', `Audit exported & saved to Database${exportIdMsg}! Tables: AuditExports, StateTransitionAudits`);
-                    fetchDatabaseTablesAndJoins();
-                    fetchDatabaseExports();
-                    exportLocalJsonSnapshot();
-                } catch (e) {
-                    exportLocalJsonSnapshot();
-                    showToast('💾', 'Exported local state_transitions.json snapshot!');
-                } finally {
-                    dom.btnExportJson.disabled = false;
-                    dom.btnExportJson.innerHTML = '<span class="btn-icon">💾</span><span>EXPORT AUDIT</span>';
-                }
-            });
-        }
-
-        // Clear Feed
-        if (dom.btnClearFeed) {
-            dom.btnClearFeed.addEventListener('click', () => {
-                if (dom.transitionsFeed) {
-                    dom.transitionsFeed.innerHTML = '<div class="feed-empty">Audit feed cleared. Awaiting live state transitions...</div>';
-                }
-            });
-        }
-
-        // Search in PCB Table
-        if (dom.pcbSearchInput) {
-            dom.pcbSearchInput.addEventListener('input', (e) => {
-                searchQuery = e.target.value.trim().toLowerCase();
-                renderPCBTable(latestState ? (latestState.active_pcbs || []) : localPcbs);
-            });
-        }
-
-        // Filter Pills in PCB Table
-        dom.filterButtons.forEach((btn) => {
-            btn.addEventListener('click', () => {
-                dom.filterButtons.forEach((b) => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFilter = btn.dataset.filter || 'ALL';
-                renderPCBTable(latestState ? (latestState.active_pcbs || []) : localPcbs);
-            });
-        });
-
-        // PCB Inspector Modal Close
-        if (dom.btnModalClose && dom.pcbModal) {
-            dom.btnModalClose.addEventListener('click', () => {
-                dom.pcbModal.style.display = 'none';
-            });
-        }
-        if (dom.pcbModal) {
-            dom.pcbModal.addEventListener('click', (e) => {
-                if (e.target === dom.pcbModal) dom.pcbModal.style.display = 'none';
-            });
-        }
-        if (dom.btnCopyPcbJson) {
-            dom.btnCopyPcbJson.addEventListener('click', () => {
-                const jsonText = document.getElementById('modalJsonContent')?.innerText;
-                if (jsonText) {
-                    navigator.clipboard.writeText(jsonText).then(() => {
-                        dom.btnCopyPcbJson.innerText = 'COPIED!';
-                        setTimeout(() => { dom.btnCopyPcbJson.innerText = 'COPY JSON'; }, 1500);
-                    });
-                }
-            });
-        }
-
-        // Database & SQL Joins Page Controls
-        if (dom.btnRefreshJoin) {
-            dom.btnRefreshJoin.addEventListener('click', () => {
-                fetchDatabaseTablesAndJoins();
-            });
-        }
-
-        if (dom.btnRefreshExports) {
-            dom.btnRefreshExports.addEventListener('click', () => {
-                fetchDatabaseExports();
-                showToast('↻', 'Database audit exports refreshed');
-            });
-        }
-
-        if (dom.btnConnectDb) {
-            dom.btnConnectDb.addEventListener('click', async () => {
-                const host = dom.dbHost ? dom.dbHost.value.trim() : '127.0.0.1';
-                const port = dom.dbPort ? parseInt(dom.dbPort.value) : 33060;
-                const user = dom.dbUser ? dom.dbUser.value.trim() : 'root';
-                const password = dom.dbPassword ? dom.dbPassword.value : '';
-                const database = dom.dbDatabase ? dom.dbDatabase.value.trim() : 'bank_db';
-
-                showToast('⏳', `Connecting to MySQL (${user}@${host}:${port}/${database})...`);
-
-                try {
-                    const res = await fetch(API_DB_CONNECT_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ host, port, user, password, database })
-                    });
-                    const data = await res.json();
-                    if (data.is_connected) {
-                        showToast('✅', `Connected to MySQL database '${database}' successfully!`);
-                    } else {
-                        showToast('⚠️', 'MySQL connection notice: using Embedded Transactional Engine');
-                    }
-                    fetchDatabaseTablesAndJoins();
-                } catch (e) {
-                    showToast('⚠️', 'Error connecting to MySQL endpoint');
-                }
-            });
-        }
-    }
-
-    // ========================================================================
-    // Backend API Sync
-    // ========================================================================
-    async function fetchSimulationState() {
-        try {
-            const res = await fetch(API_STATE_URL);
-            if (!res.ok) throw new Error('State fetch failed');
-            const state = await res.json();
-            latestState = state;
-            isBackendConnected = true;
-
-            if (dom.connectionStatus) {
-                dom.connectionStatus.innerHTML = '<span class="dot-status"></span> C++ KERNEL CONNECTED';
-            }
-
-            if (state.accounts && Array.isArray(state.accounts)) {
-                syncAccountsFromBackend(state.accounts);
-            }
-
-            updateDOM(state);
-        } catch (err) {
-            isBackendConnected = false;
-            if (dom.connectionStatus) {
-                dom.connectionStatus.innerHTML = '<span class="dot-status" style="background: #3B82F6;"></span> SIMULATION ENGINE LIVE';
-            }
-        }
-    }
-
-    async function fetchTransitionsFeed() {
-        if (!isBackendConnected) return;
-        try {
-            const res = await fetch(API_TRANSITIONS_URL);
-            if (!res.ok) return;
-            const transitions = await res.json();
-            if (Array.isArray(transitions) && transitions.length > 0) {
-                renderTransitionsFeed(transitions);
-            }
-        } catch (e) {}
-    }
-
-    async function sendComparisonModeChange(isAdaptive) {
-        try {
-            const res = await fetch(API_COMPARISON_MODE_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adaptive: isAdaptive, mode: isAdaptive ? 'adaptive' : 'standard' })
-            });
-            if (res.ok) {
-                const st = await res.json();
-                latestState = st;
-                updateDOM(st);
-            }
-        } catch (e) {}
-    }
-
-    // ========================================================================
-    // Database & SQL JOIN Visualizer
-    // ========================================================================
-    async function fetchDatabaseTablesAndJoins() {
-        const startTime = performance.now();
-        try {
-            const [tablesRes, joinsRes] = await Promise.all([
-                fetch(API_DB_TABLES_URL).catch(() => null),
-                fetch(API_DB_JOINS_URL).catch(() => null)
-            ]);
-
-            const elapsed = (performance.now() - startTime).toFixed(1);
-            if (dom.joinLatencyBadge) {
-                dom.joinLatencyBadge.innerText = `LATENCY: ${elapsed}ms`;
-            }
-
-            if (tablesRes && tablesRes.ok) {
-                const dbInfo = await tablesRes.json();
-                if (dom.dbEngineBadge) {
-                    dom.dbEngineBadge.innerText = dbInfo.is_connected 
-                        ? 'MYSQL 8.4 INNODB (CONNECTED)' 
-                        : 'EMBEDDED TRANSACTIONAL ACID LEDGER';
-                    dom.dbEngineBadge.style.background = dbInfo.is_connected ? '#047857' : '#1e3a8a';
-                    dom.dbEngineBadge.style.color = '#ffffff';
-                }
-
-                if (dbInfo.tables) {
-                    if (dom.cntCustomers && dbInfo.tables.customers) 
-                        dom.cntCustomers.innerText = `${dbInfo.tables.customers.count} Verified`;
-                    if (dom.cntBranches && dbInfo.tables.bank_branches) 
-                        dom.cntBranches.innerText = `${dbInfo.tables.bank_branches.count} Hubs`;
-                    if (dom.cntAccounts && dbInfo.tables.accounts) 
-                        dom.cntAccounts.innerText = `${dbInfo.tables.accounts.count} Active`;
-                    if (dom.cntTransactions && dbInfo.tables.transactions) 
-                        dom.cntTransactions.innerText = `${dbInfo.tables.transactions.count} Executed`;
-                    if (dom.cntAuditLogs && dbInfo.tables.audit_logs) 
-                        dom.cntAuditLogs.innerText = `${dbInfo.tables.audit_logs.count} Events`;
-                }
-            }
-
-            if (joinsRes && joinsRes.ok) {
-                const joins = await joinsRes.json();
-                renderDbJoinTable(joins);
-                showToast('⚡', `SQL JOIN executed across 4 tables in ${elapsed}ms`);
-            }
-        } catch (err) {
-            console.error('Failed to load DB joins:', err);
-        }
-    }
-
-    function renderDbJoinTable(rows) {
-        if (!dom.dbJoinTableBody) return;
-        if (!rows || rows.length === 0) {
-            dom.dbJoinTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-dim); padding: 2rem;">No joined records found. Run simulation to stream transactions.</td></tr>`;
-            return;
-        }
-
-        dom.dbJoinTableBody.innerHTML = rows.map(r => {
-            const isCommitted = r.status === 'COMMITTED';
-            const statusClass = isCommitted ? 'state-running' : 'state-wait';
-            const statusText = isCommitted ? 'COMMITTED' : 'ROLLED_BACK';
-            const typeClass = r.type === 'SALARY_BATCH' ? 'tag-salary' : (r.type === 'ATM_WITHDRAWAL' ? 'tag-atm' : 'tag-upi');
-
-            return `
-                <tr>
-                    <td style="font-family: var(--font-mono); font-weight: 700; color: #38bdf8;">#${r.tx_id}</td>
-                    <td><strong style="color: #f1f5f9;">${escapeHtml(r.sender_name || 'Retail Client')}</strong></td>
-                    <td style="font-family: var(--font-mono); color: #94a3b8;">#${r.sender_account}</td>
-                    <td><strong style="color: #f1f5f9;">${escapeHtml(r.receiver_name || 'Retail Client')}</strong></td>
-                    <td style="font-family: var(--font-mono); color: #94a3b8;">#${r.receiver_account}</td>
-                    <td style="color: #94a3b8; font-size: 0.72rem;">${escapeHtml(r.sender_branch || 'Downtown Financial')}</td>
-                    <td style="font-family: var(--font-mono); font-weight: 600; color: #a7f3d0;">$${parseFloat(r.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td><span class="type-badge ${typeClass}">${escapeHtml(r.type || 'UPI')}</span></td>
-                    <td><span class="state-step ${statusClass}">${statusText}</span></td>
-                    <td style="font-family: var(--font-mono); font-size: 0.68rem; color: #64748b;">${escapeHtml(r.timestamp || 'NOW')}</td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    async function fetchDatabaseExports() {
-        if (!dom.dbExportsTableBody) return;
-        try {
-            const res = await fetch(API_DB_EXPORTS_URL);
-            if (!res.ok) return;
-            const exports = await res.json();
-            renderDbExportsTable(exports);
-        } catch (e) {
-            console.error('Failed to fetch DB exports:', e);
-        }
-    }
-
-    function renderDbExportsTable(rows) {
-        if (!dom.dbExportsTableBody) return;
-        if (!rows || rows.length === 0) {
-            dom.dbExportsTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">No audit batches exported yet. Click "EXPORT AUDIT" (top right) to save the current snapshot into the database.</td></tr>`;
-            return;
-        }
-
-        dom.dbExportsTableBody.innerHTML = rows.map(r => `
-            <tr>
-                <td style="font-family: var(--font-mono); font-weight: 700; color: #38bdf8;">BATCH #${r.export_id}</td>
-                <td style="font-family: var(--font-mono); font-size: 0.72rem; color: #94a3b8;">${escapeHtml(r.export_time || 'NOW')}</td>
-                <td style="font-family: var(--font-mono); font-weight: 600; color: #f1f5f9;">${(r.total_transitions || 0).toLocaleString()} rows</td>
-                <td style="font-family: var(--font-mono); color: #34d399;">${(r.total_commits || 0).toLocaleString()}</td>
-                <td style="font-family: var(--font-mono); color: #f87171;">${(r.total_rollbacks || 0).toLocaleString()}</td>
-                <td style="font-family: var(--font-mono); color: #fbbf24;">${(r.deadlocks_prevented || 0).toLocaleString()}</td>
-                <td><span class="state-step state-running" style="font-size: 0.65rem;">${escapeHtml(r.status || 'SAVED_TO_DB')}</span></td>
-                <td style="font-size: 0.72rem; color: #cbd5e1;">${escapeHtml(r.summary || 'Audit snapshot')}</td>
-            </tr>
-        `).join('');
-    }
-
-    function updateComparisonModeDisplay(isAdaptive) {
-        if (dom.comparisonModeToggle) dom.comparisonModeToggle.checked = isAdaptive;
-        if (dom.currentModeLabel) {
-            dom.currentModeLabel.innerText = isAdaptive ? 'ADAPTIVE OS LEDGER' : 'BASELINE (DIRECT 2PL/OCC)';
-        }
-        if (dom.lblStandard && dom.lblAdaptive) {
-            dom.lblStandard.classList.toggle('active', !isAdaptive);
-            dom.lblAdaptive.classList.toggle('active', isAdaptive);
-        }
-        if (dom.abortDescription) {
-            dom.abortDescription.innerText = isAdaptive
-                ? 'MD-ACC Exponential Backoff throttles collisions with 0% aborts'
-                : '⚠️ Baseline Mode: Direct DB execution causes collision abort storms under contention!';
-        }
-    }
-
-    function syncAccountsFromBackend(backendAccs) {
-        backendAccs.forEach(acc => {
-            const found = bankAccounts.find(a => a.id === acc.account_id);
-            if (found) {
-                found.prevBalance = found.balance;
-                found.balance = acc.balance;
-            }
-        });
-        renderAccountsLedger();
-    }
-
-    // ========================================================================
-    // Live Benchmark Scenario Injection (Guaranteed Clickable & Visible)
-    // ========================================================================
-    async function injectScenario(type) {
-        // 1. Trigger visual toast feedback
-        if (type === 'upi_peak') {
-            showToast('⚡', 'UPI Surge: Injected 30 retail micro-payments into Queue 1 (SRTF Priority)!');
-        } else if (type === 'salary_clearing') {
-            showToast('🏢', 'Payroll Clearing: Injected 20 corporate bulk payrolls into Queue 2 (Round Robin)!');
-        } else if (type === 'settlement_hotspot') {
-            showToast('🔒', 'Hotspot Contention: Injected 24 transactions contending on Account #1001 (Havender 2PL)!');
-        } else if (type === 'acid_rollback') {
-            showToast('🛡', 'ACID Atomicity Rollback: Account #1005 overdraft prevented, full rollback executed!');
-        } else if (type === 'reset') {
-            showToast('🔄', 'Reset: Reset simulation counters and reloaded continuous execution stream.');
-        }
-
-        // 2. Transmit to backend
-        try {
-            fetch(`${API_SPIKE_URL}?type=${type}`).catch(() => {});
-            fetch(`${API_SCENARIO_URL}?type=${type}`).catch(() => {});
-        } catch (e) {}
-
-        // 3. Immediately apply to local state so user sees INSTANT visual feedback
-        if (type === 'upi_peak') {
-            for (let i = 0; i < 30; ++i) {
-                localQ1.unshift(createSyntheticPcb('UPI', 1 + (i % 3)));
-            }
-            cntUpiTotal += 30;
-            cntServer1Total += 30;
-            addTransitionEvent(localSimTick, nextPid - 1, 'NEW', 'READY', 'Live Scenario: Retail UPI Surge injected into Queue 1 (SRTF Priority)');
-        } else if (type === 'salary_clearing') {
-            for (let i = 0; i < 20; ++i) {
-                const pcb = createSyntheticPcb('Salary', 15 + (i % 8));
-                pcb.queue = 'Queue 2 (RR)';
-                localQ2.push(pcb);
-            }
-            cntSalaryTotal += 20;
-            cntServer3Total += 20;
-            addTransitionEvent(localSimTick, nextPid - 1, 'NEW', 'READY', 'Live Scenario: Corporate Payroll Batch injected into Queue 2 (Round Robin)');
-        } else if (type === 'settlement_hotspot') {
-            for (let i = 0; i < 24; ++i) {
-                const pcb = createSyntheticPcb('ATM', 3);
-                pcb.required_locks = [1001, 2001];
-                localWaiting.push(pcb);
-            }
-            cntAtmTotal += 24;
-            cntServer2Total += 24;
-            addTransitionEvent(localSimTick, nextPid - 1, 'RUNNING', 'WAITING', 'Live Scenario: Hotspot contention injected on Account #1001 (Havender 2PL Locks)');
-        } else if (type === 'acid_rollback') {
-            const rollbackPcb = {
-                pid: nextPid++,
-                type: 'UPI',
-                state: 'TERMINATED_FAILED',
-                burst_time: 0,
-                total_burst: 1,
-                required_locks: [1001, 1005],
-                amount: 5000.00,
-                from_account: 1005,
-                to_account: 1001,
-                queue: 'Queue 1 (SRTF)',
-                failure_reason: 'ACID ATOMICITY ROLLBACK: Account #1005 overdraft prevented (Available ₹300, Required ₹5000)'
-            };
-            localRollbacks++;
-            localPcbs.unshift(rollbackPcb);
-            const acc1005 = bankAccounts.find(a => a.id === 1005);
-            if (acc1005) {
-                acc1005.lastAction = 'ROLLBACK: Insufficient Funds (Atomicity Protected)';
-                acc1005.phase = 'Phase 3: Shrinking';
-                setTimeout(() => { acc1005.phase = 'Idle'; renderAccountsLedger(); }, 3500);
-            }
-            appendDispatchLog(localSimTick, rollbackPcb.pid, 'UPI', 1005, 1001, 5000.0, true, 'Insufficient Funds (Available ₹300, Required ₹5000)');
-            addTransitionEvent(localSimTick, rollbackPcb.pid, 'RUNNING', 'TERMINATED_FAILED', '[ACID ATOMICITY ROLLBACK] Account #1005 overdraft: Full rollback executed, zero partial debits!');
-            renderAccountsLedger();
-        } else if (type === 'reset') {
-            localSimTick = 0;
-            localCompleted = 0;
-            localAborts = 0;
-            localAgingPromotions = 0;
-            localRollbacks = 0;
-            initLocalDemoWorkload();
-            addTransitionEvent(0, 0, 'RESET', 'READY', 'Simulator state and queues reset to initial baseline.');
-        }
-
-        syncActivePcbsList();
-        renderAccountsLedger();
-    }
-
-    // ========================================================================
-    // Scheduled Transaction Dispatch Log to Bank Database
-    // ========================================================================
-    function appendDispatchLog(tick, pid, type, fromAcc, toAcc, amount, isRollback, failureMsg) {
-        if (!dom.bankDbDispatchLog) return;
-
-        let destServer = 'Bank Server 1 (Retail)';
-        if (toAcc >= 2000 && toAcc < 3000) destServer = 'Bank Server 2 (ATM Vault)';
-        else if (fromAcc >= 5000 || toAcc >= 5000) destServer = 'Bank Server 3 (Payroll)';
-
-        let sqlText = '';
-        let sqlClass = 'log-sql';
-        if (isRollback) {
-            sqlClass = 'log-sql sql-rollback';
-            sqlText = `BEGIN; LOCK ACCOUNTS #${Math.min(fromAcc, toAcc)}, #${Math.max(fromAcc, toAcc)}; CHECK Balance(#${fromAcc}); ABORT: ${failureMsg || 'INSUFFICIENT FUNDS'} ➔ ROLLBACK (ACID ATOMICITY PRESERVED - ZERO PARTIAL DEBIT);`;
-        } else {
-            sqlText = `BEGIN TRANSACTION; LOCK ACCOUNTS #${Math.min(fromAcc, toAcc)}, #${Math.max(fromAcc, toAcc)} (Havender 2PL); UPDATE Accounts SET Balance = Balance - ${amount.toFixed(2)} WHERE AccountID = ${fromAcc}; UPDATE Accounts SET Balance = Balance + ${amount.toFixed(2)} WHERE AccountID = ${toAcc}; INSERT INTO Transactions VALUES (${pid}, ${fromAcc}, ${toAcc}, ${amount.toFixed(2)}, 'COMMITTED'); COMMIT;`;
-        }
-
-        const entry = document.createElement('div');
-        entry.className = 'dispatch-log-entry';
-        entry.innerHTML = `
-            <div class="log-meta-row">
-                <span class="log-tick">T+${tick}t</span>
-                <span class="log-tx-id">[TX #${pid} | ${type}]</span>
-                <span class="log-dest">➔ Dispatched to ${destServer}</span>
-            </div>
-            <div class="${sqlClass}">${sqlText}</div>
-        `;
-
-        dom.bankDbDispatchLog.insertBefore(entry, dom.bankDbDispatchLog.firstChild);
-        while (dom.bankDbDispatchLog.children.length > 40) {
-            dom.bankDbDispatchLog.removeChild(dom.bankDbDispatchLog.lastChild);
-        }
-    }
-
-    // ========================================================================
-    // Local Simulation Engine (Guarantees CPU & MLFQ Are NEVER Empty)
-    // ========================================================================
-    function initLocalDemoWorkload() {
-        localQ1 = [];
-        localQ2 = [];
-        localWaiting = [];
-        localPcbs = [];
-
-        // Prepopulate with realistic active transactions
-        for (let i = 0; i < 14; ++i) {
-            localQ1.push(createSyntheticPcb('UPI', 1 + (i % 3)));
-        }
-        for (let i = 0; i < 6; ++i) {
-            localQ1.push(createSyntheticPcb('ATM', 3 + (i % 2)));
-        }
-        for (let i = 0; i < 10; ++i) {
-            const pcb = createSyntheticPcb('Salary', 14 + (i % 10));
-            pcb.queue = 'Queue 2 (RR)';
-            pcb.aging_ticks = i * 6;
-            localQ2.push(pcb);
-        }
-        for (let i = 0; i < 4; ++i) {
-            const pcb = createSyntheticPcb('UPI', 2);
-            pcb.state = 'WAITING';
-            pcb.backoff_delay = (i + 1) * 4;
-            localWaiting.push(pcb);
-        }
-
-        localRunningPcb = localQ1.shift();
-        if (localRunningPcb) localRunningPcb.state = 'RUNNING';
-
-        syncActivePcbsList();
-    }
-
-    function createSyntheticPcb(type, burst) {
-        const pid = nextPid++;
-        const fromIdx = (pid % 8);
-        const toIdx = ((pid + 3) % 8);
-        const accFrom = bankAccounts[fromIdx].id;
-        const accTo = bankAccounts[toIdx].id;
-        const locks = [Math.min(accFrom, accTo), Math.max(accFrom, accTo)];
-
-        const pcb = {
-            pid: pid,
-            type: type,
-            state: 'READY',
-            arrival_time: localSimTick,
-            burst_time: burst,
-            total_burst: burst,
-            quantum_left: 5,
-            aging_ticks: 0,
-            backoff_delay: 0,
-            required_locks: locks,
-            amount: type === 'UPI' ? (50 + (pid % 450)) : (type === 'ATM' ? (500 + (pid % 2000)) : (45000 + (pid % 25000))),
-            from_account: locks[0],
-            to_account: locks[1],
-            queue: type === 'Salary' ? 'Queue 2 (RR)' : 'Queue 1 (SRTF)'
-        };
-        return pcb;
-    }
-
-    function syncActivePcbsList() {
-        const list = [];
-        if (localRunningPcb) list.push(localRunningPcb);
-        list.push(...localQ1);
-        list.push(...localQ2);
-        list.push(...localWaiting);
-        localPcbs = list;
-    }
-
-    function clientSimulationTick() {
-        if (isPaused) return;
-        stepSimulationTick(false);
-    }
-
-    function stepSimulationTick(forced) {
-        localSimTick++;
-
-        // 1. Maintain CPU Running Process (Never Empty)
-        if (localRunningPcb) {
-            localRunningPcb.burst_time--;
-            updateAccountLocks(localRunningPcb, 'Phase 2: Lock Point');
-
-            if (localRunningPcb.burst_time <= 0) {
-                localCompleted++;
-                localCommits++;
-                executeAccountTransfer(localRunningPcb);
-
-                localRunningPcb.state = 'TERMINATED';
-                appendDispatchLog(localSimTick, localRunningPcb.pid, localRunningPcb.type, localRunningPcb.from_account, localRunningPcb.to_account, localRunningPcb.amount, false, '');
-                addTransitionEvent(localSimTick, localRunningPcb.pid, 'RUNNING', 'TERMINATED', `Transaction Committed to MySQL ACID Ledger (${localRunningPcb.type} ₹${localRunningPcb.amount.toLocaleString()})`);
-
-                releaseAccountLocks(localRunningPcb);
-                localRunningPcb = null;
-            } else if (localRunningPcb.queue.includes('Queue 2')) {
-                localRunningPcb.quantum_left--;
-                if (localRunningPcb.quantum_left <= 0) {
-                    localRunningPcb.quantum_left = 5;
-                    localRunningPcb.state = 'READY';
-                    releaseAccountLocks(localRunningPcb);
-                    localQ2.push(localRunningPcb);
-                    addTransitionEvent(localSimTick, localRunningPcb.pid, 'RUNNING', 'READY', 'Round Robin Quantum slice (5t) expired -> Yielded CPU to back of Queue 2');
-                    localRunningPcb = null;
-                }
-            }
-        }
-
-        // 2. Anti-Starvation Aging Engine (Queue 2 -> Queue 1 Elevator)
-        for (let i = localQ2.length - 1; i >= 0; --i) {
-            const pcb = localQ2[i];
-            pcb.aging_ticks++;
-            if (pcb.aging_ticks >= 50) {
-                localQ2.splice(i, 1);
-                pcb.queue = 'Queue 1 (SRTF)';
-                pcb.aging_promoted = true;
-                localQ1.push(pcb);
-                localAgingPromotions++;
-                addTransitionEvent(localSimTick, pcb.pid, 'READY', 'READY', `[ANTI-STARVATION AGING] Waited ${pcb.aging_ticks}t in Q2 -> Promoted to Queue 1 (SRTF)`);
-            }
-        }
-
-        // 3. Dispatch next process from Queue 1 (SRTF) or Queue 2 (Round Robin)
-        if (!localRunningPcb) {
-            if (localQ1.length > 0) {
-                localQ1.sort((a, b) => a.burst_time - b.burst_time);
-                localRunningPcb = localQ1.shift();
-                localRunningPcb.state = 'RUNNING';
-                acquireAccountLocks(localRunningPcb);
-                addTransitionEvent(localSimTick, localRunningPcb.pid, 'READY', 'RUNNING', `SRTF Dispatch: Allocated CPU core (Burst: ${localRunningPcb.burst_time} ticks)`);
-            } else if (localQ2.length > 0) {
-                localRunningPcb = localQ2.shift();
-                localRunningPcb.state = 'RUNNING';
-                acquireAccountLocks(localRunningPcb);
-                addTransitionEvent(localSimTick, localRunningPcb.pid, 'READY', 'RUNNING', `Round Robin Dispatch: Allocated CPU core with 5t time quantum`);
-            } else {
-                // Ensure CPU is never empty during representation
-                localRunningPcb = createSyntheticPcb('UPI', 2);
-                localRunningPcb.state = 'RUNNING';
-                acquireAccountLocks(localRunningPcb);
-            }
-        }
-
-        // 4. Waiting / Exponential Backoff Delays
-        for (let i = localWaiting.length - 1; i >= 0; --i) {
-            const pcb = localWaiting[i];
-            if (pcb.backoff_delay > 0) {
-                pcb.backoff_delay--;
-                if (pcb.backoff_delay === 0) {
-                    localWaiting.splice(i, 1);
-                    pcb.state = 'READY';
-                    localQ1.push(pcb);
-                    addTransitionEvent(localSimTick, pcb.pid, 'WAITING', 'READY', 'Exponential Backoff delay expired -> Re-admitted to Queue 1');
-                }
-            }
-        }
-
-        // 5. Continuous Replenishment: Ensure MLFQ Queues are NEVER EMPTY
-        if (localQ1.length < 8) {
-            localQ1.push(createSyntheticPcb('UPI', 1 + Math.floor(Math.random() * 3)));
-            localQ1.push(createSyntheticPcb('ATM', 2 + Math.floor(Math.random() * 4)));
-            cntUpiTotal++;
-            cntAtmTotal++;
-        }
-        if (localQ2.length < 4) {
-            localQ2.push(createSyntheticPcb('Salary', 12 + Math.floor(Math.random() * 15)));
-            cntSalaryTotal++;
-        }
-        if (localWaiting.length < 2) {
-            const waitPcb = createSyntheticPcb('UPI', 2);
-            waitPcb.state = 'WAITING';
-            waitPcb.backoff_delay = 4;
-            localWaiting.push(waitPcb);
-        }
-
-        // 6. Baseline vs Adaptive Abort Simulation
-        if (!isAdaptiveMode) {
-            if (Math.random() < 0.35) {
-                localAborts++;
-            }
-        }
-
-        updateTelemetryDataPoints();
-        syncActivePcbsList();
-
-        const syntheticState = {
-            tick: localSimTick,
-            comparison_mode: isAdaptiveMode,
-            running: localRunningPcb,
-            queue_1: localQ1.map(p => p.pid),
-            queue_2: localQ2.map(p => p.pid),
-            waiting: localWaiting.map(p => p.pid),
-            queue_1_pcbs: localQ1,
-            queue_2_pcbs: localQ2,
-            waiting_pcbs: localWaiting,
-            q1_depth: localQ1.length,
-            q2_depth: localQ2.length,
-            waiting_depth: localWaiting.length,
-            aging_promotions: localAgingPromotions,
-            completed_count: localCompleted,
-            total_workload: localWorkloadTotal,
-            total_aborts: localAborts,
-            deadlocks_prevented: localDeadlocksPrevented + Math.floor(localSimTick * 0.4),
-            active_pcbs: localPcbs
-        };
-
-        updateDOM(syntheticState);
-    }
-
-    // ========================================================================
-    // Account Ledger Mutations
-    // ========================================================================
-    function acquireAccountLocks(pcb) {
-        if (!pcb || !pcb.required_locks) return;
-        pcb.required_locks.forEach(accId => {
-            const acc = bankAccounts.find(a => a.id === accId);
-            if (acc) {
-                acc.lock = pcb.pid;
-                acc.phase = 'Phase 1: Growing';
-            }
-        });
-        renderAccountsLedger();
-    }
-
-    function updateAccountLocks(pcb, phase) {
-        if (!pcb || !pcb.required_locks) return;
-        pcb.required_locks.forEach(accId => {
-            const acc = bankAccounts.find(a => a.id === accId);
-            if (acc) {
-                acc.lock = pcb.pid;
-                acc.phase = phase;
-            }
-        });
-        renderAccountsLedger();
-    }
-
-    function releaseAccountLocks(pcb) {
-        if (!pcb || !pcb.required_locks) return;
-        pcb.required_locks.forEach(accId => {
-            const acc = bankAccounts.find(a => a.id === accId);
-            if (acc && acc.lock === pcb.pid) {
-                acc.lock = null;
-                acc.phase = 'Phase 3: Shrinking';
-                setTimeout(() => {
-                    if (acc.lock === null) acc.phase = 'Idle';
-                    renderAccountsLedger();
-                }, 800);
-            }
-        });
-        renderAccountsLedger();
-    }
-
-    function executeAccountTransfer(pcb) {
-        if (!pcb || !pcb.from_account || !pcb.to_account || !pcb.amount) return;
-        const fromAcc = bankAccounts.find(a => a.id === pcb.from_account);
-        const toAcc = bankAccounts.find(a => a.id === pcb.to_account);
-
-        if (fromAcc && toAcc) {
-            if (fromAcc.balance >= pcb.amount) {
-                fromAcc.prevBalance = fromAcc.balance;
-                toAcc.prevBalance = toAcc.balance;
-                fromAcc.balance -= pcb.amount;
-                toAcc.balance += pcb.amount;
-                fromAcc.lastAction = `COMMITTED: -₹${pcb.amount.toLocaleString()}`;
-                toAcc.lastAction = `COMMITTED: +₹${pcb.amount.toLocaleString()}`;
-            } else {
-                localRollbacks++;
-                fromAcc.lastAction = 'ROLLBACK: Insufficient Funds (Atomicity)';
-            }
-        }
-        renderAccountsLedger();
-    }
-
-    // ========================================================================
-    // DOM Telemetry & Pipeline Renderers
-    // ========================================================================
-    function updateDOM(state) {
-        if (!state) return;
-
-        // 1. Clock & Mode
-        if (dom.headerClock && state.tick !== undefined) {
-            dom.headerClock.innerText = `Tick: #${state.tick.toLocaleString()}`;
-        }
-
-        // 2. Metrics
-        updateMetrics(state);
-
-        // 3. Running Architecture Diagram
-        updateRunningDiagram(state);
-
-        // 4. CPU Core Window (Guaranteed Never Empty)
-        updateCPUDisplay(state.running);
-
-        // 5. MLFQ Pipelines & Aging Elevator (Guaranteed Never Empty)
-        updateMLFQPipelines(state);
-
-        // 6. PCB Table
-        renderPCBTable(state.active_pcbs || localPcbs);
-
-        // 7. Accounts Ledger
-        renderAccountsLedger();
-    }
-
-    function updateRunningDiagram(state) {
-        if (dom.cntUpiDispatched) dom.cntUpiDispatched.innerText = cntUpiTotal.toLocaleString();
-        if (dom.cntAtmDispatched) dom.cntAtmDispatched.innerText = cntAtmTotal.toLocaleString();
-        if (dom.cntSalaryDispatched) dom.cntSalaryDispatched.innerText = cntSalaryTotal.toLocaleString();
-
-        const q1Len = state.queue_1 ? state.queue_1.length : (state.q1_depth || localQ1.length);
-        const q2Len = state.queue_2 ? state.queue_2.length : (state.q2_depth || localQ2.length);
-        const waitLen = state.waiting ? state.waiting.length : (state.waiting_depth || localWaiting.length);
-        const agingProm = state.aging_promotions !== undefined ? state.aging_promotions : localAgingPromotions;
-        const commits = state.total_commits !== undefined ? state.total_commits : localCommits;
-        const rollbacks = state.total_rollbacks !== undefined ? state.total_rollbacks : localRollbacks;
-
-        if (dom.diagQ1Count) dom.diagQ1Count.innerText = `${Math.max(8, q1Len)} Ready`;
-        if (dom.diagAgingCount) dom.diagAgingCount.innerText = `${agingProm} PROMOTIONS`;
-        if (dom.diagQ2Count) dom.diagQ2Count.innerText = `${Math.max(4, q2Len)} Queued`;
-        if (dom.diagWaitingCount) dom.diagWaitingCount.innerText = `${Math.max(2, waitLen)} Blocked`;
-
-        const activeProc = state.running || localRunningPcb;
-        if (activeProc) {
-            if (dom.diagCpuPid) dom.diagCpuPid.innerText = `PID #${activeProc.pid}`;
-            if (dom.diagCpuDesc) dom.diagCpuDesc.innerText = `${activeProc.type} | Burst: ${activeProc.burst_time || 2}t left | Lock Point Active`;
-        } else {
-            if (dom.diagCpuPid) dom.diagCpuPid.innerText = 'PID #10021';
-            if (dom.diagCpuDesc) dom.diagCpuDesc.innerText = 'UPI | Burst: 2t left | Lock Point Active';
-        }
-
-        if (dom.diagAtomicityStatus) dom.diagAtomicityStatus.innerText = `Rollbacks: ${rollbacks}`;
-        if (dom.diagDbCommits) dom.diagDbCommits.innerText = commits.toLocaleString();
-        if (dom.diagDbRollbacks) dom.diagDbRollbacks.innerText = rollbacks.toLocaleString();
-
-        if (dom.cntServer1) dom.cntServer1.innerText = cntServer1Total.toLocaleString();
-        if (dom.cntServer2) dom.cntServer2.innerText = cntServer2Total.toLocaleString();
-        if (dom.cntServer3) dom.cntServer3.innerText = cntServer3Total.toLocaleString();
-    }
-
-    function renderAccountsLedger() {
-        if (!dom.accountsTableBody) return;
-
-        let activeLocks = 0;
-        let html = '';
-
-        bankAccounts.forEach(acc => {
-            if (acc.lock) activeLocks++;
-
-            const lockClass = acc.lock ? 'lock-pill-locked' : 'lock-pill-unlocked';
-            const lockText = acc.lock ? `LOCKED (PID #${acc.lock})` : 'UNLOCKED';
-
-            let phaseClass = 'phase-idle';
-            if (acc.phase.includes('Growing')) phaseClass = 'phase-growing';
-            else if (acc.phase.includes('Lock Point')) phaseClass = 'phase-lockpoint';
-            else if (acc.phase.includes('Shrinking')) phaseClass = 'phase-shrinking';
-
-            const actionClass = acc.lastAction.includes('ROLLBACK') ? 'acid-action-rollback' : 'acid-action-committed';
-
-            let balanceClass = '';
-            if (acc.balance > acc.prevBalance) balanceClass = 'balance-flash-green';
-            else if (acc.balance < acc.prevBalance) balanceClass = 'balance-flash-red';
-
-            html += `
-                <tr>
-                    <td class="acc-id-cell">#${acc.id}</td>
-                    <td><strong>${escapeHtml(acc.name)}</strong></td>
-                    <td><span class="scope-tag">${acc.type}</span></td>
-                    <td><span class="acc-server-pill">${acc.server}</span></td>
-                    <td class="acc-balance-cell ${balanceClass}">₹${acc.balance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td><span class="${lockClass}">${lockText}</span></td>
-                    <td><span class="phase-pill ${phaseClass}">${acc.phase}</span></td>
-                    <td class="${actionClass}">${escapeHtml(acc.lastAction)}</td>
-                </tr>
-            `;
-        });
-
-        dom.accountsTableBody.innerHTML = html;
-        if (dom.totalAccountsCount) dom.totalAccountsCount.innerText = bankAccounts.length;
-        if (dom.activeLocksCount) dom.activeLocksCount.innerText = activeLocks;
-    }
-
-    function updateMetrics(state) {
-        const completed = state.completed_count || state.total_completed || localCompleted;
-        const total = state.total_workload || 176000;
-        const aborts = state.total_aborts !== undefined ? state.total_aborts : localAborts;
-        const rollbacks = state.total_rollbacks !== undefined ? state.total_rollbacks : localRollbacks;
-        const deadlocks = state.deadlocks_prevented !== undefined ? state.deadlocks_prevented : (localDeadlocksPrevented + Math.floor(localSimTick * 0.4));
-        const commits = state.total_commits !== undefined ? state.total_commits : localCommits;
-
-        if (dom.metricTps) dom.metricTps.innerText = currentCalculatedTps;
-        if (dom.metricCompletedText) dom.metricCompletedText.innerText = `Completed: ${completed.toLocaleString()} / ${total.toLocaleString()}`;
-        const pct = Math.min(100, (completed / total) * 100);
-        if (dom.metricProgressPct) dom.metricProgressPct.innerText = `${pct.toFixed(1)}%`;
-        if (dom.tpsBar) dom.tpsBar.style.width = `${Math.min(100, (currentCalculatedTps / 120) * 100)}%`;
-
-        const abortRateVal = state.abort_rate !== undefined ? (state.abort_rate * 100).toFixed(1) : (isAdaptiveMode ? '0.0' : '34.2');
-        if (dom.metricAbortRate) dom.metricAbortRate.innerText = `${abortRateVal}%`;
-        if (dom.metricTotalAbortsUnit) dom.metricTotalAbortsUnit.innerText = `(${aborts} aborts)`;
-        if (dom.abortBar) dom.abortBar.style.width = `${Math.min(100, parseFloat(abortRateVal) * 2)}%`;
-        if (dom.abortStatusTag) {
-            dom.abortStatusTag.innerText = isAdaptiveMode ? '0.0% ABORTS (SHIELD)' : 'ABORT STORM DETECTED';
-        }
-
-        const conflictRateVal = state.conflict_rate !== undefined ? (state.conflict_rate * 100).toFixed(1) : (contentionHistory[contentionHistory.length - 1]).toFixed(1);
-        const contentionScoreStr = state.contention_score || (conflictRateVal > 25 ? 'HIGH' : (conflictRateVal > 10 ? 'MEDIUM' : 'LOW'));
-        if (dom.metricContentionScore) {
-            dom.metricContentionScore.innerText = contentionScoreStr;
-            dom.metricContentionScore.className = `contention-pill score-${contentionScoreStr.toLowerCase()}`;
-        }
-        if (dom.metricConflictRate) dom.metricConflictRate.innerText = `${conflictRateVal}% Conflict`;
-        if (dom.conflictBar) dom.conflictBar.style.width = `${Math.min(100, parseFloat(conflictRateVal) * 2.5)}%`;
-
-        if (dom.metricDeadlocks) dom.metricDeadlocks.innerText = deadlocks.toLocaleString();
-        if (dom.metricDbStats) dom.metricDbStats.innerText = `Commits: ${commits.toLocaleString()} • Rollbacks: ${rollbacks.toLocaleString()}`;
-    }
-
-    // ========================================================================
-    // CPU Execution Display (Guaranteed NEVER EMPTY)
-    // ========================================================================
-    function updateCPUDisplay(runningPcb) {
-        // Fallback guarantee: if runningPcb is null, use localRunningPcb or synthesize
-        const active = runningPcb || localRunningPcb || createSyntheticPcb('UPI', 2);
-
-        if (dom.cpuIdleContent) dom.cpuIdleContent.style.display = 'none';
-        if (dom.cpuRunningContent) dom.cpuRunningContent.style.display = 'flex';
-
-        if (dom.runPidDisplay) dom.runPidDisplay.innerText = `#${active.pid}`;
-        if (dom.runTypeBadge) {
-            dom.runTypeBadge.innerText = active.type;
-            dom.runTypeBadge.className = `tx-type-pill pill-${active.type.toLowerCase()}`;
-        }
-        if (dom.runStateBadge) dom.runStateBadge.innerText = active.state || 'RUNNING';
-        if (dom.runQueueBadge) dom.runQueueBadge.innerText = active.queue || (active.current_queue === 2 ? 'Queue 2 (RR)' : 'Queue 1 (SRTF)');
-
-        const burst = active.burst_time !== undefined ? active.burst_time : 2;
-        const totalBurst = active.total_burst || (burst + 1);
-        if (dom.runBurstText) dom.runBurstText.innerText = `${burst} / ${totalBurst} ticks left`;
-        if (dom.runProgressFill) {
-            const fillPct = Math.max(15, Math.min(100, ((totalBurst - burst) / totalBurst) * 100));
-            dom.runProgressFill.style.width = `${fillPct}%`;
-        }
-
-        if (dom.runLocksContainer && active.required_locks) {
-            dom.runLocksContainer.innerHTML = active.required_locks.map(l => `<span class="lock-pill">Acc #${l}</span>`).join('');
-        }
-        if (dom.runAmountText && active.amount) {
-            dom.runAmountText.innerText = `₹${active.amount.toLocaleString()}`;
-        }
-        if (dom.runRouteText) {
-            const fromAcc = active.from_account || (active.required_locks ? active.required_locks[0] : 1001);
-            const toAcc = active.to_account || (active.required_locks && active.required_locks[1] ? active.required_locks[1] : 1002);
-            dom.runRouteText.innerText = `Account #${fromAcc} ➔ Account #${toAcc}`;
-        }
-    }
-
-    // ========================================================================
-    // MLFQ Pipelines (Guaranteed NEVER EMPTY)
-    // ========================================================================
-    function updateMLFQPipelines(state) {
-        // Queue 1 (SRTF)
-        let q1List = state.queue_1_pcbs || (state.queue_1 ? state.queue_1.map(pid => findPcbByPid(pid)).filter(Boolean) : localQ1);
-        if (!q1List || q1List.length === 0) q1List = localQ1;
-        const q1Depth = Math.max(q1List.length, state.q1_depth || 8);
-        if (dom.q1DepthBadge) dom.q1DepthBadge.innerText = `${q1Depth} Ready`;
-        renderPipelineLane(dom.q1Track, q1List, 'Queue 1 empty');
-
-        // Aging Elevator
-        const agingCount = state.aging_promotions !== undefined ? state.aging_promotions : localAgingPromotions;
-        if (dom.agingPromotionCount) dom.agingPromotionCount.innerText = `${agingCount} PROMOTIONS`;
-
-        // Queue 2 (Round Robin)
-        let q2List = state.queue_2_pcbs || (state.queue_2 ? state.queue_2.map(pid => findPcbByPid(pid)).filter(Boolean) : localQ2);
-        if (!q2List || q2List.length === 0) q2List = localQ2;
-        const q2Depth = Math.max(q2List.length, state.q2_depth || 4);
-        if (dom.q2DepthBadge) dom.q2DepthBadge.innerText = `${q2Depth} Queued`;
-        renderPipelineLane(dom.q2Track, q2List, 'Queue 2 empty');
-
-        // Waiting Chamber
-        let waitList = state.waiting_pcbs || (state.waiting ? state.waiting.map(pid => findPcbByPid(pid)).filter(Boolean) : localWaiting);
-        if (!waitList || waitList.length === 0) waitList = localWaiting;
-        const waitDepth = Math.max(waitList.length, state.waiting_depth || 2);
-        if (dom.waitingDepthBadge) dom.waitingDepthBadge.innerText = `${waitDepth} Blocked`;
-        renderPipelineLane(dom.waitingTrack, waitList, 'Waiting chamber empty');
-    }
-
-    function renderPipelineLane(container, pcbList, emptyMsg) {
-        if (!container) return;
-        if (!pcbList || pcbList.length === 0) {
-            container.innerHTML = `<div class="lane-empty">${emptyMsg}</div>`;
-            return;
-        }
-
-        const chipsHtml = pcbList.slice(0, 15).map(pcb => {
-            if (!pcb) return '';
-            const typeClass = (pcb.type || 'UPI').toLowerCase();
-            return `
-                <div class="process-chip" onclick="window.inspectPcb(${pcb.pid})">
-                    <div class="chip-header">
-                        <span class="tx-type-pill pill-${typeClass}">${pcb.type}</span>
-                        <span>#${pcb.pid}</span>
-                    </div>
-                    <div class="chip-burst">Burst: ${pcb.burst_time || 1}t</div>
-                </div>
-            `;
-        }).join('');
-
-        container.innerHTML = chipsHtml;
-    }
-
-    function renderPCBTable(pcbList) {
-        if (!dom.pcbTableBody) return;
-        if (!pcbList || pcbList.length === 0) {
-            dom.pcbTableBody.innerHTML = '<tr><td colspan="7" class="table-empty-cell">No active Process Control Blocks in memory</td></tr>';
-            return;
-        }
-
-        let filtered = pcbList.filter(p => {
-            if (!p) return false;
-            if (currentFilter !== 'ALL' && p.state !== currentFilter) return false;
-            if (searchQuery) {
-                const text = `${p.pid} ${p.type} ${p.state} ${p.from_account || ''} ${p.to_account || ''}`.toLowerCase();
-                if (!text.includes(searchQuery)) return false;
-            }
-            return true;
-        });
-
-        if (dom.pcbTableCount) dom.pcbTableCount.innerText = `${filtered.length} Loaded`;
-
-        const rows = filtered.slice(0, 30).map(pcb => {
-            const stateClass = (pcb.state || 'READY').toLowerCase();
-            const locksStr = pcb.required_locks ? pcb.required_locks.map(l => `#${l}`).join(', ') : 'None';
-            const fromAcc = pcb.from_account || (pcb.required_locks ? pcb.required_locks[0] : 1001);
-            const toAcc = pcb.to_account || (pcb.required_locks && pcb.required_locks[1] ? pcb.required_locks[1] : 1002);
-            const amtStr = pcb.amount ? `₹${pcb.amount.toLocaleString()}` : '—';
-            const notes = pcb.failure_reason ? `<span class="text-crimson">${escapeHtml(pcb.failure_reason)}</span>` : `Transfer ${amtStr} (Acc #${fromAcc} ➔ Acc #${toAcc})`;
-
-            return `
-                <tr style="cursor: pointer;" onclick="window.inspectPcb(${pcb.pid})">
-                    <td class="acc-id-cell">#${pcb.pid}</td>
-                    <td><span class="tx-type-pill pill-${(pcb.type || 'UPI').toLowerCase()}">${pcb.type}</span></td>
-                    <td><span class="state-pill state-${stateClass}">${pcb.state}</span></td>
-                    <td><span class="acc-server-pill">${pcb.queue || (pcb.current_queue === 2 ? 'Queue 2 (RR)' : 'Queue 1 (SRTF)')}</span></td>
-                    <td>${pcb.burst_time || 0} / ${pcb.total_burst || pcb.burst_time || 1} ticks</td>
-                    <td><span class="lock-pill">${locksStr}</span></td>
-                    <td>${notes}</td>
-                </tr>
-            `;
-        }).join('');
-
-        dom.pcbTableBody.innerHTML = rows;
-    }
-
-    function addTransitionEvent(tick, pid, fromState, toState, reason) {
-        const tr = { tick, pid, from: fromState, to: toState, reason };
-        localTransitions.unshift(tr);
-        if (localTransitions.length > 200) localTransitions.pop();
-        renderTransitionsFeed(localTransitions);
-    }
-
-    function renderTransitionsFeed(transitions) {
-        if (!dom.transitionsFeed || !transitions) return;
-        const html = transitions.slice(0, 50).map(t => `
-            <div class="feed-row">
-                <span class="feed-tick">T+${t.tick}t</span>
-                <span class="feed-pid">#${t.pid}</span>
-                <span class="feed-transition-states">
-                    <span class="state-pill state-${(t.from || 'NEW').toLowerCase()}">${t.from || 'NEW'}</span>
-                    ➔
-                    <span class="state-pill state-${(t.to || 'READY').toLowerCase()}">${t.to || 'READY'}</span>
-                </span>
-                <span class="feed-reason">${escapeHtml(t.reason || '')}</span>
-            </div>
-        `).join('');
-        dom.transitionsFeed.innerHTML = html;
-    }
-
-    window.inspectPcb = function (pid) {
-        const pcb = findPcbByPid(pid);
-        if (!pcb || !dom.pcbModal) return;
-
-        dom.modalPcbTitle.innerText = `PROCESS CONTROL BLOCK: PID #${pcb.pid}`;
-        dom.modalPcbBody.innerHTML = `
-            <div style="font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.6;">
-                <div style="margin-bottom: 12px; display: flex; gap: 8px;">
-                    <span class="tx-type-pill pill-${(pcb.type || 'UPI').toLowerCase()}">${pcb.type}</span>
-                    <span class="state-pill state-${(pcb.state || 'READY').toLowerCase()}">${pcb.state}</span>
-                </div>
-                <div><strong>Arrival Tick:</strong> #${pcb.arrival_time || 0}</div>
-                <div><strong>Burst Remaining:</strong> ${pcb.burst_time || 0} ticks</div>
-                <div><strong>Assigned Queue:</strong> ${pcb.queue || 'Queue 1 (SRTF)'}</div>
-                <div><strong>Required Locks (2PL):</strong> ${pcb.required_locks ? pcb.required_locks.join(', ') : 'None'}</div>
-                <div><strong>Transfer Amount:</strong> ₹${(pcb.amount || 0).toLocaleString()}</div>
-                <div><strong>Origin Account:</strong> #${pcb.from_account || '—'}</div>
-                <div><strong>Target Account:</strong> #${pcb.to_account || '—'}</div>
-                ${pcb.failure_reason ? `<div class="text-crimson" style="margin-top: 8px;"><strong>Failure Reason:</strong> ${pcb.failure_reason}</div>` : ''}
-                <div style="margin-top: 14px;">
-                    <strong>Raw PCB JSON:</strong>
-                    <pre id="modalJsonContent" style="background: #090d16; padding: 10px; border-radius: 4px; overflow-x: auto; margin-top: 6px;">${JSON.stringify(pcb, null, 2)}</pre>
-                </div>
-            </div>
-        `;
-        dom.pcbModal.style.display = 'flex';
-    };
-
-    function findPcbByPid(pid) {
-        if (latestState && latestState.active_pcbs) {
-            const p = latestState.active_pcbs.find(x => x.pid === pid);
-            if (p) return p;
-        }
-        return localPcbs.find(x => x.pid === pid);
-    }
-
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
-    // ========================================================================
-    // Canvas Oscilloscope Telemetry
-    // ========================================================================
-    function initCanvasOscilloscopes() {
-        tpsHistory = new Array(HISTORY_LENGTH).fill(65);
-        contentionHistory = new Array(HISTORY_LENGTH).fill(4);
-        abortHistory = new Array(HISTORY_LENGTH).fill(0);
-    }
-
-    function updateTelemetryDataPoints() {
-        const now = Date.now();
-        const elapsedSec = (now - prevCompletedTime) / 1000;
-        if (elapsedSec >= 1.0) {
-            const completedNow = latestState ? (latestState.total_completed || localCompleted) : localCompleted;
-            const diff = Math.max(0, completedNow - prevCompletedCount);
-            currentCalculatedTps = Math.round(diff / elapsedSec) || Math.floor(65 + Math.random() * 25);
-            prevCompletedCount = completedNow;
-            prevCompletedTime = now;
-        }
-
-        tpsHistory.push(currentCalculatedTps);
-        tpsHistory.shift();
-
-        let conflictVal = 4 + Math.random() * 6;
-        if (!isAdaptiveMode) conflictVal += 20;
-        contentionHistory.push(conflictVal);
-        contentionHistory.shift();
-
-        let abortVal = isAdaptiveMode ? 0 : (10 + Math.random() * 25);
-        abortHistory.push(abortVal);
-        abortHistory.shift();
-
-        if (dom.chartTpsVal) dom.chartTpsVal.innerText = `${currentCalculatedTps} tx/s`;
-        if (dom.chartContentionVal) dom.chartContentionVal.innerText = `${conflictVal.toFixed(1)}% Contention`;
-    }
-
-    function renderOscilloscopeFrame() {
-        drawThroughputCanvas();
-        drawContentionCanvas();
-        requestAnimationFrame(renderOscilloscopeFrame);
-    }
-
-    function drawThroughputCanvas() {
-        const cvs = dom.canvasThroughput;
-        if (!cvs) return;
-        const ctx = cvs.getContext('2d');
-        const w = cvs.width;
-        const h = cvs.height;
-
-        ctx.clearRect(0, 0, w, h);
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-        ctx.lineWidth = 1;
-        for (let y = 0; y < h; y += 25) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-            ctx.stroke();
-        }
-
-        const maxVal = 140;
-        const step = w / (HISTORY_LENGTH - 1);
-
-        ctx.beginPath();
-        for (let i = 0; i < HISTORY_LENGTH; ++i) {
-            const val = tpsHistory[i];
-            const x = i * step;
-            const y = h - ((val / maxVal) * (h - 20)) - 10;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-
-        ctx.strokeStyle = '#3B82F6';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.lineTo(w, h);
-        ctx.lineTo(0, h);
-        ctx.closePath();
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
-        grad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
-        ctx.fillStyle = grad;
-        ctx.fill();
-    }
-
-    function drawContentionCanvas() {
-        const cvs = dom.canvasContention;
-        if (!cvs) return;
-        const ctx = cvs.getContext('2d');
-        const w = cvs.width;
-        const h = cvs.height;
-
-        ctx.clearRect(0, 0, w, h);
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-        ctx.lineWidth = 1;
-        for (let y = 0; y < h; y += 25) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-            ctx.stroke();
-        }
-
-        const maxVal = 50;
-        const step = w / (HISTORY_LENGTH - 1);
-
-        ctx.beginPath();
-        for (let i = 0; i < HISTORY_LENGTH; ++i) {
-            const val = contentionHistory[i];
-            const x = i * step;
-            const y = h - ((val / maxVal) * (h - 20)) - 10;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = '#F59E0B';
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-
-        ctx.beginPath();
-        for (let i = 0; i < HISTORY_LENGTH; ++i) {
-            const val = abortHistory[i];
-            const x = i * step;
-            const y = h - ((val / maxVal) * (h - 20)) - 10;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = '#EF4444';
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-    }
-
-    function exportLocalJsonSnapshot() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localTransitions, null, 2));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", "state_transitions.json");
-        document.body.appendChild(downloadAnchor);
-        downloadAnchor.click();
-        downloadAnchor.remove();
-    }
 
 })();

@@ -46,6 +46,7 @@ public:
           total_failed_(0),
           total_turnaround_time_(0),
           total_waiting_time_(0),
+          race_conditions_prevented_(0),
           middleware_(std::make_shared<Middleware>(mdacc_enabled)),
           lock_manager_(std::make_shared<LockManager>()),
           mysql_storage_(mysql_storage ? mysql_storage : std::make_shared<MySQLStorage>()) {}
@@ -188,6 +189,177 @@ public:
                                   "Live Scenario: Retail UPI Surge injected into Queue 1 (SRTF Priority)");
             }
         }
+    }
+
+    /**
+     * Custom Batch Generator:
+     * Generates a specified number of banking transactions distributed according to user-defined
+     * category percentages (UPI, Withdrawal, Deposit, Salary) with optional ACID Overdraft test cases.
+     */
+    void inject_custom_batch(int total_count, int upi_pct, int withdraw_pct, int deposit_pct, int salary_pct, bool include_overdraft = true) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        static int s_custom_pid = 400000;
+        
+        custom_batch_pids_.clear();
+        
+        int sum = upi_pct + withdraw_pct + deposit_pct + salary_pct;
+        if (sum <= 0) { upi_pct = 40; withdraw_pct = 25; deposit_pct = 15; salary_pct = 20; sum = 100; }
+        
+        int upi_count = (total_count * upi_pct) / sum;
+        int withdraw_count = (total_count * withdraw_pct) / sum;
+        int deposit_count = (total_count * deposit_pct) / sum;
+        int salary_count = total_count - (upi_count + withdraw_count + deposit_count);
+        if (salary_count < 0) salary_count = 0;
+
+        for (int i = 0; i < total_count; ++i) {
+            ProcessControlBlock p;
+            p.pid = s_custom_pid++;
+            p.arrival_time = current_tick_ + (i / 4);
+            p.state = ProcessState::READY;
+
+            // Spread across 100 customer accounts (1001-1100) for realistic non-saturated contention
+            int base_sender = 1001 + (p.pid % 100);
+            int base_receiver = 1001 + ((p.pid + 13) % 100);
+            if (base_receiver == base_sender) base_receiver = 1002;
+
+            if (i < upi_count) {
+                p.type = TransactionType::UPI;
+                p.burst_time = 1 + (p.pid % 3);
+                p.total_burst_time = p.burst_time;
+                p.current_queue = 1;
+                
+                int sender = base_sender;
+                if (include_overdraft && (i % 10 == 0)) {
+                    sender = 1005; // Evan Wright: balance only 300.00
+                    p.amount = 5000.00; // Triggers ACID rollback!
+                } else {
+                    p.amount = 150.0 + (p.pid % 850);
+                }
+                int receiver = base_receiver;
+                p.from_account = sender;
+                p.to_account = receiver;
+                p.required_locks = {std::min(sender, receiver), std::max(sender, receiver)};
+                q1_ready_pids_.push_back(p.pid);
+
+            } else if (i < upi_count + withdraw_count) {
+                p.type = TransactionType::ATM;
+                p.burst_time = 2 + (p.pid % 4);
+                p.total_burst_time = p.burst_time;
+                p.current_queue = 1;
+                
+                int user_acc = base_sender;
+                int vault_acc = 2001 + (p.pid % 2);
+                if (include_overdraft && (i % 12 == 0)) {
+                    user_acc = 1008; // Hannah Abbott: balance only 100.00
+                    p.amount = 2500.00; // Triggers ACID rollback!
+                } else {
+                    p.amount = 500.0 + (p.pid % 2000);
+                }
+                p.from_account = user_acc;
+                p.to_account = vault_acc;
+                p.required_locks = {std::min(user_acc, vault_acc), std::max(user_acc, vault_acc)};
+                q1_ready_pids_.push_back(p.pid);
+
+            } else if (i < upi_count + withdraw_count + deposit_count) {
+                p.type = TransactionType::DEPOSIT;
+                p.burst_time = 2 + (p.pid % 3);
+                p.total_burst_time = p.burst_time;
+                p.current_queue = 1;
+
+                int user_acc = base_sender;
+                int branch_acc = 2001 + (p.pid % 2);
+                p.from_account = branch_acc;
+                p.to_account = user_acc;
+                p.amount = 1000.0 + (p.pid % 5000);
+                p.required_locks = {std::min(branch_acc, user_acc), std::max(branch_acc, user_acc)};
+                q1_ready_pids_.push_back(p.pid);
+
+            } else {
+                p.type = TransactionType::SALARY;
+                p.burst_time = 10 + (p.pid % 15);
+                p.total_burst_time = p.burst_time;
+                p.current_queue = 2; // Queue 2 (Round Robin)
+
+                p.from_account = 5001 + (p.pid % 2); // Corporate Treasury
+                p.to_account = base_sender;
+                p.amount = 35000.0 + (p.pid % 25000);
+                p.required_locks = {std::min(p.from_account, p.to_account), std::max(p.from_account, p.to_account)};
+                q2_ready_pids_.push_back(p.pid);
+            }
+
+            all_pcbs_[p.pid] = p;
+            custom_batch_pids_.push_back(p.pid);
+            record_transition(p.pid, p.type, ProcessState::NEW, ProcessState::READY, 
+                              "Transaction Creator: Admitted into MLFQ Queue " + std::to_string(p.current_queue));
+        }
+    }
+
+    /**
+     * Manual Operator Retry for a single failed transaction.
+     * Re-adjusts balance or requirements and re-queues into Queue 1 for immediate dispatch.
+     */
+    bool retry_failed_transaction(int pid) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        auto it = all_pcbs_.find(pid);
+        if (it == all_pcbs_.end()) return false;
+        auto& p = it->second;
+        if (p.state != ProcessState::TERMINATED_FAILED) return false;
+
+        p.state = ProcessState::READY;
+        p.failure_reason = "Manually retried by operator (Balance topped up / Lock freed)";
+        p.burst_time = (p.total_burst_time > 0) ? p.total_burst_time : 2;
+        p.current_queue = 1;
+        p.retry_count = 0;
+
+        // If it was an overdraft failure, adjust amount to allow commit
+        if (p.amount > 1000.0 && (p.from_account == 1005 || p.from_account == 1008)) {
+            p.amount = 150.00;
+        }
+
+        if (total_failed_ > 0) total_failed_--;
+        q1_ready_pids_.push_front(p.pid);
+        last_active_algorithm_name_ = "Manual Operator Re-Queue";
+        last_active_algorithm_type_ = "MANUAL_RETRY";
+        last_active_algorithm_reason_ = "Operator manually re-dispatched failed transaction PID #" + std::to_string(pid) + " into Queue 1.";
+        record_transition(p.pid, p.type, ProcessState::TERMINATED_FAILED, ProcessState::READY,
+                          "Manual operator retry: Re-queued into MLFQ Queue 1");
+        return true;
+    }
+
+    /**
+     * Manual Batch Retry for ALL failed transactions.
+     */
+    int retry_all_failed_transactions() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        int count = 0;
+        for (auto& pair : all_pcbs_) {
+            auto& p = pair.second;
+            if (p.state == ProcessState::TERMINATED_FAILED) {
+                p.state = ProcessState::READY;
+                p.failure_reason = "Manually retried by operator (Batch recovery)";
+                p.burst_time = (p.total_burst_time > 0) ? p.total_burst_time : 2;
+                p.current_queue = 1;
+                p.retry_count = 0;
+                if (p.amount > 1000.0 && (p.from_account == 1005 || p.from_account == 1008)) {
+                    p.amount = 150.00;
+                }
+                q1_ready_pids_.push_front(p.pid);
+                record_transition(p.pid, p.type, ProcessState::TERMINATED_FAILED, ProcessState::READY,
+                                  "Manual batch retry: Re-queued into MLFQ Queue 1");
+                count++;
+            }
+        }
+        if (count <= static_cast<int>(total_failed_)) {
+            total_failed_ -= count;
+        } else {
+            total_failed_ = 0;
+        }
+        if (count > 0) {
+            last_active_algorithm_name_ = "Manual Batch Recovery";
+            last_active_algorithm_type_ = "MANUAL_RETRY";
+            last_active_algorithm_reason_ = "Operator manually re-queued " + std::to_string(count) + " failed transactions into Queue 1.";
+        }
+        return count;
     }
 
     /**
@@ -498,7 +670,72 @@ public:
             << "\"waiting_count\":" << waiting_pids_.size() << ","
             << "\"comparison_mode\":" << (middleware_->is_mdacc_enabled() ? "true" : "false") << ","
             << "\"mode_name\":\"" << (middleware_->is_mdacc_enabled() ? "Adaptive OS Ledger" : "Standard Execution") << "\""
-            << "}}";
+            << "}"
+            << ",\"algorithms\":{"
+            << "\"deadlocks_prevented\":" << lock_manager_->deadlocks_prevented() << ","
+            << "\"race_conditions_prevented\":" << (race_conditions_prevented_ > 0 ? race_conditions_prevented_ : lock_manager_->total_conflicts()) << ","
+            << "\"backoffs_applied\":" << middleware_->total_backoffs_applied() << ","
+            << "\"aging_promotions\":" << total_aging_promotions_ << ","
+            << "\"acid_rollbacks\":" << mysql_storage_->total_rollbacks()
+            << "}"
+            << ",\"active_algorithm\":{"
+            << "\"name\":\"" << last_active_algorithm_name_ << "\","
+            << "\"type\":\"" << last_active_algorithm_type_ << "\","
+            << "\"pid\":" << running_pid_ << ","
+            << "\"reason\":\"" << last_active_algorithm_reason_ << "\""
+            << "}"
+            << ",\"custom_transactions\":[";
+
+        bool first_ctx = true;
+        std::vector<int> display_pids = custom_batch_pids_;
+        if (display_pids.empty()) {
+            if (running_pid_ != -1) display_pids.push_back(running_pid_);
+            for (int p : q1_ready_pids_) { if (display_pids.size() < 40) display_pids.push_back(p); }
+            for (int p : q2_ready_pids_) { if (display_pids.size() < 50) display_pids.push_back(p); }
+            for (int p : waiting_pids_) { if (display_pids.size() < 60) display_pids.push_back(p); }
+            for (int i = static_cast<int>(transitions_.size()) - 1; i >= 0 && display_pids.size() < 80; --i) {
+                int pid = transitions_[i].pid;
+                if (std::find(display_pids.begin(), display_pids.end(), pid) == display_pids.end()) {
+                    display_pids.push_back(pid);
+                }
+            }
+        }
+
+        for (int pid : display_pids) {
+            if (all_pcbs_.find(pid) != all_pcbs_.end()) {
+                const auto& p = all_pcbs_[pid];
+                if (!first_ctx) oss << ",";
+                first_ctx = false;
+
+                std::string algo = "Strict 2PL";
+                if (p.state == ProcessState::TERMINATED_FAILED) algo = "ACID Rollback Guard";
+                else if (p.aged_promoted) algo = "MLFQ Aging Elevator";
+                else if (p.retry_count > 0) algo = "MD-ACC Exponential Backoff";
+                else if (p.required_locks.size() >= 2) algo = "Havender Deadlock Denial";
+                else algo = (p.current_queue == 1 ? "MLFQ SRTF" : "MLFQ Round Robin");
+
+                std::string failure = p.failure_reason;
+                if (failure.empty()) {
+                    if (p.state == ProcessState::TERMINATED) failure = "Committed & Saved to Ledger";
+                    else if (p.state == ProcessState::WAITING) failure = "Waiting for locks / Exponential Backoff";
+                    else if (p.state == ProcessState::RUNNING) failure = "Executing on CPU Core 0";
+                    else if (p.state == ProcessState::READY) failure = "Queued in MLFQ";
+                }
+
+                oss << "{"
+                    << "\"pid\":" << p.pid << ","
+                    << "\"type\":\"" << transactionTypeToString(p.type) << "\","
+                    << "\"from_account\":" << p.from_account << ","
+                    << "\"to_account\":" << p.to_account << ","
+                    << "\"amount\":" << std::fixed << std::setprecision(2) << p.amount << ","
+                    << "\"state\":\"" << processStateToString(p.state) << "\","
+                    << "\"retry_count\":" << p.retry_count << ","
+                    << "\"algorithm\":\"" << algo << "\","
+                    << "\"failure_reason\":\"" << failure << "\""
+                    << "}";
+            }
+        }
+        oss << "]}";
 
         return oss.str();
     }
@@ -774,11 +1011,17 @@ private:
                 acquire_locks(all_pcbs_[pid]);
                 middleware_->intercept(all_pcbs_[pid], false, qlen);
 
+                last_active_algorithm_name_ = "MLFQ Queue 1: Shortest Remaining Time First (SRTF)";
+                last_active_algorithm_type_ = "SRTF";
+                last_active_algorithm_reason_ = "Core 0 dispatched instant payment PID #" + std::to_string(pid) + " (" + transactionTypeToString(all_pcbs_[pid].type) + ") with shortest burst time (" + std::to_string(all_pcbs_[pid].burst_time) + " ticks).";
+
                 // Move any processes in Q1 that conflict with acquired locks to WAITING
                 std::deque<int> remaining_q1;
                 for (int ready_pid : q1_ready_pids_) {
                     auto& p = all_pcbs_[ready_pid];
                     if (!can_acquire_locks(p)) {
+                        race_conditions_prevented_++;
+                        if (p.retry_count < 3) p.retry_count++;
                         int backoff = middleware_->intercept(p, true, qlen);
                         p.state = ProcessState::WAITING;
                         p.backoff_remaining = backoff;
@@ -801,6 +1044,8 @@ private:
                 int blocked_pid = q1_ready_pids_.front();
                 q1_ready_pids_.pop_front();
                 auto& pcb = all_pcbs_[blocked_pid];
+                race_conditions_prevented_++;
+                if (pcb.retry_count < 3) pcb.retry_count++;
                 int backoff = middleware_->intercept(pcb, true, qlen);
                 pcb.state = ProcessState::WAITING;
                 pcb.backoff_remaining = backoff;
@@ -822,11 +1067,17 @@ private:
                 acquire_locks(pcb);
                 middleware_->intercept(pcb, false, qlen);
 
+                last_active_algorithm_name_ = "MLFQ Queue 2: Preemptive Round Robin (Time Quantum Q=5)";
+                last_active_algorithm_type_ = "ROUND_ROBIN";
+                last_active_algorithm_reason_ = "Core 0 allocated 5-tick Round Robin time quantum to corporate batch transaction PID #" + std::to_string(pid) + ".";
+
                 // Move any conflicting Q2 processes to WAITING
                 std::deque<int> remaining_q2;
                 for (int ready_pid : q2_ready_pids_) {
                     auto& p = all_pcbs_[ready_pid];
                     if (!can_acquire_locks(p)) {
+                        race_conditions_prevented_++;
+                        if (p.retry_count < 3) p.retry_count++;
                         int backoff = middleware_->intercept(p, true, qlen);
                         p.state = ProcessState::WAITING;
                         p.backoff_remaining = backoff;
@@ -844,6 +1095,8 @@ private:
                 return pid;
             } else {
                 // Transition to WAITING
+                race_conditions_prevented_++;
+                if (pcb.retry_count < 3) pcb.retry_count++;
                 int backoff = middleware_->intercept(pcb, true, qlen);
                 pcb.state = ProcessState::WAITING;
                 pcb.backoff_remaining = backoff;
@@ -960,7 +1213,14 @@ private:
     uint64_t total_failed_;
     uint64_t total_turnaround_time_;
     uint64_t total_waiting_time_;
+    uint64_t race_conditions_prevented_{0};
+    std::vector<int> custom_batch_pids_;
     std::atomic<double> current_tps_{0.0};
+
+    // Live Algorithm Observability
+    std::string last_active_algorithm_name_{"MLFQ Queue 1: Shortest Remaining Time First (SRTF)"};
+    std::string last_active_algorithm_type_{"SRTF"};
+    std::string last_active_algorithm_reason_{"Core 0 dispatched instant micro-payment with shortest remaining burst time."};
 
     mutable std::mutex mtx_;
     std::shared_ptr<Middleware> middleware_;

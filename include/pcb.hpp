@@ -10,15 +10,17 @@ namespace bank_sim {
  * Transaction types in the banking switch
  */
 enum class TransactionType {
-    UPI,    // Retail instant payment (SRTF, high priority, 2 account locks)
-    ATM,    // Cash withdrawal/deposit (SRTF, high priority, 1-2 account locks)
-    SALARY  // Batch payroll corporate disbursement (Round Robin, low priority, multiple locks)
+    UPI,       // Retail instant payment (SRTF, high priority, 2 account locks)
+    ATM,       // Cash withdrawal (SRTF, high priority, 1-2 account locks)
+    DEPOSIT,   // Cash deposit (SRTF, high priority, 1-2 account locks)
+    SALARY     // Batch payroll corporate disbursement (Round Robin, low priority, multiple locks)
 };
 
 inline std::string transactionTypeToString(TransactionType type) {
     switch (type) {
         case TransactionType::UPI: return "UPI";
         case TransactionType::ATM: return "ATM";
+        case TransactionType::DEPOSIT: return "Deposit";
         case TransactionType::SALARY: return "Salary";
         default: return "Unknown";
     }
@@ -26,7 +28,8 @@ inline std::string transactionTypeToString(TransactionType type) {
 
 inline TransactionType stringToTransactionType(const std::string& str) {
     if (str == "UPI") return TransactionType::UPI;
-    if (str == "ATM") return TransactionType::ATM;
+    if (str == "ATM" || str == "Withdrawal") return TransactionType::ATM;
+    if (str == "Deposit" || str == "DEPOSIT") return TransactionType::DEPOSIT;
     return TransactionType::SALARY;
 }
 

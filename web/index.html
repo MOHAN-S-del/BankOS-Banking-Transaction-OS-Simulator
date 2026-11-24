@@ -4,37 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BankOS // Banking Transaction OS &amp; DBMS Simulation Engine</title>
-    <meta name="description" content="BankOS: Discrete-event C++20 simulation engine modeling banking transactions as OS processes with Multi-Level Feedback Queue (MLFQ) scheduling, Two-Phase Locking (2PL) concurrency control, and ACID transactional database management.">
+    <meta name="description" content="BankOS: Simplified Control Center. Custom Transaction Creator, Live Status, Dual Completed &amp; Failed Tables with Manual Retry, and Active Algorithm Showcase.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="system-theme">
-    <!-- Notification Toast for Benchmark Scenario Clicks -->
+<body class="system-theme-light">
+    <!-- Notification Toast for User Actions -->
     <div class="toast-notification" id="toastNotification" style="display: none;">
-        <span class="toast-icon" id="toastIcon">⚡</span>
-        <span class="toast-text" id="toastText">Scenario Injected Successfully</span>
+        <span class="toast-icon" id="toastIcon">🌸</span>
+        <span class="toast-text" id="toastText">Action Executed Successfully</span>
     </div>
 
     <div class="system-container">
-        <!-- 1. Top Engineering Header Bar -->
+        <!-- 1. Streamlined Soft Pink & White Header -->
         <header class="system-header card-panel">
             <div class="header-left">
                 <div class="brand-group">
                     <div class="system-logo">
-                        <span class="logo-symbol">⚡</span>
+                        <span class="logo-symbol">🌸</span>
                     </div>
                     <div>
                         <div class="brand-title">
-                            <span class="prompt-arrow">❯</span> BANKOS SIMULATION ENGINE
-                            <span class="kernel-badge">C++20 KERNEL</span>
-                            <span class="mode-badge" id="demoTag">ACID 2PL SUITE</span>
+                            <span class="prompt-arrow">❯</span> BANKOS CONTROL CENTER
+                            <span class="kernel-badge">C++20 SIMULATOR</span>
+                            <span class="mode-badge" id="demoTag">ACID 2PL ENGINE</span>
                         </div>
                         <div class="brand-meta">
-                            <span>OS Scheduler: MLFQ (SRTF + RR Q=5)</span>
+                            <span>OS Scheduler: MLFQ (SRTF + RR)</span>
                             <span class="meta-dot">&bull;</span>
-                            <span>Concurrency: Strict 2PL</span>
+                            <span>Deadlock Denial: Havender Order</span>
                             <span class="meta-dot">&bull;</span>
                             <span id="headerClock">Tick: #0</span>
                             <span class="meta-dot">&bull;</span>
@@ -45,11 +45,11 @@
             </div>
 
             <div class="header-right">
-                <!-- Comparison Mode Toggle (Baseline 2PL/OCC vs Adaptive BankOS MD-ACC) -->
+                <!-- Concurrency Mode Switch -->
                 <div class="concurrency-toggle-card" title="Toggle between Baseline (Direct DB collisions) and Adaptive BankOS Ledger (MD-ACC Exponential Backoff)">
                     <div class="toggle-labels">
-                        <span class="toggle-eyebrow">CONCURRENCY ARBITER</span>
-                        <span class="toggle-status-name" id="currentModeLabel">ADAPTIVE OS LEDGER</span>
+                        <span class="toggle-eyebrow">CONCURRENCY MODE</span>
+                        <span class="toggle-status-name" id="currentModeLabel">ADAPTIVE OS (MD-ACC)</span>
                     </div>
                     <div class="toggle-switch-wrapper">
                         <span class="toggle-side-label" id="lblStandard">BASELINE</span>
@@ -57,1216 +57,652 @@
                             <input type="checkbox" id="comparisonModeToggle" checked>
                             <span class="slider round"></span>
                         </label>
-                        <span class="toggle-side-label active" id="lblAdaptive">ADAPTIVE OS</span>
+                        <span class="toggle-side-label active" id="lblAdaptive">ADAPTIVE</span>
                     </div>
                 </div>
 
-                <button class="btn btn-outline" id="btnExportJson" title="Export audit snapshot to state_transitions.json">
+                <!-- Simulation Pause/Resume -->
+                <button class="btn btn-outline" id="btnPauseResume" title="Pause or Resume simulation clock">
+                    <span class="btn-icon" id="pauseResumeIcon">⏸</span>
+                    <span id="pauseResumeText">PAUSE</span>
+                </button>
+
+                <!-- Speed Control -->
+                <div class="speed-control-group">
+                    <span class="speed-label">SPEED:</span>
+                    <button class="speed-btn" data-delay="160000">0.5x</button>
+                    <button class="speed-btn active" data-delay="80000">1x</button>
+                    <button class="speed-btn" data-delay="30000">2x</button>
+                    <button class="speed-btn" data-delay="5000">MAX</button>
+                </div>
+
+                <!-- Export Snapshot -->
+                <button class="btn btn-pink-outline" id="btnExportJson" title="Export audit snapshot to JSON &amp; MySQL Database">
                     <span class="btn-icon">💾</span>
                     <span>EXPORT AUDIT</span>
                 </button>
             </div>
         </header>
 
-        <!-- 2. Primary Multi-Page / Tab Navigation Bar -->
-        <nav class="system-nav-bar">
-            <button class="nav-tab-btn active" data-tab="page-architecture">
-                <span class="nav-icon">🏛</span>
-                <span class="nav-label">1. ARCHITECTURE &amp; RUNNING DIAGRAM</span>
-            </button>
-            <button class="nav-tab-btn" data-tab="page-cpu-mlfq">
-                <span class="nav-icon">▣</span>
-                <span class="nav-label">2. CPU &amp; MLFQ SCHEDULER</span>
-            </button>
-            <button class="nav-tab-btn" data-tab="page-oscilloscope">
-                <span class="nav-icon">📈</span>
-                <span class="nav-label">3. OSCILLOSCOPE &amp; BENCHMARKS</span>
-            </button>
-            <button class="nav-tab-btn" data-tab="page-pcb-table">
-                <span class="nav-icon">≡</span>
-                <span class="nav-label">4. PCB TABLE &amp; AUDIT FEED</span>
-            </button>
-            <button class="nav-tab-btn" data-tab="page-concepts">
-                <span class="nav-icon">📚</span>
-                <span class="nav-label">5. DBMS &amp; OS CONCEPTS</span>
-            </button>
-            <button class="nav-tab-btn" data-tab="page-database">
-                <span class="nav-icon">🗄</span>
-                <span class="nav-label">6. MYSQL DATABASE &amp; SQL JOINS</span>
-            </button>
-        </nav>
-
         <!-- ====================================================================
-             PAGE 1: ARCHITECTURE & RUNNING DIAGRAM (From User Sketch)
+             SECTION 1: TRANSACTION CREATOR & BATCH GENERATOR
              ==================================================================== -->
-        <main class="page-view active" id="page-architecture">
-            <!-- Running Architecture Diagram -->
-            <section class="card-panel running-diagram-section">
-                <div class="section-header">
-                    <div class="header-title-wrapper">
-                        <span class="section-icon">🔄</span>
-                        <div>
-                            <h2>SYSTEM ARCHITECTURE &amp; TRANSACTION DISPATCH PIPELINE</h2>
-                            <p class="section-subtitle">Real-time simulation flow: Workload Ingestion ➔ Adaptive Bank OS (MLFQ + 2PL) ➔ Scheduled Bank Database (ACID) ➔ Bank Destination Servers managing accounts.</p>
-                        </div>
-                    </div>
-                    <div class="diagram-flow-status">
-                        <span class="pulse-indicator"></span>
-                        <span class="diagram-status-text">DISCRETE PIPELINE ACTIVE</span>
-                    </div>
-                </div>
-
-                <div class="diagram-pipeline-grid">
-                    <!-- Column 1: Input Workload -->
-                    <div class="diagram-column diagram-col-inputs">
-                        <div class="col-header">
-                            <span class="col-step-badge">STEP 1</span>
-                            <h3>TRANSACTION INPUTS</h3>
-                            <span class="col-meta">Bursty Workload</span>
-                        </div>
-                        <div class="input-cards-stack">
-                            <!-- UPI Input -->
-                            <div class="diagram-node node-input" id="nodeInputUpi">
-                                <div class="node-badge-row">
-                                    <span class="tx-type-pill pill-upi">UPI</span>
-                                    <span class="node-vol-pct">60% Traffic</span>
-                                </div>
-                                <div class="node-title">Instant P2P Micro-Payments</div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Generates fast mobile transfers (₹50–₹500). Takes 1–4 CPU ticks.
-                                </div>
-                                <div class="node-counter-box">
-                                    <span class="counter-label">Dispatched:</span>
-                                    <span class="counter-val" id="cntUpiDispatched">0</span>
-                                </div>
-                            </div>
-
-                            <!-- ATM Input -->
-                            <div class="diagram-node node-input" id="nodeInputAtm">
-                                <div class="node-badge-row">
-                                    <span class="tx-type-pill pill-atm">WITHDRAW</span>
-                                    <span class="node-vol-pct">25% Traffic</span>
-                                </div>
-                                <div class="node-title">ATM Cash Withdrawals</div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Generates ATM cash debits. Takes 2–6 CPU ticks and reserves cash from vault.
-                                </div>
-                                <div class="node-counter-box">
-                                    <span class="counter-label">Dispatched:</span>
-                                    <span class="counter-val" id="cntAtmDispatched">0</span>
-                                </div>
-                            </div>
-
-                            <!-- Payroll Input -->
-                            <div class="diagram-node node-input" id="nodeInputSalary">
-                                <div class="node-badge-row">
-                                    <span class="tx-type-pill pill-salary">PAYROLL</span>
-                                    <span class="node-vol-pct">15% Traffic</span>
-                                </div>
-                                <div class="node-title">Corporate Bulk Salary</div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Generates bulk employee salary runs. Takes 10–30 CPU ticks from corporate treasury.
-                                </div>
-                                <div class="node-counter-box">
-                                    <span class="counter-label">Dispatched:</span>
-                                    <span class="counter-val" id="cntSalaryDispatched">0</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bus 1 Connector -->
-                    <div class="diagram-bus-connector">
-                        <div class="bus-wire">
-                            <div class="bus-packet packet-upi" id="busPkt1">UPI</div>
-                            <div class="bus-packet packet-atm" id="busPkt2">ATM</div>
-                            <div class="bus-packet packet-salary" id="busPkt3">PAY</div>
-                        </div>
-                        <span class="bus-arrow">➔</span>
-                        <span class="bus-label">ADMISSION BUS</span>
-                    </div>
-
-                    <!-- Column 2: Adaptive Bank OS -->
-                    <div class="diagram-column diagram-col-os">
-                        <div class="col-header">
-                            <span class="col-step-badge">STEP 2</span>
-                            <h3>ADAPTIVE BANK OS</h3>
-                            <span class="col-meta">MLFQ + 2PL Arbiter</span>
-                        </div>
-
-                        <div class="os-internal-stack">
-                            <div class="os-subnode os-q1">
-                                <div class="subnode-top">
-                                    <span class="subnode-badge badge-q1">QUEUE 1 (SRTF)</span>
-                                    <span class="subnode-meta" id="diagQ1Count">12 Ready</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> High-priority queue for fast UPI/ATM. Shortest job executes first.
-                                </div>
-                            </div>
-
-                            <div class="os-aging-bridge">
-                                <span class="aging-bridge-icon">▲</span>
-                                <span class="aging-bridge-text">ANTI-STARVATION AGING ELEVATOR (&gt;50t ➔ Q1)</span>
-                                <span class="aging-bridge-count" id="diagAgingCount">0 PROMOTIONS</span>
-                            </div>
-
-                            <div class="os-subnode os-q2">
-                                <div class="subnode-top">
-                                    <span class="subnode-badge badge-q2">QUEUE 2 (RR, Q=5)</span>
-                                    <span class="subnode-meta" id="diagQ2Count">6 Queued</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Low-priority queue for salary jobs. Slices CPU time (5 ticks) to prevent starvation.
-                                </div>
-                            </div>
-
-                            <div class="os-subnode os-2pl">
-                                <div class="subnode-top">
-                                    <span class="subnode-badge badge-2pl">2PL CONCURRENCY</span>
-                                    <span class="subnode-meta" id="diagWaitingCount">2 Blocked</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Locks accounts in strict order: min(A,B) &lt; max(A,B) to prevent deadlocks.
-                                </div>
-                            </div>
-
-                            <div class="os-subnode os-cpu">
-                                <div class="subnode-top">
-                                    <span class="subnode-badge badge-cpu">CPU DISPATCHER</span>
-                                    <span class="subnode-meta text-emerald" id="diagCpuPid">PID #10021</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> The virtual CPU executing transactions tick by tick. Never empty!
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bus 2 Connector -->
-                    <div class="diagram-bus-connector">
-                        <div class="bus-wire">
-                            <div class="bus-packet packet-scheduled" id="busPkt4">SCHEDULED_TX</div>
-                        </div>
-                        <span class="bus-arrow">➔</span>
-                        <span class="bus-label">SCHEDULED BUFFER</span>
-                    </div>
-
-                    <!-- Column 3: Scheduled Bank Database -->
-                    <div class="diagram-column diagram-col-db">
-                        <div class="col-header">
-                            <span class="col-step-badge">STEP 3</span>
-                            <h3>BANK DATABASE</h3>
-                            <span class="col-meta">ACID Ledger Engine</span>
-                        </div>
-
-                        <div class="db-internal-stack">
-                            <div class="db-subnode db-buffer">
-                                <div class="subnode-top">
-                                    <span class="subnode-badge badge-db">SCHEDULED QUEUE</span>
-                                    <span class="subnode-meta">Strict Serializability</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Arranges validated transactions in order for safe ledger commit.
-                                </div>
-                            </div>
-
-                            <div class="acid-matrix-card">
-                                <div class="acid-matrix-title">ACID INTEGRITY GATE</div>
-                                <div class="acid-grid">
-                                    <div class="acid-item">
-                                        <span class="acid-letter">A</span>
-                                        <div class="acid-info">
-                                            <strong>ATOMICITY</strong>
-                                            <span id="diagAtomicityStatus">Rollbacks: 0</span>
-                                        </div>
-                                    </div>
-                                    <div class="acid-item">
-                                        <span class="acid-letter">C</span>
-                                        <div class="acid-info">
-                                            <strong>CONSISTENCY</strong>
-                                            <span>Balance &ge; 0.00</span>
-                                        </div>
-                                    </div>
-                                    <div class="acid-item">
-                                        <span class="acid-letter">I</span>
-                                        <div class="acid-info">
-                                            <strong>ISOLATION</strong>
-                                            <span>Strict 2PL Locks</span>
-                                        </div>
-                                    </div>
-                                    <div class="acid-item">
-                                        <span class="acid-letter">D</span>
-                                        <div class="acid-info">
-                                            <strong>DURABILITY</strong>
-                                            <span>MySQL InnoDB Log</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="db-metrics-card">
-                                <div class="db-stat-row">
-                                    <span class="stat-name">Total Commits:</span>
-                                    <span class="stat-val text-emerald" id="diagDbCommits">0</span>
-                                </div>
-                                <div class="db-stat-row">
-                                    <span class="stat-name">Total Rollbacks:</span>
-                                    <span class="stat-val text-crimson" id="diagDbRollbacks">0</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bus 3 Connector -->
-                    <div class="diagram-bus-connector connector-split">
-                        <div class="bus-wire-split">
-                            <div class="bus-branch branch-top"></div>
-                            <div class="bus-branch branch-mid"></div>
-                            <div class="bus-branch branch-bot"></div>
-                            <div class="bus-packet packet-server1" id="busPktS1">S1</div>
-                            <div class="bus-packet packet-server2" id="busPktS2">S2</div>
-                            <div class="bus-packet packet-server3" id="busPktS3">S3</div>
-                        </div>
-                        <span class="bus-label">ACCOUNT DISPATCH</span>
-                    </div>
-
-                    <!-- Column 4: Bank Destination Servers -->
-                    <div class="diagram-column diagram-col-servers">
-                        <div class="col-header">
-                            <span class="col-step-badge">STEP 4</span>
-                            <h3>BANK SERVERS</h3>
-                            <span class="col-meta">Managing Accounts</span>
-                        </div>
-
-                        <div class="servers-stack">
-                            <!-- Server 1: Retail Core -->
-                            <div class="server-node" id="server1Node">
-                                <div class="server-top">
-                                    <div class="server-name-group">
-                                        <span class="server-icon">🏦</span>
-                                        <div>
-                                            <strong>BANK SERVER 1</strong>
-                                            <span class="server-sub">Retail Accounts Switch</span>
-                                        </div>
-                                    </div>
-                                    <span class="server-status-pill pill-online">ACTIVE</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Updates customer accounts (1001–1008) for retail UPI payments.
-                                </div>
-                                <div class="server-footer">
-                                    <span>Dispatched: <strong id="cntServer1">0</strong> tx</span>
-                                </div>
-                            </div>
-
-                            <!-- Server 2: ATM Network & Cash Vault -->
-                            <div class="server-node" id="server2Node">
-                                <div class="server-top">
-                                    <div class="server-name-group">
-                                        <span class="server-icon">🏧</span>
-                                        <div>
-                                            <strong>BANK SERVER 2</strong>
-                                            <span class="server-sub">ATM Network &amp; Cash Vault</span>
-                                        </div>
-                                    </div>
-                                    <span class="server-status-pill pill-online">ACTIVE</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Manages physical ATM cash reserves (2001–2002) and cash dispenses.
-                                </div>
-                                <div class="server-footer">
-                                    <span>Dispatched: <strong id="cntServer2">0</strong> tx</span>
-                                </div>
-                            </div>
-
-                            <!-- Server 3: Corporate Treasury & Payroll -->
-                            <div class="server-node" id="server3Node">
-                                <div class="server-top">
-                                    <div class="server-name-group">
-                                        <span class="server-icon">🏢</span>
-                                        <div>
-                                            <strong>BANK SERVER 3</strong>
-                                            <span class="server-sub">Corporate Payroll Core</span>
-                                        </div>
-                                    </div>
-                                    <span class="server-status-pill pill-online">ACTIVE</span>
-                                </div>
-                                <div class="simple-expl-box">
-                                    <span class="expl-tag">What it does:</span> Debits company accounts (5001–5002) and credits employee salaries.
-                                </div>
-                                <div class="server-footer">
-                                    <span>Dispatched: <strong id="cntServer3">0</strong> tx</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Bank Core Accounts Ledger Table -->
-            <section class="card-panel accounts-ledger-section">
-                <div class="section-header">
-                    <div class="header-title-wrapper">
-                        <span class="section-icon">💳</span>
-                        <div>
-                            <h2>BANK CORE ACCOUNTS LEDGER // ACID BALANCE &amp; 2PL LOCK MONITOR</h2>
-                            <p class="section-subtitle">Real-time status of bank accounts managed across Bank Server 1 (Retail), Server 2 (ATM), and Server 3 (Corporate Payroll). Shows live 2PL lock phases and ACID rollback protections.</p>
-                        </div>
-                    </div>
-                    <div class="ledger-header-meta">
-                        <span class="ledger-stat-tag">Total Accounts: <strong id="totalAccountsCount">12</strong></span>
-                        <span class="ledger-stat-tag">Active Locks: <strong id="activeLocksCount" class="text-amber">0</strong></span>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="system-table accounts-table" id="accountsTable">
-                        <thead>
-                            <tr>
-                                <th style="width: 110px;">ACCOUNT ID</th>
-                                <th style="width: 180px;">OWNER / INSTITUTION</th>
-                                <th style="width: 160px;">ACCOUNT TYPE</th>
-                                <th style="width: 190px;">ASSIGNED SERVER</th>
-                                <th style="width: 180px;">CURRENT BALANCE</th>
-                                <th style="width: 160px;">2PL LOCK STATUS</th>
-                                <th style="width: 160px;">2PL CONCURRENCY PHASE</th>
-                                <th>LAST ACID TRANSACTION ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody id="accountsTableBody">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Scheduled Transaction Dispatch Log to Bank Database -->
-            <section class="card-panel dispatch-log-section">
-                <div class="section-header">
-                    <div class="header-title-wrapper">
-                        <span class="section-icon">📜</span>
-                        <div>
-                            <h2>BANK DATABASE SCHEDULED TRANSACTION DISPATCH LOG</h2>
-                            <p class="section-subtitle">Exact transactional commands and ACID SQL statements arranged and transmitted from Bank OS into the Bank Database.</p>
-                        </div>
-                    </div>
-                    <span class="live-pill"><span class="dot-status"></span> LIVE DISPATCH STREAM</span>
-                </div>
-                <div class="dispatch-log-console" id="bankDbDispatchLog">
-                    <div class="dispatch-log-entry">
-                        <span class="log-tick">T+1420t</span>
-                        <span class="log-tx-id">[TX #10492 | UPI]</span>
-                        <span class="log-sql">BEGIN TRANSACTION; LOCK ACCOUNTS #1001, #1002 (Havender 2PL); UPDATE Accounts SET Balance = Balance - 250.00 WHERE AccountID = 1001; UPDATE Accounts SET Balance = Balance + 250.00 WHERE AccountID = 1002; COMMIT;</span>
-                        <span class="log-dest">➔ Dispatched to Bank Server 1 (Retail)</span>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- ====================================================================
-             PAGE 2: CPU & MLFQ SCHEDULER
-             ==================================================================== -->
-        <main class="page-view" id="page-cpu-mlfq">
-            <section class="execution-mlfq-layout">
-                <!-- CPU Core Execution Window (Guaranteed Never Empty) -->
-                <div class="card-panel cpu-window">
-                    <div class="section-header">
-                        <div class="header-title-wrapper">
-                            <span class="section-icon">▣</span>
-                            <div>
-                                <h2>CPU DISPATCHER CORE</h2>
-                                <p class="section-subtitle">Active process executing in discrete burst cycles (Never Empty)</p>
-                            </div>
-                        </div>
-                        <span class="core-status-pill" id="cpuCorePill">CORE 0: ACTIVE</span>
-                    </div>
-
-                    <div class="simple-expl-box expl-banner">
-                        <span class="expl-tag">What it does:</span> The CPU core executes the running banking transaction's CPU burst cycles. When burst completes, it triggers the ACID commit in the Bank Database and releases held account locks.
-                    </div>
-
-                    <div class="cpu-display" id="cpuCoreDisplay">
-                        <!-- Dynamic Running Process (Never Empty) -->
-                        <div class="cpu-running-card" id="cpuRunningContent">
-                            <div class="cpu-chip-visual">
-                                <span class="chip-title">ALU CORE</span>
-                                <span class="chip-pid" id="runPidDisplay">#10021</span>
-                            </div>
-                            <div class="cpu-details">
-                                <div class="run-badge-row">
-                                    <span class="tx-type-pill pill-upi" id="runTypeBadge">UPI</span>
-                                    <span class="state-pill state-running" id="runStateBadge">RUNNING</span>
-                                    <span class="origin-queue-pill" id="runQueueBadge">Queue 1 (SRTF)</span>
-                                </div>
-                                <div class="burst-progress-box">
-                                    <div class="progress-labels">
-                                        <span>BURST CYCLE EXECUTION</span>
-                                        <span id="runBurstText">2 / 4 ticks left</span>
-                                    </div>
-                                    <div class="metric-progress-track">
-                                        <div class="metric-progress-fill" id="runProgressFill" style="width: 50%"></div>
-                                    </div>
-                                </div>
-                                <div class="locks-held-box">
-                                    <span class="locks-label">HAVENDER ORDERED LOCKS:</span>
-                                    <div class="locks-tags" id="runLocksContainer">
-                                        <span class="lock-pill">Acc #1001</span>
-                                        <span class="lock-pill">Acc #1002</span>
-                                    </div>
-                                </div>
-                                <div class="transfer-meta-box" id="runTransferMeta">
-                                    <span>Transfer: <strong class="text-blue" id="runAmountText">₹250.00</strong></span>
-                                    <span class="arrow-sep">➔</span>
-                                    <span id="runRouteText">Account #1001 ➔ Account #1002</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Fallback Idle Scanner -->
-                        <div class="cpu-idle-card" id="cpuIdleContent" style="display: none;">
-                            <div class="scanner-icon">⏳</div>
-                            <div>
-                                <h4>CPU DISPATCHER SCANNING</h4>
-                                <p id="idleSubtext">Scanning Queue 1 (SRTF) and Queue 2 (Round Robin) for processes with free locks...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Multi-Level Feedback Queue (MLFQ) Pipeline (Never Empty) -->
-                <div class="card-panel mlfq-window">
-                    <div class="section-header">
-                        <div class="header-title-wrapper">
-                            <span class="section-icon">☷</span>
-                            <div>
-                                <h2>MULTI-LEVEL FEEDBACK QUEUE (MLFQ) PIPELINE</h2>
-                                <p class="section-subtitle">Dual-tier priority queues with anti-starvation aging promotion (Never Empty)</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mlfq-lanes">
-                        <!-- Queue 1: High Priority (SRTF) -->
-                        <div class="mlfq-lane">
-                            <div class="lane-header">
-                                <div class="lane-title">
-                                    <span class="lane-badge lane-q1">QUEUE 1</span>
-                                    <strong>High Priority &bull; Shortest Remaining Time First (SRTF)</strong>
-                                </div>
-                                <span class="queue-depth text-blue" id="q1DepthBadge">12 Ready</span>
-                            </div>
-                            <div class="simple-expl-box">
-                                <span class="expl-tag">What it does:</span> Dedicated to interactive UPI &amp; ATM payments. The transaction with the shortest burst time is dispatched first. Preempts Queue 2!
-                            </div>
-                            <div class="lane-track" id="q1Track">
-                                <!-- Populated dynamically -->
-                            </div>
-                        </div>
-
-                        <!-- Anti-Starvation Aging Bridge -->
-                        <div class="aging-bridge-bar" id="agingElevatorBridge">
-                            <span class="aging-arrow">▲</span>
-                            <span class="aging-text">ANTI-STARVATION AGING ELEVATOR &bull; PROMOTES TO QUEUE 1 AT 50 TICKS</span>
-                            <span class="aging-count" id="agingPromotionCount">0 PROMOTIONS</span>
-                        </div>
-
-                        <!-- Queue 2: Low Priority (Round Robin) -->
-                        <div class="mlfq-lane">
-                            <div class="lane-header">
-                                <div class="lane-title">
-                                    <span class="lane-badge lane-q2">QUEUE 2</span>
-                                    <strong>Low Priority &bull; Round Robin (Slice: 5t &bull; Aging Threshold: 50t)</strong>
-                                </div>
-                                <span class="queue-depth text-purple" id="q2DepthBadge">6 Queued</span>
-                            </div>
-                            <div class="simple-expl-box">
-                                <span class="expl-tag">What it does:</span> Dedicated to heavy corporate payroll disbursements. Executes in 5-tick round-robin slices. If a job waits over 50 ticks, the aging elevator promotes it to Queue 1.
-                            </div>
-                            <div class="lane-track" id="q2Track">
-                                <!-- Populated dynamically -->
-                            </div>
-                        </div>
-
-                        <!-- Waiting Chamber (2PL Lock Contention) -->
-                        <div class="mlfq-lane lane-waiting">
-                            <div class="lane-header">
-                                <div class="lane-title">
-                                    <span class="lane-badge lane-wait">WAITING CHAMBER</span>
-                                    <strong>Contended Account Locks &bull; MD-ACC Exponential Backoff</strong>
-                                </div>
-                                <span class="queue-depth text-amber" id="waitingDepthBadge">2 Blocked</span>
-                            </div>
-                            <div class="simple-expl-box">
-                                <span class="expl-tag">What it does:</span> Holds transactions waiting for account locks. MD-ACC puts colliding transactions to sleep with exponential backoff delay instead of burning CPU.
-                            </div>
-                            <div class="lane-track" id="waitingTrack">
-                                <!-- Populated dynamically -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- ====================================================================
-             PAGE 3: OSCILLOSCOPE & BENCHMARKS
-             ==================================================================== -->
-        <main class="page-view" id="page-oscilloscope">
-            <!-- Cockpit Controls & Clickable Scenarios -->
-            <section class="card-panel simulator-cockpit">
-                <div class="cockpit-left">
-                    <div class="cockpit-heading-group">
-                        <span class="cockpit-icon">🎮</span>
-                        <div>
-                            <span class="cockpit-eyebrow">SIMULATION CONTROLS</span>
-                            <span class="cockpit-title">DISCRETE STEPPING &amp; PLAYBACK</span>
-                        </div>
-                    </div>
-
-                    <div class="playback-controls">
-                        <button class="btn btn-primary" id="btnPauseResume" title="Play or Pause Discrete Simulation Ticks">
-                            <span class="playback-icon" id="playIcon">⏸</span>
-                            <span id="btnPauseText">PAUSE</span>
-                        </button>
-                        <button class="btn btn-secondary" id="btnStepTick" title="Step forward exactly 1 discrete simulation tick">
-                            <span class="btn-icon">⏭</span>
-                            <span>STEP 1 TICK</span>
-                        </button>
-                    </div>
-
-                    <div class="speed-selector">
-                        <span class="speed-label">CLOCK SPEED:</span>
-                        <button class="speed-btn" data-speed="2000">0.5x</button>
-                        <button class="speed-btn active" data-speed="1000">1x</button>
-                        <button class="speed-btn" data-speed="300">2x</button>
-                        <button class="speed-btn" data-speed="80">5x</button>
-                        <button class="speed-btn" data-speed="0">MAX</button>
-                    </div>
-                </div>
-
-                <div class="cockpit-right">
-                    <div class="cockpit-heading-group">
-                        <span class="cockpit-icon">⚡</span>
-                        <div>
-                            <span class="cockpit-eyebrow">WORKLOAD INJECTORS</span>
-                            <span class="cockpit-title">LIVE BENCHMARK SCENARIOS (CLICKABLE)</span>
-                        </div>
-                    </div>
-
-                    <div class="scenario-buttons">
-                        <button class="btn btn-scenario" id="btnSpikeUpi" title="Inject wave of UPI micro-payments (Tests SRTF priority)">
-                            <span class="btn-icon">⚡</span>
-                            <span>UPI SURGE</span>
-                        </button>
-                        <button class="btn btn-scenario" id="btnSpikeSalary" title="Inject corporate payroll clearing (Tests Round Robin &amp; Aging)">
-                            <span class="btn-icon">🏢</span>
-                            <span>PAYROLL BATCH</span>
-                        </button>
-                        <button class="btn btn-scenario" id="btnSpikeHotspot" title="Inject contention on reserve accounts (Tests Havender deadlock denial)">
-                            <span class="btn-icon">🔒</span>
-                            <span>HOTSPOT CONTENTION</span>
-                        </button>
-                        <button class="btn btn-scenario btn-scenario-rollback" id="btnTriggerRollback" title="Trigger intentional overdraft on Account #1005 (Demonstrates ACID Atomicity Rollback)">
-                            <span class="btn-icon">🛡</span>
-                            <span>TEST ACID ROLLBACK</span>
-                        </button>
-                        <button class="btn btn-scenario" id="btnResetSim" title="Reset simulator counters">
-                            <span class="btn-icon">🔄</span>
-                            <span>RESET</span>
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Key Metrics Grid -->
-            <section class="metrics-grid">
-                <!-- Throughput (TPS) -->
-                <div class="card-panel metric-card">
-                    <div class="metric-top">
-                        <div class="metric-header-title">
-                            <span class="metric-icon">⚡</span>
-                            <span>THROUGHPUT ENGINE</span>
-                        </div>
-                        <span class="metric-tag" id="velocityTag">HIGH VELOCITY</span>
-                    </div>
-                    <div class="metric-body">
-                        <div class="metric-number-wrapper">
-                            <span class="metric-huge text-blue" id="metricTps">78</span>
-                            <span class="metric-unit">TX/SEC</span>
-                        </div>
-                        <div class="metric-progress-track">
-                            <div class="metric-progress-fill" id="tpsBar" style="width: 65%"></div>
-                        </div>
-                    </div>
-                    <div class="metric-bottom">
-                        <span id="metricCompletedText">Completed: 41,250 / 176,000</span>
-                        <span class="text-emerald" id="metricProgressPct">23.4%</span>
-                    </div>
-                </div>
-
-                <!-- Abort Rate Shield -->
-                <div class="card-panel metric-card">
-                    <div class="metric-top">
-                        <div class="metric-header-title">
-                            <span class="metric-icon">🛡</span>
-                            <span>ABORT RATE SHIELD</span>
-                        </div>
-                        <span class="metric-tag" id="abortStatusTag">0.0% ABORTS</span>
-                    </div>
-                    <div class="metric-body">
-                        <div class="metric-number-wrapper">
-                            <span class="metric-huge text-emerald" id="metricAbortRate">0.0%</span>
-                            <span class="metric-unit" id="metricTotalAbortsUnit">(0 aborts)</span>
-                        </div>
-                        <div class="metric-progress-track">
-                            <div class="metric-progress-fill fill-crimson" id="abortBar" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="metric-bottom">
-                        <span id="abortDescription">MD-ACC Exponential Backoff prevents abort storms</span>
-                    </div>
-                </div>
-
-                <!-- Contention Score & Conflict Rate -->
-                <div class="card-panel metric-card">
-                    <div class="metric-top">
-                        <div class="metric-header-title">
-                            <span class="metric-icon">📊</span>
-                            <span>CONTENTION SCORE</span>
-                        </div>
-                        <span class="metric-tag" id="backoffMultiplierTag">BACKOFF: 1x</span>
-                    </div>
-                    <div class="metric-body">
-                        <div class="metric-number-wrapper">
-                            <span class="contention-pill score-low" id="metricContentionScore">LOW</span>
-                            <span class="metric-unit text-amber" id="metricConflictRate">4.2% Conflict</span>
-                        </div>
-                        <div class="metric-progress-track">
-                            <div class="metric-progress-fill fill-amber" id="conflictBar" style="width: 10%"></div>
-                        </div>
-                    </div>
-                    <div class="metric-bottom">
-                        <span id="metricQueueDepth">Active Pipeline: 20 transactions</span>
-                    </div>
-                </div>
-
-                <!-- Deadlock Prevention & ACID Commits/Rollbacks -->
-                <div class="card-panel metric-card">
-                    <div class="metric-top">
-                        <div class="metric-header-title">
-                            <span class="metric-icon">🔒</span>
-                            <span>DEADLOCKS PREVENTED</span>
-                        </div>
-                        <span class="metric-tag">HAVENDER ORDER</span>
-                    </div>
-                    <div class="metric-body">
-                        <div class="metric-number-wrapper">
-                            <span class="metric-huge text-purple" id="metricDeadlocks">1,840</span>
-                            <span class="metric-unit">100% SAFE</span>
-                        </div>
-                        <div class="metric-progress-track">
-                            <div class="metric-progress-fill fill-purple" id="deadlockBar" style="width: 100%"></div>
-                        </div>
-                    </div>
-                    <div class="metric-bottom">
-                        <span id="metricDbStats">Commits: 41,250 &bull; Rollbacks: 3</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Oscilloscope Canvas Charts -->
-            <section class="card-panel charts-section">
-                <div class="section-header">
-                    <div class="header-title-wrapper">
-                        <span class="section-icon">📈</span>
-                        <div>
-                            <h2>SYSTEM OSCILLOSCOPE: THROUGHPUT &amp; CONTENTION DYNAMICS</h2>
-                            <p class="section-subtitle">Real-time rolling history tracking throughput velocity against lock conflict spikes and transaction rollbacks.</p>
-                        </div>
-                    </div>
-                    <div class="chart-legend">
-                        <span class="legend-item"><span class="legend-dot dot-blue"></span> Real-Time TPS</span>
-                        <span class="legend-item"><span class="legend-dot dot-amber"></span> Conflict Rate %</span>
-                        <span class="legend-item"><span class="legend-dot dot-crimson"></span> Abort Rate % (Baseline)</span>
-                    </div>
-                </div>
-                <div class="charts-grid">
-                    <div class="chart-box">
-                        <div class="chart-box-header">
-                            <span>TRANSACTION THROUGHPUT VELOCITY (TPS)</span>
-                            <span class="chart-val text-blue" id="chartTpsVal">78 tx/s</span>
-                        </div>
-                        <div class="canvas-box">
-                            <canvas id="canvasThroughput" width="700" height="150"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-box">
-                        <div class="chart-box-header">
-                            <span>LOCK CONTENTION &amp; ABORT DYNAMICS</span>
-                            <span class="chart-val text-amber" id="chartContentionVal">4.2% Contention</span>
-                        </div>
-                        <div class="canvas-box">
-                            <canvas id="canvasContention" width="700" height="150"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- ====================================================================
-             PAGE 4: PCB TABLE & AUDIT FEED
-             ==================================================================== -->
-        <main class="page-view" id="page-pcb-table">
-            <!-- Active Process Control Blocks Table -->
-            <section class="card-panel pcb-section">
-                <div class="section-header table-toolbar">
-                    <div class="header-title-wrapper">
-                        <span class="section-icon">≡</span>
-                        <div>
-                            <h2>ACTIVE PROCESS CONTROL BLOCKS (PCBs)</h2>
-                            <p class="section-subtitle">Live OS registers, burst cycles, and lock dependencies</p>
-                        </div>
-                        <span class="table-count" id="pcbTableCount">0 Loaded</span>
-                    </div>
-
-                    <div class="table-controls">
-                        <div class="search-input-box">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" id="pcbSearchInput" placeholder="Search PID, Type, or Account..." spellcheck="false">
-                        </div>
-                        <div class="filter-group">
-                            <button class="filter-btn active" data-filter="ALL">ALL</button>
-                            <button class="filter-btn" data-filter="RUNNING">RUNNING</button>
-                            <button class="filter-btn" data-filter="READY">READY</button>
-                            <button class="filter-btn" data-filter="WAITING">WAITING</button>
-                            <button class="filter-btn" data-filter="TERMINATED">COMMITTED</button>
-                            <button class="filter-btn" data-filter="TERMINATED_FAILED">FAILED</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="system-table" id="pcbTable">
-                        <thead>
-                            <tr>
-                                <th style="width: 80px;">PID</th>
-                                <th style="width: 95px;">TX TYPE</th>
-                                <th style="width: 130px;">STATE</th>
-                                <th style="width: 120px;">QUEUE</th>
-                                <th style="width: 140px;">BURST PROGRESS</th>
-                                <th style="width: 180px;">HAVENDER LOCKS</th>
-                                <th>TRANSACTION DETAILS &amp; DISPATCH NOTES</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pcbTableBody">
-                            <tr>
-                                <td colspan="7" class="table-empty-cell">Loading Process Control Blocks...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- State Transitions Feed -->
-            <section class="card-panel transitions-section">
-                <div class="section-header">
-                    <div class="header-title-wrapper">
-                        <span class="section-icon">⚡</span>
-                        <div>
-                            <h2>STATE TRANSITION EVENT FEED // KERNEL AUDIT TRAIL</h2>
-                            <p class="section-subtitle">Discrete simulation lifecycle audit: state machine shifts and lock release reasons</p>
-                        </div>
-                    </div>
-                    <div class="feed-actions">
-                        <button class="btn btn-outline-sm" id="btnClearFeed">CLEAR FEED</button>
-                        <span class="live-pill"><span class="dot-status"></span> LIVE STREAM</span>
-                    </div>
-                </div>
-
-                <div class="feed-scroller" id="transitionsFeed">
-                    <div class="feed-empty">Awaiting state transition events from scheduler...</div>
-                </div>
-            </section>
-        </main>
-
-        <!-- ====================================================================
-             PAGE 5: DBMS & OS THEORETICAL CONCEPTS
-             ==================================================================== -->
-        <main class="page-view" id="page-concepts">
-            <section class="card-panel concepts-showcase-section">
-                <div class="section-header">
-                    <div class="header-title-wrapper">
-                        <span class="section-icon">📚</span>
-                        <div>
-                            <h2>DBMS &amp; OPERATING SYSTEM CONCEPTS IMPLEMENTED IN BANKOS</h2>
-                            <p class="section-subtitle">Core computer science theory applied to high-throughput financial switch architecture.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="concepts-grid">
-                    <!-- Concept 1: Process Control Block (OS) -->
-                    <div class="concept-card">
-                        <div class="concept-card-header">
-                            <span class="concept-type-tag tag-os">OS CONCEPT</span>
-                            <span class="concept-number">01</span>
-                        </div>
-                        <h3>Process Control Block (PCB)</h3>
-                        <p>Every banking transaction is instantiated as an independent OS process managed by a <code>ProcessControlBlock</code> struct. Tracks PID, state machine, discrete arrival tick, remaining burst cycles, and lock dependencies.</p>
-                        <div class="simple-expl-box">
-                            <span class="expl-tag">Simple Explanation:</span> Instead of treating a bank payment as a simple database query, BankOS treats it like a program running in an OS, with its own process ID, memory registers, and execution states.
-                        </div>
-                        <div class="concept-lifecycle-diagram">
-                            <span class="state-step">NEW</span>
-                            <span class="state-arrow">➔</span>
-                            <span class="state-step state-ready">READY</span>
-                            <span class="state-arrow">➔</span>
-                            <span class="state-step state-running">RUNNING</span>
-                            <span class="state-arrow">➔</span>
-                            <span class="state-step state-wait">WAITING</span>
-                            <span class="state-arrow">➔</span>
-                            <span class="state-step state-done">TERMINATED</span>
-                        </div>
-                        <div class="concept-code-box">PCB = { PID, Type, State, Burst, Arrival, Locks, WaitTicks }</div>
-                    </div>
-
-                    <!-- Concept 2: MLFQ & Anti-Starvation Aging (OS) -->
-                    <div class="concept-card">
-                        <div class="concept-card-header">
-                            <span class="concept-type-tag tag-os">OS CONCEPT</span>
-                            <span class="concept-number">02</span>
-                        </div>
-                        <h3>MLFQ Scheduling &amp; Anti-Starvation Aging</h3>
-                        <p>Dual-queue architecture prevents Head-of-Line blocking. <strong>Queue 1 (SRTF)</strong> fast-tracks UPI &amp; ATM transactions. <strong>Queue 2 (Round Robin, Q=5)</strong> time-slices heavy payrolls. To prevent starvation, processes waiting &gt; 50 ticks are dynamically elevated to Q1.</p>
-                        <div class="simple-expl-box">
-                            <span class="expl-tag">Simple Explanation:</span> Fast UPI payments never get stuck behind massive salary runs. If a salary run waits too long, an automatic elevator promotes it so it is guaranteed to finish.
-                        </div>
-                        <div class="concept-formula-box">
-                            <div class="formula-line"><strong>Priority:</strong> Queue 1 (SRTF) &gt; Queue 2 (Round Robin, Q=5)</div>
-                            <div class="formula-line"><strong>Aging Rule:</strong> If WaitTime(P) &ge; 50 ticks ➔ Promote(P, Queue 1)</div>
-                        </div>
-                    </div>
-
-                    <!-- Concept 3: Two-Phase Locking (2PL) Concurrency Control (DBMS) -->
-                    <div class="concept-card">
-                        <div class="concept-card-header">
-                            <span class="concept-type-tag tag-dbms">DBMS CONCEPT</span>
-                            <span class="concept-number">03</span>
-                        </div>
-                        <h3>Two-Phase Locking (2PL) &amp; Deadlock Denial</h3>
-                        <p>Guarantees serializability through strict Two-Phase Locking: <em>Phase 1 (Growing Phase)</em> acquires account locks; <em>Phase 2 (Shrinking Phase)</em> releases all locks at transaction termination. Deadlocks are denied via Havender monotonic lock ordering.</p>
-                        <div class="simple-expl-box">
-                            <span class="expl-tag">Simple Explanation:</span> To prevent two people from spending the same balance at the exact same millisecond, accounts are locked. By locking lower Account IDs first, deadlocks are mathematically impossible.
-                        </div>
-                        <div class="concept-formula-box">
-                            <div class="formula-line"><strong>Havender Rule:</strong> Lock First = min(AccA, AccB) &lt; Lock Second = max(AccA, AccB)</div>
-                            <div class="formula-line"><strong>Coffman #4 Denial:</strong> Circular wait is mathematically impossible (0% Deadlocks)</div>
-                        </div>
-                    </div>
-
-                    <!-- Concept 4: ACID Transactions & Atomicity (DBMS) -->
-                    <div class="concept-card">
-                        <div class="concept-card-header">
-                            <span class="concept-type-tag tag-dbms">DBMS CONCEPT</span>
-                            <span class="concept-number">04</span>
-                        </div>
-                        <h3>ACID Guarantees &amp; Atomicity Rollback</h3>
-                        <p>BankOS enforces ACID guarantees. <strong>Atomicity</strong> is validated through real-time rollbacks: if an account has insufficient funds (e.g. Account #1005 with ₹300), the transaction aborts and executes a full ROLLBACK—zero partial debits.</p>
-                        <div class="simple-expl-box">
-                            <span class="expl-tag">Simple Explanation:</span> A transfer either succeeds 100% or fails 100%. If money cannot be credited to the receiver, money is never deducted from the sender.
-                        </div>
-                        <div class="concept-formula-box">
-                            <div class="formula-line"><strong>Atomicity:</strong> If (Balance &lt; Amount) ➔ ROLLBACK; State = TERMINATED_FAILED</div>
-                            <div class="formula-line"><strong>Consistency:</strong> Debit(From) == Credit(To) &bull; Balance &ge; 0.00</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- ====================================================================
-             PAGE 6: MYSQL DATABASE & SQL JOINS (For Faculty Demonstration)
-             ==================================================================== -->
-        <main class="page-view" id="page-database">
-            <!-- 1. Database Connection & Engine Status -->
-            <section class="card-panel">
-                <div class="card-header">
-                    <div class="header-title">
-                        <span class="card-icon">🗄️</span>
-                        <div>
-                            <h2>RELATIONAL DATABASE MANAGEMENT SYSTEM (DBMS)</h2>
-                            <span class="subtitle">MySQL 8.4 InnoDB Storage Engine &bull; 5 Relational Tables &bull; Multi-Table SQL JOINs</span>
-                        </div>
-                    </div>
-                    <div class="header-actions">
-                        <span class="badge" id="dbEngineBadge">INSPECTING ENGINE</span>
-                    </div>
-                </div>
-
-                <div class="simple-expl-box" style="margin-bottom: 1.2rem;">
-                    <span class="expl-tag">Faculty Explanation:</span> BankOS implements a production-grade 5-table Relational Schema (3NF Normalized). Transaction processing threads lock accounts via Two-Phase Locking, enforce Foreign Key constraints between Senders & Receivers, and commit or rollback atomically with full persistence.
-                </div>
-
-                <!-- Database Connect Configuration Bar -->
-                <div class="db-connect-box">
-                    <div class="db-conn-inputs">
-                        <div class="db-input-group">
-                            <label>HOST</label>
-                            <input type="text" id="dbHost" value="127.0.0.1" placeholder="127.0.0.1">
-                        </div>
-                        <div class="db-input-group">
-                            <label>X-PORT</label>
-                            <input type="number" id="dbPort" value="33060" placeholder="33060">
-                        </div>
-                        <div class="db-input-group">
-                            <label>USER</label>
-                            <input type="text" id="dbUser" value="root" placeholder="root">
-                        </div>
-                        <div class="db-input-group">
-                            <label>PASSWORD</label>
-                            <input type="password" id="dbPassword" placeholder="Enter MySQL Password">
-                        </div>
-                        <div class="db-input-group">
-                            <label>DATABASE</label>
-                            <input type="text" id="dbDatabase" value="bank_db" placeholder="bank_db">
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" id="btnConnectDb">
-                        <span class="btn-icon">⚡</span>
-                        <span>CONNECT MYSQL</span>
-                    </button>
-                </div>
-            </section>
-
-            <!-- 2. The 5 Relational Tables Grid -->
-            <section class="db-tables-grid">
-                <!-- Table 1: Customers -->
-                <div class="db-table-card">
-                    <div class="db-card-header">
-                        <span class="table-tag">TABLE 1</span>
-                        <h4>Customers (KYC &amp; Identity)</h4>
-                    </div>
-                    <p class="db-card-desc">Stores verified client identities. 1:N relationship with Accounts.</p>
-                    <div class="db-schema-cols">
-                        <code>CustomerID (PK)</code>, <code>FullName</code>, <code>Email</code>, <code>Phone</code>, <code>CustomerType</code>, <code>Status</code>
-                    </div>
-                    <div class="db-card-stats">
-                        <span>Records: <strong id="cntCustomers">10 Verified</strong></span>
-                        <span class="tag-retail">RETAIL &amp; CORP</span>
-                    </div>
-                </div>
-
-                <!-- Table 2: BankBranches -->
-                <div class="db-table-card">
-                    <div class="db-card-header">
-                        <span class="table-tag">TABLE 2</span>
-                        <h4>BankBranches (Routing Hubs)</h4>
-                    </div>
-                    <p class="db-card-desc">Bank branches, IFSC codes, and liquidity reserve vaults.</p>
-                    <div class="db-schema-cols">
-                        <code>BranchID (PK)</code>, <code>BranchName</code>, <code>IFSCCode</code>, <code>City</code>, <code>ReserveBalance</code>
-                    </div>
-                    <div class="db-card-stats">
-                        <span>Records: <strong id="cntBranches">3 Hubs</strong></span>
-                        <span class="tag-atm">IFSC ROUTED</span>
-                    </div>
-                </div>
-
-                <!-- Table 3: Accounts -->
-                <div class="db-table-card">
-                    <div class="db-card-header">
-                        <span class="table-tag">TABLE 3</span>
-                        <h4>Accounts (Financial Ledgers)</h4>
-                    </div>
-                    <p class="db-card-desc">Holds account balances with <code>CHECK (Balance >= 0.00)</code> integrity.</p>
-                    <div class="db-schema-cols">
-                        <code>AccountID (PK)</code>, <code>CustomerID (FK)</code>, <code>BranchID (FK)</code>, <code>AccountType</code>, <code>Balance</code>
-                    </div>
-                    <div class="db-card-stats">
-                        <span>Accounts: <strong id="cntAccounts">12 Active</strong></span>
-                        <span class="tag-corp">2PL PROTECTED</span>
-                    </div>
-                </div>
-
-                <!-- Table 4: Transactions -->
-                <div class="db-table-card">
-                    <div class="db-card-header">
-                        <span class="table-tag">TABLE 4</span>
-                        <h4>Transactions (Audit Ledger)</h4>
-                    </div>
-                    <p class="db-card-desc">Immutable transaction history linking Sender and Receiver accounts.</p>
-                    <div class="db-schema-cols">
-                        <code>TxID (PK)</code>, <code>FromAccount (FK)</code>, <code>ToAccount (FK)</code>, <code>Amount</code>, <code>Status</code>
-                    </div>
-                    <div class="db-card-stats">
-                        <span>Executed: <strong id="cntTransactions">0 Committed</strong></span>
-                        <span class="tag-upi">ACID ATOMIC</span>
-                    </div>
-                </div>
-
-                <!-- Table 5: AuditLogs -->
-                <div class="db-table-card">
-                    <div class="db-card-header">
-                        <span class="table-tag">TABLE 5</span>
-                        <h4>AuditLogs (Security Telemetry)</h4>
-                    </div>
-                    <p class="db-card-desc">Records deadlock denials, insufficient fund rollbacks, and rate limit events.</p>
-                    <div class="db-schema-cols">
-                        <code>LogID (PK)</code>, <code>TxID</code>, <code>AccountID (FK)</code>, <code>EventType</code>, <code>Severity</code>, <code>Description</code>
-                    </div>
-                    <div class="db-card-stats">
-                        <span>Events: <strong id="cntAuditLogs">3 Logged</strong></span>
-                        <span class="tag-salary">COMPLIANCE</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 3. Faculty SQL JOIN Showcase -->
-            <section class="card-panel">
-                <div class="card-header">
-                    <div class="header-title">
-                        <span class="card-icon">⚡</span>
-                        <div>
-                            <h2>LIVE MULTI-TABLE SQL JOIN VIEWER</h2>
-                            <span class="subtitle">Query: <code>Transactions</code> ⨝ <code>Accounts</code> ⨝ <code>Customers</code> ⨝ <code>BankBranches</code></span>
-                        </div>
-                    </div>
-                    <div class="header-actions">
-                        <button class="btn btn-outline" id="btnRefreshJoin">
-                            <span class="btn-icon">↻</span>
-                            <span>EXECUTE JOIN QUERY</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="simple-expl-box">
-                    <span class="expl-tag">Relational Algebra / SQL JOIN:</span> The query below demonstrates an <code>INNER JOIN</code> linking raw Transaction IDs with both the Sender Customer Name &amp; Account and Receiver Customer Name &amp; Account across 4 relational tables, proving 3NF database normalization.
-                </div>
-
-                <!-- Raw SQL Query Code Box -->
-                <div class="sql-code-box">
-                    <div class="sql-code-header">
-                        <span>SQL QUERY SCRIPT (INNER JOIN &amp; LEFT JOIN)</span>
-                        <span class="badge" id="joinLatencyBadge">LATENCY: 0.8ms</span>
-                    </div>
-                    <pre><code class="sql-code">SELECT 
-    t.TxID,
-    t.Amount,
-    t.Status AS TransactionStatus,
-    sender_cust.FullName AS SenderCustomer,
-    t.FromAccount AS SenderAccount,
-    receiver_cust.FullName AS ReceiverCustomer,
-    t.ToAccount AS ReceiverAccount,
-    branch.BranchName AS SenderBranch,
-    t.CreatedAt AS ExecutionTimestamp
-FROM Transactions t
-INNER JOIN Accounts sender_acc   ON t.FromAccount = sender_acc.AccountID
-INNER JOIN Customers sender_cust ON sender_acc.CustomerID = sender_cust.CustomerID
-LEFT  JOIN BankBranches branch   ON sender_acc.BranchID = branch.BranchID
-INNER JOIN Accounts receiver_acc ON t.ToAccount = receiver_acc.AccountID
-INNER JOIN Customers receiver_cust ON receiver_acc.CustomerID = receiver_cust.CustomerID
-ORDER BY t.TxID DESC LIMIT 25;</code></pre>
-                </div>
-
-                <!-- Joined Table Output -->
-                <div class="table-container" style="max-height: 480px; overflow-y: auto;">
-                    <table class="pcb-table" id="dbJoinTable">
-                        <thead>
-                            <tr>
-                                <th>TX ID</th>
-                                <th>SENDER CUSTOMER</th>
-                                <th>SENDER ACC</th>
-                                <th>RECEIVER CUSTOMER</th>
-                                <th>RECEIVER ACC</th>
-                                <th>SENDER BRANCH</th>
-                                <th>AMOUNT</th>
-                                <th>TYPE</th>
-                                <th>ACID STATUS</th>
-                                <th>TIMESTAMP</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dbJoinTableBody">
-                            <tr>
-                                <td colspan="10" style="text-align: center; color: var(--text-dim); padding: 2rem;">
-                                    Click "EXECUTE JOIN QUERY" or run simulation to populate joined database records...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- 4. Exported Audit Snapshots in Database -->
-            <section class="card-panel" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div class="header-title">
-                        <span class="card-icon">💾</span>
-                        <div>
-                            <h2>DATABASE PERSISTENT AUDIT EXPORTS</h2>
-                            <span class="subtitle">Tables: <code>AuditExports</code> (Snapshots) &bull; <code>StateTransitionAudits</code> (Transition Events)</span>
-                        </div>
-                    </div>
-                    <div class="header-actions">
-                        <button class="btn btn-outline" id="btnRefreshExports">
-                            <span class="btn-icon">↻</span>
-                            <span>REFRESH EXPORTS</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="simple-expl-box">
-                    <span class="expl-tag">Database Persistence:</span> Whenever you click <strong>EXPORT AUDIT</strong> (top right), the entire state transition audit trail is permanently written to the MySQL tables <code>AuditExports</code> and <code>StateTransitionAudits</code>. You can query these directly via SQL or inspect them in the table below.
-                </div>
-
-                <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-                    <table class="pcb-table" id="dbExportsTable">
-                        <thead>
-                            <tr>
-                                <th>EXPORT ID</th>
-                                <th>EXPORT TIMESTAMP</th>
-                                <th>TRANSITIONS SAVED</th>
-                                <th>COMMITS</th>
-                                <th>ROLLBACKS</th>
-                                <th>DEADLOCKS PREVENTED</th>
-                                <th>STATUS</th>
-                                <th>SUMMARY</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dbExportsTableBody">
-                            <tr>
-                                <td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">
-                                    Click "EXPORT AUDIT" (top right) to save the current audit snapshot directly into the database!
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Deep PCB Inspector Modal -->
-    <div class="modal-overlay" id="pcbModal" style="display: none;">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div class="modal-title-group">
-                    <span class="modal-icon">🔍</span>
+        <section class="section-card card-panel creator-section" id="section-creator">
+            <div class="section-header">
+                <div class="section-title-wrap">
+                    <span class="section-number">1</span>
                     <div>
-                        <h3 id="modalPcbTitle">PROCESS CONTROL BLOCK: PID #0</h3>
-                        <span class="modal-sub">OS Process Registers &amp; Execution Audit Log</span>
+                        <h2 class="section-title">⚙️ TRANSACTION CREATOR &amp; WORKLOAD GENERATOR</h2>
+                        <p class="section-subtitle">Set total transaction volume, customize category percentages, and dispatch operations into the MLFQ scheduler.</p>
                     </div>
                 </div>
-                <button class="modal-close" id="btnModalClose">✕</button>
+                <div class="section-header-badges">
+                    <span class="badge badge-rose" id="pctSumBadge">Total: 100%</span>
+                    <button class="btn btn-sm btn-ghost" id="btnNormalizePct" title="Automatically re-balance percentages to sum to 100%">Auto-Balance 100%</button>
+                </div>
             </div>
-            <div class="modal-body" id="modalPcbBody"></div>
-            <div class="modal-footer">
-                <span class="modal-meta" id="modalPcbMeta">Memory footprint: 64 bytes &bull; Thread Safe</span>
-                <button class="btn btn-primary" id="btnCopyPcbJson">COPY JSON</button>
+
+            <div class="creator-grid">
+                <!-- Left: Volume & Presets -->
+                <div class="creator-left-box">
+                    <div class="input-card">
+                        <div class="input-header">
+                            <label for="totalTxInput" class="input-label">TOTAL TRANSACTIONS TO GENERATE</label>
+                            <span class="input-val-badge" id="totalTxDisplay">400 Tx</span>
+                        </div>
+                        <div class="range-with-number">
+                            <input type="range" id="totalTxSlider" min="10" max="1000" step="10" value="400" class="styled-range">
+                            <input type="number" id="totalTxInput" min="5" max="2000" value="400" class="styled-number-input">
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Buttons -->
+                    <div class="presets-group">
+                        <span class="presets-title">QUICK SCENARIO PRESETS:</span>
+                        <div class="presets-grid">
+                            <button class="preset-card active" id="presetRetailRush" type="button">
+                                <div class="preset-icon">⚡</div>
+                                <div class="preset-info">
+                                    <div class="preset-name">Retail Rush</div>
+                                    <div class="preset-desc">50% UPI &bull; 25% ATM &bull; 15% Dep &bull; 10% Sal</div>
+                                </div>
+                            </button>
+                            <button class="preset-card" id="presetCorporatePayday" type="button">
+                                <div class="preset-icon">🏢</div>
+                                <div class="preset-info">
+                                    <div class="preset-name">Corporate Payday</div>
+                                    <div class="preset-desc">60% Salary &bull; 15% UPI &bull; 15% ATM &bull; 10% Dep</div>
+                                </div>
+                            </button>
+                            <button class="preset-card" id="presetStressConflict" type="button">
+                                <div class="preset-icon">🛡️</div>
+                                <div class="preset-info">
+                                    <div class="preset-name">ACID Rollback Stress</div>
+                                    <div class="preset-desc">Simulate Overdrafts on Low-Bal Accounts</div>
+                                </div>
+                            </button>
+                            <button class="preset-card" id="presetBalancedMix" type="button">
+                                <div class="preset-icon">⚖️</div>
+                                <div class="preset-info">
+                                    <div class="preset-name">Balanced Mix</div>
+                                    <div class="preset-desc">40% UPI &bull; 25% ATM &bull; 15% Dep &bull; 20% Sal</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ACID Rollback Toggle -->
+                    <div class="checkbox-control">
+                        <label class="custom-checkbox-label">
+                            <input type="checkbox" id="chkIncludeOverdraft" checked>
+                            <span class="checkmark"></span>
+                            <span class="chk-text">
+                                <strong>Inject ACID Overdraft Test Cases:</strong>
+                                <span class="chk-subtext">Forces ~10% of transfers onto Account #1005 (Bal ₹300) with ₹5,000 transfer, demonstrating the atomic rollback dump reason.</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Right: Category Percentage Sliders -->
+                <div class="creator-right-box">
+                    <span class="categories-header-label">TRANSACTION CATEGORIES &amp; PERCENTAGE ALLOCATION:</span>
+                    
+                    <div class="category-slider-card" data-cat="upi">
+                        <div class="cat-header">
+                            <div class="cat-title">
+                                <span class="cat-icon cat-upi">⚡</span>
+                                <div>
+                                    <span class="cat-name">UPI Instant Transfer</span>
+                                    <span class="cat-meta">Shortest Remaining Time First (SRTF, 1–3 ticks, 2 locks)</span>
+                                </div>
+                            </div>
+                            <div class="cat-value-wrap">
+                                <input type="number" id="numUpiPct" class="cat-num-input" min="0" max="100" value="40">
+                                <span class="pct-symbol">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderUpiPct" class="styled-range range-upi" min="0" max="100" value="40">
+                    </div>
+
+                    <div class="category-slider-card" data-cat="atm">
+                        <div class="cat-header">
+                            <div class="cat-title">
+                                <span class="cat-icon cat-atm">🏧</span>
+                                <div>
+                                    <span class="cat-name">ATM Cash Withdrawal</span>
+                                    <span class="cat-meta">User Account Debit + Physical ATM Cash Vault Lock</span>
+                                </div>
+                            </div>
+                            <div class="cat-value-wrap">
+                                <input type="number" id="numAtmPct" class="cat-num-input" min="0" max="100" value="25">
+                                <span class="pct-symbol">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderAtmPct" class="styled-range range-atm" min="0" max="100" value="25">
+                    </div>
+
+                    <div class="category-slider-card" data-cat="deposit">
+                        <div class="cat-header">
+                            <div class="cat-title">
+                                <span class="cat-icon cat-dep">💵</span>
+                                <div>
+                                    <span class="cat-name">Cash Deposit</span>
+                                    <span class="cat-meta">Branch Cash Vault Debit + Customer Account Credit</span>
+                                </div>
+                            </div>
+                            <div class="cat-value-wrap">
+                                <input type="number" id="numDepositPct" class="cat-num-input" min="0" max="100" value="15">
+                                <span class="pct-symbol">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderDepositPct" class="styled-range range-dep" min="0" max="100" value="15">
+                    </div>
+
+                    <div class="category-slider-card" data-cat="salary">
+                        <div class="cat-header">
+                            <div class="cat-title">
+                                <span class="cat-icon cat-sal">🏢</span>
+                                <div>
+                                    <span class="cat-name">Corporate Salary / Payroll</span>
+                                    <span class="cat-meta">Batch Round Robin (Time Quantum Q=5 ticks, Aging Elevator)</span>
+                                </div>
+                            </div>
+                            <div class="cat-value-wrap">
+                                <input type="number" id="numSalaryPct" class="cat-num-input" min="0" max="100" value="20">
+                                <span class="pct-symbol">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="sliderSalaryPct" class="styled-range range-sal" min="0" max="100" value="20">
+                    </div>
+                </div>
             </div>
+
+            <!-- Execution Actions -->
+            <div class="creator-actions-bar">
+                <button class="btn btn-rose btn-large" id="btnExecuteCustomBatch">
+                    <span class="btn-icon">🚀</span>
+                    <span class="btn-large-text">GENERATE &amp; EXECUTE TRANSACTIONS</span>
+                </button>
+                <button class="btn btn-outline" id="btnResetAllSim">
+                    <span class="btn-icon">🔄</span>
+                    <span>Reset Simulation Queues</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- ====================================================================
+             LIVE ACTIVE SCHEDULING ALGORITHM SHOWCASE BANNER
+             ==================================================================== -->
+        <section class="active-algorithm-banner card-panel">
+            <div class="algo-banner-left">
+                <div class="algo-beacon-wrap">
+                    <span class="pulse-beacon"></span>
+                    <span class="beacon-label">CURRENTLY EXECUTING ALGORITHM</span>
+                </div>
+                <h3 class="active-algo-name" id="liveActiveAlgoName">MLFQ Queue 1: Shortest Remaining Time First (SRTF)</h3>
+                <p class="active-algo-reason" id="liveActiveAlgoReason">
+                    Core 0 ALU is currently dispatching high-priority instant payments with shortest remaining burst time ahead of heavy batch processes.
+                </p>
+            </div>
+            <div class="algo-banner-right">
+                <div class="active-algo-badge" id="liveActiveAlgoBadge">SRTF DISPATCH</div>
+            </div>
+        </section>
+
+        <!-- ====================================================================
+             SECTION 2: LIVE STATUS & CONCURRENCY INTELLIGENCE CONSOLE
+             ==================================================================== -->
+        <section class="section-card card-panel status-section" id="section-status">
+            <div class="section-header">
+                <div class="section-title-wrap">
+                    <span class="section-number">2</span>
+                    <div>
+                        <h2 class="section-title">📊 LIVE STATUS &amp; CONCURRENCY INTELLIGENCE CONSOLE</h2>
+                        <p class="section-subtitle">Real-time outcome metrics, retry mechanics, failure breakdown, and safety algorithm counters.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4 High-Level Status Metric Cards -->
+            <div class="kpi-cards-grid">
+                <!-- 1. Committed -->
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-top">
+                        <span class="kpi-icon">🟢</span>
+                        <span class="kpi-label">SUCCESSFUL / COMMITTED</span>
+                    </div>
+                    <div class="kpi-value-row">
+                        <span class="kpi-main-number" id="statCommitted">0</span>
+                        <span class="kpi-sub-badge badge-green" id="statCommittedRate">0%</span>
+                    </div>
+                    <div class="kpi-desc">Validated under ACID guarantees and committed to MySQL ledger.</div>
+                    <div class="kpi-bar-track">
+                        <div class="kpi-bar-fill bar-green" id="barCommitted" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- 2. Retrying -->
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-top">
+                        <span class="kpi-icon">🟡</span>
+                        <span class="kpi-label">CURRENTLY RETRYING / WAITING</span>
+                    </div>
+                    <div class="kpi-value-row">
+                        <span class="kpi-main-number" id="statRetrying">0</span>
+                        <span class="kpi-sub-badge badge-amber" id="statRetryingAvg">0 In-Flight</span>
+                    </div>
+                    <div class="kpi-desc">Waiting for account locks; delayed under MD-ACC exponential backoff.</div>
+                    <div class="kpi-bar-track">
+                        <div class="kpi-bar-fill bar-amber" id="barRetrying" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- 3. Dumped / Aborted -->
+                <div class="kpi-card kpi-danger">
+                    <div class="kpi-top">
+                        <span class="kpi-icon">🔴</span>
+                        <span class="kpi-label">DUMPED / FAILED</span>
+                    </div>
+                    <div class="kpi-value-row">
+                        <span class="kpi-main-number" id="statDumped">0</span>
+                        <span class="kpi-sub-badge badge-red" id="statDumpedRate">0%</span>
+                    </div>
+                    <div class="kpi-desc">Safely rolled back; zero state corruption or negative balances written.</div>
+                    <div class="kpi-bar-track">
+                        <div class="kpi-bar-fill bar-red" id="barDumped" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- 4. Real-time TPS -->
+                <div class="kpi-card kpi-info">
+                    <div class="kpi-top">
+                        <span class="kpi-icon">⚡</span>
+                        <span class="kpi-label">THROUGHPUT &amp; CPU CORE</span>
+                    </div>
+                    <div class="kpi-value-row">
+                        <span class="kpi-main-number" id="statTps">0.0</span>
+                        <span class="kpi-unit">TPS</span>
+                    </div>
+                    <div class="kpi-desc" id="statCpuInfo">Core 0 Dispatcher: Idle</div>
+                    <div class="kpi-bar-track">
+                        <div class="kpi-bar-fill bar-rose" id="barTps" style="width: 40%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deep Dive: Diagnostics & Algorithm Breakdown Grid -->
+            <div class="deep-dive-grid">
+                <!-- Box 1: Why Dumped & How Many Retries -->
+                <div class="deep-dive-card">
+                    <div class="card-subtitle-bar">
+                        <span class="card-sub-icon">🔍</span>
+                        <h3>DUMP &amp; RETRY DIAGNOSTICS</h3>
+                    </div>
+
+                    <div class="diagnostics-content">
+                        <!-- Dump Reasons Breakdown -->
+                        <div class="diag-block">
+                            <span class="diag-title">WHY WERE TRANSACTIONS DUMPED?</span>
+                            <div class="dump-reasons-list" id="dumpReasonsList">
+                                <div class="reason-row">
+                                    <div class="reason-name">
+                                        <span class="reason-bullet red">&bull;</span>
+                                        <strong>ACID Rollback (Insufficient Balance):</strong>
+                                    </div>
+                                    <div class="reason-count" id="reasonOverdraftCount">0 times</div>
+                                </div>
+                                <div class="reason-explanation">
+                                    Enforced table constraint <code>CHECK (Balance &gt;= 0.00)</code>. When low-balance Account #1005 (Bal ₹300) attempted ₹5,000 transfer, the transaction was rolled back atomically with zero balance deduction.
+                                </div>
+
+                                <div class="reason-row" style="margin-top: 8px;">
+                                    <div class="reason-name">
+                                        <span class="reason-bullet amber">&bull;</span>
+                                        <strong>Lock Contention Collision (Ceiling Exceeded):</strong>
+                                    </div>
+                                    <div class="reason-count" id="reasonLockConflictCount">0 times</div>
+                                </div>
+                                <div class="reason-explanation">
+                                    Collided with active transactions holding exclusive 2PL locks on the same account under high concurrency.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Retry Metrics -->
+                        <div class="diag-block" style="margin-top: 14px;">
+                            <span class="diag-title">RETRY DYNAMICS &amp; RECOVERY:</span>
+                            <div class="retry-stats-grid">
+                                <div class="retry-stat-box">
+                                    <span class="retry-stat-val" id="valMaxRetries">0</span>
+                                    <span class="retry-stat-label">Max Retries Observed</span>
+                                </div>
+                                <div class="retry-stat-box">
+                                    <span class="retry-stat-val" id="valAvgRetries">0.0</span>
+                                    <span class="retry-stat-label">Avg Retries per Tx</span>
+                                </div>
+                                <div class="retry-stat-box">
+                                    <span class="retry-stat-val" id="valRetriedRecovered">0</span>
+                                    <span class="retry-stat-label">Recovered &amp; Committed</span>
+                                </div>
+                            </div>
+                            <!-- Live Waiting PIDs Chips -->
+                            <div class="retrying-chips-wrap">
+                                <span class="chips-title">Currently Retrying PIDs:</span>
+                                <div class="chips-list" id="retryingPidsChips">
+                                    <span class="chip-empty">Zero transactions currently in retry backoff state</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Box 2: How many times which algorithm was used -->
+                <div class="deep-dive-card">
+                    <div class="card-subtitle-bar">
+                        <span class="card-sub-icon">🛡️</span>
+                        <h3>SAFETY &amp; CONCURRENCY ALGORITHMS APPLIED</h3>
+                    </div>
+
+                    <div class="algorithms-table-wrap">
+                        <table class="algo-intel-table">
+                            <thead>
+                                <tr>
+                                    <th>Algorithm &amp; Concept</th>
+                                    <th>What It Prevents</th>
+                                    <th>Times Triggered</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div class="algo-name-cell">
+                                            <span class="algo-icon">🛡️</span>
+                                            <div>
+                                                <strong>Havender Monotonic Lock Ordering</strong>
+                                                <div class="algo-sub">Always locks <code>min(A,B) &lt; max(A,B)</code></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="tag-defense tag-green">Deadlocks (0% Deadlock)</span>
+                                    </td>
+                                    <td class="algo-count-cell">
+                                        <span class="algo-count-badge badge-green" id="countDeadlockDenials">0</span>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <div class="algo-name-cell">
+                                            <span class="algo-icon">🔒</span>
+                                            <div>
+                                                <strong>Strict Two-Phase Locking (Strict 2PL)</strong>
+                                                <div class="algo-sub">Growing phase locks accounts; shrinking at commit</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="tag-defense tag-blue">Race Conditions &amp; Double Spending</span>
+                                    </td>
+                                    <td class="algo-count-cell">
+                                        <span class="algo-count-badge badge-blue" id="countRaceConditions">0</span>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <div class="algo-name-cell">
+                                            <span class="algo-icon">⏱️</span>
+                                            <div>
+                                                <strong>MD-ACC Exponential Backoff</strong>
+                                                <div class="algo-sub"><code>B_0 &times; 2^retry</code> delay instead of aborting</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="tag-defense tag-amber">Contention Collisions &amp; Abort Spikes</span>
+                                    </td>
+                                    <td class="algo-count-cell">
+                                        <span class="algo-count-badge badge-amber" id="countBackoffs">0</span>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <div class="algo-name-cell">
+                                            <span class="algo-icon">🚀</span>
+                                            <div>
+                                                <strong>Anti-Starvation Aging Elevator</strong>
+                                                <div class="algo-sub">Promotes Salary from Q2 to Q1 if wait &ge; 50 ticks</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="tag-defense tag-purple">Process Starvation</span>
+                                    </td>
+                                    <td class="algo-count-cell">
+                                        <span class="algo-count-badge badge-purple" id="countAgingPromotions">0</span>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <div class="algo-name-cell">
+                                            <span class="algo-icon">⚖️</span>
+                                            <div>
+                                                <strong>ACID Consistency &amp; Rollback Guard</strong>
+                                                <div class="algo-sub">Zero negative balances, conservation of money</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="tag-defense tag-red">Data Corruption &amp; Overdrafts</span>
+                                    </td>
+                                    <td class="algo-count-cell">
+                                        <span class="algo-count-badge badge-red" id="countAcidRollbacks">0</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====================================================================
+             SECTION 3: DUAL TABLES (COMPLETED VS FAILED TRANSACTIONS)
+             ==================================================================== -->
+        <div class="dual-tables-grid">
+            <!-- TABLE 1: SUCCESSFULLY COMPLETED TRANSACTIONS -->
+            <section class="section-card card-panel table-section" id="section-completed-table">
+                <div class="section-header">
+                    <div class="section-title-wrap">
+                        <span class="section-number green">✓</span>
+                        <div>
+                            <h2 class="section-title">🟢 SUCCESSFULLY COMPLETED TRANSACTIONS (<span id="cntCompletedHeading">0</span>)</h2>
+                            <p class="section-subtitle">All transactions verified under strict 2PL and committed to database storage.</p>
+                        </div>
+                    </div>
+                    <div class="table-actions">
+                        <button class="btn btn-sm btn-outline" id="btnExportCompletedCsv">
+                            <span>⬇️ Export CSV</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-toolbar">
+                    <div class="search-input-wrap">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="completedTableSearch" placeholder="Search TxID, Account, Client..." class="styled-search-input">
+                    </div>
+                    <select id="completedTypeFilter" class="styled-select">
+                        <option value="ALL">All Categories</option>
+                        <option value="UPI">⚡ UPI</option>
+                        <option value="ATM">🏧 ATM</option>
+                        <option value="Deposit">💵 Deposit</option>
+                        <option value="Salary">🏢 Salary</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Tx ID</th>
+                                <th style="width: 100px;">Type</th>
+                                <th style="width: 220px;">Sender ➔ Receiver</th>
+                                <th style="width: 110px;">Amount</th>
+                                <th style="width: 80px;">Retries</th>
+                                <th style="width: 150px;">Algorithm Applied</th>
+                                <th>Status / Verification</th>
+                            </tr>
+                        </thead>
+                        <tbody id="completedTableBody">
+                            <tr>
+                                <td colspan="7" class="table-empty-cell">
+                                    <div class="empty-state-wrap">
+                                        <span class="empty-icon">🟢</span>
+                                        <div class="empty-text">No completed transactions yet.</div>
+                                        <div class="empty-subtext">Execute a batch above to see successful commits appear here.</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- TABLE 2: FAILED & DUMPED TRANSACTIONS WITH MANUAL RETRY OPTION -->
+            <section class="section-card card-panel table-section" id="section-failed-table">
+                <div class="section-header">
+                    <div class="section-title-wrap">
+                        <span class="section-number red">✕</span>
+                        <div>
+                            <h2 class="section-title">🔴 FAILED &amp; DUMPED TRANSACTIONS (<span id="cntFailedHeading">0</span>)</h2>
+                            <p class="section-subtitle">Transactions rolled back under ACID checks or lock collisions. Click "Retry" to manually re-dispatch.</p>
+                        </div>
+                    </div>
+                    <div class="table-actions">
+                        <button class="btn btn-sm btn-rose" id="btnRetryAllFailed" title="Re-queue all failed transactions with adjusted balance into MLFQ Queue 1">
+                            <span>🔄 RETRY ALL FAILED</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-toolbar">
+                    <div class="search-input-wrap">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="failedTableSearch" placeholder="Search failed TxID, Reason..." class="styled-search-input">
+                    </div>
+                    <span class="failed-info-note">Tip: Retrying re-adjusts balance constraints and injects back into Queue 1!</span>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Tx ID</th>
+                                <th style="width: 100px;">Type</th>
+                                <th style="width: 180px;">Sender ➔ Receiver</th>
+                                <th style="width: 100px;">Amount</th>
+                                <th style="width: 220px;">Exact Failure / Dump Reason</th>
+                                <th style="width: 100px; text-align: center;">Manual Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="failedTableBody">
+                            <tr>
+                                <td colspan="6" class="table-empty-cell">
+                                    <div class="empty-state-wrap">
+                                        <span class="empty-icon">🛡️</span>
+                                        <div class="empty-text">Zero failed transactions!</div>
+                                        <div class="empty-subtext">All operations executed successfully with 100% integrity.</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
+
+        <!-- ====================================================================
+             OPTIONAL COLLAPSIBLE: DEEP ARCHITECTURE & MYSQL LEDGER (FOR FACULTY)
+             ==================================================================== -->
+        <section class="section-collapsible card-panel" id="section-collapsible-faculty">
+            <button class="collapsible-header-btn" id="btnToggleFacultyDetails">
+                <div class="btn-left">
+                    <span class="collapsible-arrow" id="collapsibleArrow">▸</span>
+                    <span class="collapsible-title">🏛️ ADVANCED TECHNICAL DETAILS: ARCHITECTURE PIPELINE &amp; MYSQL LEDGER</span>
+                </div>
+                <span class="collapsible-hint">Click to expand for Faculty Viva &amp; Deep-Dive Examination</span>
+            </button>
+
+            <div class="collapsible-content" id="facultyDetailsContent" style="display: none;">
+                <!-- Mini Bank Core Accounts Table -->
+                <div class="sub-card" style="margin-top: 14px;">
+                    <h4 class="sub-card-title">BANK CORE ACCOUNTS LEDGER &amp; STRICT 2PL LOCK STATUS</h4>
+                    <div class="table-container" style="max-height: 240px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Account ID</th>
+                                    <th>Account Holder</th>
+                                    <th>Type</th>
+                                    <th>Live Balance (₹)</th>
+                                    <th>Lock Status</th>
+                                    <th>2PL Phase</th>
+                                </tr>
+                            </thead>
+                            <tbody id="miniAccountsTableBody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Live Transition Stream Log -->
+                <div class="sub-card" style="margin-top: 14px;">
+                    <h4 class="sub-card-title">KERNEL STATE TRANSITIONS AUDIT STREAM (NEW ➔ READY ➔ RUNNING ➔ COMMITTED / ABORTED)</h4>
+                    <div class="stream-log-wrap" id="streamLogBox">
+                        <div class="stream-line dim">Awaiting live transitions...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- System Footer -->
+        <footer class="system-footer">
+            <div>BankOS &bull; Multi-Level Feedback Queue (MLFQ) &amp; Strict Two-Phase Locking (2PL) Simulation Engine</div>
+            <div class="footer-links">
+                <span>C++20 Kernel</span> &bull; 
+                <span>MySQL 8.4 InnoDB</span> &bull; 
+                <span>Havender Deadlock Denial (0% Deadlocks)</span>
+            </div>
+        </footer>
     </div>
 
+    <!-- Client Logic Scripts -->
     <script src="app.js"></script>
 </body>
 </html>
