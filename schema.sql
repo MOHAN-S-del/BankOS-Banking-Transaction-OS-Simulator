@@ -165,16 +165,16 @@ INSERT INTO upi_payroll_transactions (txn_id, channel_mode, reference_id) VALUES
 INSERT INTO transaction_logs (txn_id, from_state, to_state, queue_level, event_note, logged_at) VALUES
 ('TXN-1001', 'NEW', 'READY', 'Q1_PRIORITY', 'Admitted to Queue 1 (Priority) via ATM gateway', NOW() - INTERVAL 15 MINUTE),
 ('TXN-1001', 'READY', 'RUNNING', 'Q1_PRIORITY', 'Dispatched to CPU Core 0 for 1s debit execution', NOW() - INTERVAL 15 MINUTE + INTERVAL 1 SECOND),
-('TXN-1001', 'RUNNING', 'TERMINATED', 'Q1_PRIORITY', 'Burst finished; MySQL ACID balance deduction committed', NOW() - INTERVAL 14 MINUTE),
+('TXN-1001', 'RUNNING', 'TERMINATED', 'Q1_PRIORITY', 'Burst finished - MySQL ACID balance deduction committed', NOW() - INTERVAL 14 MINUTE),
 
 ('TXN-1002', 'NEW', 'READY', 'Q1_PRIORITY', 'Admitted to Queue 1 (Priority) via UPI gateway', NOW() - INTERVAL 10 MINUTE),
 ('TXN-1002', 'READY', 'RUNNING', 'Q1_PRIORITY', 'Dispatched to CPU Core 0 for 2s peer transfer', NOW() - INTERVAL 10 MINUTE + INTERVAL 1 SECOND),
-('TXN-1002', 'RUNNING', 'TERMINATED', 'Q1_PRIORITY', 'Burst finished; MySQL ACID balance transfer committed', NOW() - INTERVAL 9 MINUTE),
+('TXN-1002', 'RUNNING', 'TERMINATED', 'Q1_PRIORITY', 'Burst finished - MySQL ACID balance transfer committed', NOW() - INTERVAL 9 MINUTE),
 
 ('TXN-1003', 'NEW', 'READY', 'Q2_SJF', 'Admitted to Queue 2 (SJF) for lightweight standard transfer', NOW() - INTERVAL 6 MINUTE),
 ('TXN-1003', 'READY', 'RUNNING', 'Q2_SJF', 'Dispatched to CPU Core 0 (Shortest remaining burst = 3s)', NOW() - INTERVAL 6 MINUTE + INTERVAL 1 SECOND),
-('TXN-1003', 'RUNNING', 'TERMINATED', 'Q2_SJF', 'Burst finished; MySQL ACID balance transfer committed', NOW() - INTERVAL 5 MINUTE),
+('TXN-1003', 'RUNNING', 'TERMINATED', 'Q2_SJF', 'Burst finished - MySQL ACID balance transfer committed', NOW() - INTERVAL 5 MINUTE),
 
 ('TXN-1004', 'NEW', 'READY', 'Q3_FCFS', 'Admitted to Queue 3 (FCFS) for heavy corporate payroll batch', NOW() - INTERVAL 2 MINUTE),
 ('TXN-1004', 'READY', 'RUNNING', 'Q3_FCFS', 'Dispatched to CPU Core 0 for 7s batch verification', NOW() - INTERVAL 2 MINUTE + INTERVAL 2 SECOND),
-('TXN-1004', 'RUNNING', 'TERMINATED', 'Q3_FCFS', 'Batch burst finished; MySQL ACID bulk balance credit committed', NOW() - INTERVAL 1 MINUTE);
+('TXN-1004', 'RUNNING', 'TERMINATED', 'Q3_FCFS', 'Batch burst finished - MySQL ACID bulk balance credit committed', NOW() - INTERVAL 1 MINUTE);

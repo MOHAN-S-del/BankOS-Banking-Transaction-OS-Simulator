@@ -18,12 +18,24 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 
 # ----------------------------------------------------------------------------
-# MySQL Database Configuration
+# MySQL Database Configuration (Auto-reads .env or system environment)
 # ----------------------------------------------------------------------------
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(env_path):
+    try:
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    k, v = line.split('=', 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+    except Exception:
+        pass
+
 DB_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
 DB_PORT = int(os.getenv("MYSQL_PORT", 3306))
 DB_USER = os.getenv("MYSQL_USER", "root")
-DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "Mohan@252007")
 DB_NAME = os.getenv("MYSQL_DB", "bankos_db")
 
 CPP_SCHEDULER_PORT = 8765

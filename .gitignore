@@ -12,3 +12,4 @@ __pycache__/
 scheduler
 state.json*
 inbox.jsonl
+.env
