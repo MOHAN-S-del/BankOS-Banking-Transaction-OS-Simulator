@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BankOS Middleware — C++ MLFQ OS Scheduler & MySQL ACID Ledger</title>
+    <title>BankOS Middleware — OS-Driven Concurrent Banking Transaction Middleware</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -780,6 +780,69 @@
             background: rgba(240, 249, 255, 0.45);
         }
 
+        /* Highlight & Track Test Transactions */
+        .test-row-highlight td {
+            background: rgba(6, 182, 212, 0.09) !important;
+            border-top: 1.5px solid var(--aqua-accent) !important;
+            border-bottom: 1.5px solid var(--aqua-accent) !important;
+        }
+
+        .your-test-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #0284C7 0%, #06B6D4 100%);
+            color: #FFFFFF;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.45);
+            margin-bottom: 4px;
+            letter-spacing: 0.3px;
+        }
+
+        /* Live Status Badges */
+        .status-badge-completed {
+            font-size: 0.72rem;
+            font-weight: 800;
+            background: var(--emerald-bg);
+            color: var(--emerald);
+            border: 1px solid var(--emerald-border);
+            padding: 3px 9px;
+            border-radius: var(--radius-full);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .status-badge-running {
+            font-size: 0.72rem;
+            font-weight: 800;
+            background: rgba(6, 182, 212, 0.16);
+            color: var(--marina-dark);
+            border: 1.5px solid var(--aqua-accent);
+            padding: 3px 9px;
+            border-radius: var(--radius-full);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        .status-badge-queued {
+            font-size: 0.72rem;
+            font-weight: 800;
+            background: var(--amber-bg);
+            color: var(--amber);
+            border: 1px solid var(--amber-border);
+            padding: 3px 9px;
+            border-radius: var(--radius-full);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
         /* ====================================================================
            SLIDE 3: SCHEDULER METRICS & VERIFIED BALANCES
            ==================================================================== */
@@ -889,9 +952,9 @@
                 <div>
                     <div class="brand-title">
                         BankOS Middleware
-                        <span class="brand-badge">C++17 MLFQ & MySQL</span>
+                        <span class="brand-badge">C++17 MLFQ & MySQL ACID</span>
                     </div>
-                    <div class="brand-desc">Multi-Level Feedback Queue OS Scheduler & ACID Banking Ledger</div>
+                    <div class="brand-desc">OS-Driven Concurrent Banking Transaction Middleware</div>
                 </div>
             </div>
 
@@ -913,6 +976,9 @@
                     <span class="pulse-dot"></span>
                     <span id="dbStatusText">MySQL Synchronized</span>
                 </div>
+                <button class="btn btn-marina" onclick="exportAuditLog()" title="Download Complete CSV Audit Log">
+                    <span>📥 Export Audit Log (.CSV)</span>
+                </button>
                 <button class="btn btn-outline" id="trafficToggleBtn" onclick="toggleTraffic()">
                     <span id="trafficIcon">▶</span>
                     <span id="trafficText">Start Traffic</span>
@@ -1116,7 +1182,7 @@
                 <div class="glass-panel">
                     <div class="panel-header">
                         <h2 class="panel-title">
-                            <span>📊 BankOS Relational Data & Telemetry</span>
+                            <span>📊 BankOS Middleware: MySQL Joined Transaction Ledger & Telemetry</span>
                         </h2>
                         <div class="slide-2-controls">
                             <div class="view-switcher-group">
@@ -1128,7 +1194,10 @@
                                 </button>
                             </div>
 
-                            <div style="display:flex; gap:10px; align-items:center;">
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <button class="btn btn-outline" id="filterTestOnlyBtn" onclick="toggleTestOnlyFilter()" style="padding:7px 12px; font-size:0.78rem;">
+                                    <span>★ Show Only My Test Transactions</span>
+                                </button>
                                 <select class="form-select" id="ledgerCategoryFilter" style="width:140px; padding:7px 10px;" onchange="loadSlide2Data()">
                                     <option value="ALL">All Categories</option>
                                     <option value="ATM">ATM Only</option>
@@ -1136,7 +1205,10 @@
                                     <option value="STANDARD">Standard</option>
                                     <option value="PAYROLL">Payroll Only</option>
                                 </select>
-                                <input type="text" class="form-input" id="ledgerSearchInput" placeholder="Search txn or customer..." style="width:200px; padding:7px 12px;" oninput="debounceLedgerSearch()">
+                                <input type="text" class="form-input" id="ledgerSearchInput" placeholder="Search txn or customer..." style="width:180px; padding:7px 12px;" oninput="debounceLedgerSearch()">
+                                <button class="btn btn-outline" onclick="exportAuditLog()" title="Download CSV Audit Log" style="padding:7px 12px; font-size:0.78rem;">
+                                    <span>📥 Export CSV</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1533,6 +1605,11 @@
                     renderMetrics(data.metrics);
                 }
 
+                // Real-time live update for Slide 2 when active (No manual refresh needed)
+                if (currentSlide === 1) {
+                    loadSlide2Data();
+                }
+
             } catch (err) {
                 console.error("State polling error:", err);
             }
@@ -1601,6 +1678,29 @@
             }).join('');
         }
 
+        let showOnlyTestTxns = false;
+
+        function toggleTestOnlyFilter() {
+            showOnlyTestTxns = !showOnlyTestTxns;
+            const btn = document.getElementById('filterTestOnlyBtn');
+            if (showOnlyTestTxns) {
+                btn.style.background = 'linear-gradient(135deg, #0284C7, #06B6D4)';
+                btn.style.color = '#FFFFFF';
+                btn.style.borderColor = '#0284C7';
+                btn.innerHTML = '<span>★ Showing Only My Test Txns (Active)</span>';
+            } else {
+                btn.style.background = 'transparent';
+                btn.style.color = 'var(--text-body)';
+                btn.style.borderColor = 'var(--glass-border)';
+                btn.innerHTML = '<span>★ Show Only My Test Transactions</span>';
+            }
+            loadLedger();
+        }
+
+        function exportAuditLog() {
+            window.location.href = '/api/export_audit';
+        }
+
         // Slide 2: Joined Ledger & State-Transition Logs
         async function loadSlide2Data() {
             if (activeSlide2Tab === 'ledger') {
@@ -1621,18 +1721,19 @@
             const tbody = document.getElementById('ledgerTableBody');
 
             try {
-                const url = `/api/ledger?category=${encodeURIComponent(cat)}&search=${encodeURIComponent(search)}`;
+                const url = `/api/ledger?category=${encodeURIComponent(cat)}&search=${encodeURIComponent(search)}&test_only=${showOnlyTestTxns}`;
                 const res = await fetch(url);
                 const data = await res.json();
 
                 if (!data.transactions || data.transactions.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">No transactions found matching query</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted); font-size:0.85rem;">No transactions found matching criteria</td></tr>`;
                     return;
                 }
 
                 tbody.innerHTML = data.transactions.map(t => {
-                    const isLatest = (t.txn_id === latestTestTxnId);
-                    const rowBg = isLatest ? "background:rgba(224, 242, 254, 0.4);" : "";
+                    const isManualTest = (t.is_test || t.txn_id === latestTestTxnId);
+                    const rowClass = isManualTest ? "test-row-highlight" : "";
+                    const testBadge = isManualTest ? `<div><span class="your-test-badge">★ YOUR TEST TXN</span></div>` : "";
 
                     let channelInfo = "-";
                     if (t.atm_location) {
@@ -1641,26 +1742,37 @@
                         channelInfo = `${t.channel_mode || 'UPI'}: ${t.reference_id}`;
                     }
 
-                    const statusClass = t.status === 'COMPLETED' ? 'color:var(--emerald); font-weight:800;' : 'color:var(--amber); font-weight:800;';
+                    // Live Status Pill
+                    let statusPill = "";
+                    if (t.status === 'COMPLETED') {
+                        statusPill = `<span class="status-badge-completed">✓ COMPLETED</span>`;
+                    } else if (t.status === 'RUNNING') {
+                        statusPill = `<span class="status-badge-running">⚡ RUNNING</span>`;
+                    } else {
+                        statusPill = `<span class="status-badge-queued">⏳ QUEUED</span>`;
+                    }
 
                     return `
-                        <tr style="${rowBg}">
-                            <td style="font-family:var(--font-mono); font-weight:800; color:var(--marina-primary);">${t.txn_id}</td>
+                        <tr class="${rowClass}">
+                            <td style="font-family:var(--font-mono); font-weight:800; color:var(--marina-primary);">
+                                ${testBadge}
+                                <span>${t.txn_id}</span>
+                            </td>
                             <td>
                                 <div><strong>${t.sender_name || t.sender_id}</strong></div>
-                                <div style="font-size:0.7rem; color:var(--text-muted); font-family:var(--font-mono);">₹${(t.sender_balance || 0).toLocaleString('en-IN')}</div>
+                                <div style="font-size:0.7rem; color:var(--text-muted); font-family:var(--font-mono);">₹${(t.sender_balance || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
                             </td>
                             <td>
                                 <div><strong>${t.receiver_name || t.receiver_id}</strong></div>
-                                <div style="font-size:0.7rem; color:var(--text-muted); font-family:var(--font-mono);">₹${(t.receiver_balance || 0).toLocaleString('en-IN')}</div>
+                                <div style="font-size:0.7rem; color:var(--text-muted); font-family:var(--font-mono);">₹${(t.receiver_balance || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
                             </td>
                             <td><span class="process-type-badge">${t.txn_type}</span></td>
-                            <td style="font-family:var(--font-mono); font-weight:800;">₹${parseFloat(t.amount).toLocaleString('en-IN')}</td>
+                            <td style="font-family:var(--font-mono); font-weight:800;">₹${parseFloat(t.amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
                             <td style="font-family:var(--font-mono);">${t.auto_burst_time}s</td>
-                            <td style="font-size:0.75rem;">${t.assigned_queue}</td>
+                            <td style="font-size:0.75rem; font-weight:700;">${t.assigned_queue}</td>
                             <td style="font-size:0.75rem; color:var(--text-muted);">${channelInfo}</td>
-                            <td style="${statusClass}">${t.status}</td>
-                            <td style="font-size:0.72rem; color:var(--text-muted);">${t.created_at || '-'}</td>
+                            <td>${statusPill}</td>
+                            <td style="font-size:0.72rem; color:var(--text-muted); font-family:var(--font-mono);">${t.created_at || '-'}</td>
                         </tr>
                     `;
                 }).join('');

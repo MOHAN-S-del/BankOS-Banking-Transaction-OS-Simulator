@@ -50,6 +50,7 @@ CREATE TABLE transactions (
     auto_burst_time INT NOT NULL,
     assigned_queue VARCHAR(25) NOT NULL,
     status ENUM('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED') NOT NULL DEFAULT 'QUEUED',
+    is_test BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_txn_sender FOREIGN KEY (sender_id) REFERENCES accounts(account_id),
     CONSTRAINT fk_txn_receiver FOREIGN KEY (receiver_id) REFERENCES accounts(account_id)

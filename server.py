@@ -1,10 +1,13 @@
 # ============================================================================
-# BankOS Middleware: Python Flask Bridge (server.py)
-# Connects C++ MLFQ OS Engine, MySQL (bankos_db), and 3-Slide Web Dashboard
+# BankOS Middleware: OS-Driven Concurrent Banking Transaction Middleware
+# File: server.py
+# Connects C++ MLFQ OS Engine, MySQL (bankos_db), and Liquid Glass Dashboard
 # Synchronizes 8 Relational & OS-Telemetry Tables in Real-Time
 # ============================================================================
 
 import os
+import io
+import csv
 import time
 import json
 import random
@@ -15,7 +18,7 @@ import subprocess
 import threading
 from decimal import Decimal
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 
 # ----------------------------------------------------------------------------
 # MySQL Database Configuration (Auto-reads .env or system environment)
@@ -291,9 +294,9 @@ def determine_priority_score(txn_type, queue_level):
     return 2
 
 # ----------------------------------------------------------------------------
-# Mandatory SQL JOINs for Ledger
+# Mandatory SQL JOINs for Ledger (Supports Live Status & Test Tracking)
 # ----------------------------------------------------------------------------
-def query_joined_ledger(category=None, search=None, limit=100):
+def query_joined_ledger(category=None, search=None, test_only=False, limit=100):
     conn = get_db()
     if conn:
         try:
@@ -312,6 +315,7 @@ def query_joined_ledger(category=None, search=None, limit=100):
                     t.auto_burst_time,
                     t.assigned_queue,
                     t.status,
+                    t.is_test,
                     t.created_at,
                     atm.atm_location,
                     atm.card_last4,
@@ -330,6 +334,9 @@ def query_joined_ledger(category=None, search=None, limit=100):
             if category and category.upper() != "ALL":
                 sql += " AND t.txn_type = %s"
                 params.append(category.upper())
+
+            if test_only:
+                sql += " AND t.is_test = 1"
 
             if search:
                 sql += """ AND (
@@ -354,6 +361,7 @@ def query_joined_ledger(category=None, search=None, limit=100):
                 r['amount'] = float(r['amount'])
                 r['sender_balance'] = float(r['sender_balance'])
                 r['receiver_balance'] = float(r['receiver_balance'])
+                r['is_test'] = bool(r.get('is_test', 0))
                 if isinstance(r.get('created_at'), datetime):
                     r['created_at'] = r['created_at'].strftime('%Y-%m-%d %H:%M:%S')
             return rows
@@ -365,6 +373,9 @@ def query_joined_ledger(category=None, search=None, limit=100):
         res = []
         for t in reversed(in_memory_transactions):
             if category and category.upper() != "ALL" and t['txn_type'].upper() != category.upper():
+                continue
+
+            if test_only and not t.get('is_test', False):
                 continue
 
             s_name = in_memory_accounts.get(t['sender_id'], {}).get('customer_name', 'Unknown')
@@ -388,6 +399,7 @@ def query_joined_ledger(category=None, search=None, limit=100):
                 'auto_burst_time': t['auto_burst_time'],
                 'assigned_queue': t['assigned_queue'],
                 'status': t['status'],
+                'is_test': bool(t.get('is_test', False)),
                 'created_at': t['created_at'],
                 'atm_location': atm_row.get('atm_location'),
                 'card_last4': atm_row.get('card_last4'),
@@ -534,6 +546,14 @@ def commit_acid_transfer(txn_id, sender_id, receiver_id, amount):
             cur = conn.cursor()
             cur.execute("START TRANSACTION;")
 
+            # Check if transaction exists in database
+            cur.execute("SELECT txn_id FROM transactions WHERE txn_id = %s;", (txn_id,))
+            if not cur.fetchone():
+                cur.execute("ROLLBACK;")
+                cur.close()
+                conn.close()
+                return False, f"Transaction {txn_id} not in transactions table"
+
             # Lock sender & receiver balance rows
             cur.execute("SELECT current_balance FROM balance WHERE account_id = %s FOR UPDATE;", (sender_id,))
             s_row = cur.fetchone()
@@ -617,10 +637,11 @@ def insert_admitted_transaction(p_data):
     if conn:
         try:
             cur = conn.cursor()
+            is_test_val = 1 if p_data.get('is_test', False) else 0
             cur.execute("""
-                INSERT INTO transactions (txn_id, sender_id, receiver_id, txn_type, amount, auto_burst_time, assigned_queue, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'QUEUED');
-            """, (txn_id, sender_id, receiver_id, txn_type, amount, burst, queue))
+                INSERT INTO transactions (txn_id, sender_id, receiver_id, txn_type, amount, auto_burst_time, assigned_queue, status, is_test)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'QUEUED', %s);
+            """, (txn_id, sender_id, receiver_id, txn_type, amount, burst, queue, is_test_val))
 
             if txn_type == 'ATM':
                 atm_loc = p_data.get('atm_location', 'Connaught Place South ATM #04')
@@ -663,6 +684,7 @@ def insert_admitted_transaction(p_data):
             'auto_burst_time': burst,
             'assigned_queue': queue,
             'status': 'QUEUED',
+            'is_test': bool(p_data.get('is_test', False)),
             'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
 
@@ -696,11 +718,35 @@ def insert_admitted_transaction(p_data):
 # ----------------------------------------------------------------------------
 # Real-Time Telemetry & Sync Loop (C++ State <-> MySQL 8 Tables)
 # ----------------------------------------------------------------------------
+def mark_transaction_running(txn_id):
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("UPDATE transactions SET status = 'RUNNING' WHERE txn_id = %s AND status = 'QUEUED';", (txn_id,))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            if conn:
+                try: conn.close()
+                except Exception: pass
+    with db_lock:
+        for t in in_memory_transactions:
+            if t['txn_id'] == txn_id and t['status'] == 'QUEUED':
+                t['status'] = 'RUNNING'
+                break
+
 def sync_scheduler_telemetry():
     while True:
         try:
             state = fetch_cpp_state()
             if state:
+                # 0. Sync Active Running Process status
+                active_p = state.get('active_process')
+                if active_p and active_p.get('txn_id'):
+                    mark_transaction_running(active_p['txn_id'])
+
                 # 1. Sync State Transitions into transaction_logs
                 transitions = state.get('transitions', [])
                 for tr in reversed(transitions):
@@ -739,6 +785,12 @@ def log_entry(txn_id, from_st, to_st, queue, note):
     if conn:
         try:
             cur = conn.cursor()
+            cur.execute("SELECT txn_id FROM transactions WHERE txn_id = %s;", (txn_id,))
+            if not cur.fetchone():
+                cur.close()
+                conn.close()
+                return
+
             cur.execute("""
                 INSERT INTO transaction_logs (txn_id, from_state, to_state, queue_level, event_note)
                 VALUES (%s, %s, %s, %s, %s);
@@ -851,9 +903,9 @@ def ensure_cpp_scheduler_running():
     global cpp_process
     bin_path = os.path.join(os.path.dirname(__file__), "scheduler")
     if not os.path.exists(bin_path):
-        src_path = os.path.join(os.path.dirname(__file__), "scheduler.cpp")
+        src_path = os.path.join(os.path.dirname(__file__), "scheduler_engine.cpp")
         if os.path.exists(src_path):
-            print("[C++ Engine] Compiling scheduler.cpp...")
+            print("[C++ Engine] Compiling modular scheduler_engine.cpp...")
             subprocess.run(["g++", "-O2", "-std=c++17", src_path, "-o", bin_path, "-pthread"], check=True)
 
     try:
@@ -1056,9 +1108,85 @@ def inject_transaction():
 def get_ledger():
     cat = request.args.get('category', 'ALL')
     search = request.args.get('search', '')
+    test_only = request.args.get('test_only', 'false').lower() == 'true'
     limit = int(request.args.get('limit', 100))
-    rows = query_joined_ledger(category=cat, search=search, limit=limit)
+    rows = query_joined_ledger(category=cat, search=search, test_only=test_only, limit=limit)
     return jsonify({'success': True, 'count': len(rows), 'transactions': rows})
+
+@app.route('/api/export_audit', methods=['GET'])
+def export_audit_csv():
+    try:
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # CSV Column Headers
+        writer.writerow([
+            "Transaction ID",
+            "Sender Account",
+            "Sender Customer",
+            "Sender Balance (INR)",
+            "Receiver Account",
+            "Receiver Customer",
+            "Receiver Balance (INR)",
+            "Category",
+            "Amount (INR)",
+            "Auto Burst Time (s)",
+            "Assigned MLFQ Queue",
+            "Execution Status",
+            "Is Manual Test Txn",
+            "Channel Reference",
+            "Channel Detail",
+            "Admitted Timestamp",
+            "State Transition Audit Trail"
+        ])
+        
+        # Query up to 1000 transactions with full joins
+        txns = query_joined_ledger(limit=1000)
+        all_logs = query_transaction_logs(limit=2500)
+        
+        logs_by_txn = {}
+        for l in all_logs:
+            tid = l['txn_id']
+            step = f"[{l['from_state']}->{l['to_state']} ({l['queue_level']}): {l['event_note']}]"
+            logs_by_txn.setdefault(tid, []).append(step)
+
+        for t in txns:
+            tid = t['txn_id']
+            t_logs = " | ".join(logs_by_txn.get(tid, ["Committed to MySQL"]))
+            channel_ref = t.get('atm_location') or t.get('reference_id') or 'N/A'
+            channel_det = t.get('card_last4') or t.get('channel_mode') or 'N/A'
+            
+            writer.writerow([
+                t['txn_id'],
+                t['sender_id'],
+                t.get('sender_name', t['sender_id']),
+                f"{t.get('sender_balance', 0.0):.2f}",
+                t['receiver_id'],
+                t.get('receiver_name', t['receiver_id']),
+                f"{t.get('receiver_balance', 0.0):.2f}",
+                t['txn_type'],
+                f"{t['amount']:.2f}",
+                t['auto_burst_time'],
+                t['assigned_queue'],
+                t['status'],
+                "YES (Test Txn)" if t.get('is_test') else "NO (Simulated)",
+                channel_ref,
+                channel_det,
+                t.get('created_at', ''),
+                t_logs
+            ])
+        
+        output.seek(0)
+        timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"bankos_middleware_audit_log_{timestamp_str}.csv"
+        
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
