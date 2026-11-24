@@ -1,198 +1,130 @@
-# BankOS: Banking Transaction OS & DBMS Simulation Engine
-### Autonomous Concurrency Control, Multi-Level Feedback Queue (MLFQ) & ACID Bank Database Pipeline
+# ⚡ BankOS Middleware — OS Scheduler & ACID Transaction Ledger
 
-A high-performance C++20 simulation engine that models banking transactions (**UPI**, **ATM**, **Salary Payroll**) as operating system processes. Features a dual-tier Multi-Level Feedback Queue (MLFQ) scheduler with Shortest Remaining Time First (SRTF), Round Robin (RR), Anti-Starvation Aging, strict Two-Phase Locking (2PL) with Havender Deadlock Denial, and an end-to-end transactional pipeline dispatching scheduled operations to a central Bank Database and destination account servers.
-
----
-
-## 🏛 System Architecture & End-to-End Pipeline
-
-BankOS bridges the gap between **Operating Systems process scheduling** and **DBMS transactional concurrency control**:
-
-```
-[TRANSACTION INPUTS]            [ADAPTIVE BANK OS]               [BANK DATABASE]                 [BANK CORE SERVERS]
-┌──────────────────┐            ┌──────────────────────┐         ┌──────────────────────┐        ┌─────────────────────────┐
-│ • UPI (60%)      │────BUS 1──>│ • Queue 1 (SRTF)     │───BUS 2>│ • Scheduled Buffer  │──BUS 3>│ • Bank Server 1 (Retail)│
-│ • Withdraw (25%) │  (Packets) │ • ▲ Aging Elevator   │ (Queued)│ • ACID Integrity Gate│ (Split)│   Accounts #1001–#1008  │
-│ • Payroll (15%)  │            │ • Queue 2 (RR, Q=5)  │         │   - A: Atomicity     │        ├─────────────────────────┤
-└──────────────────┘            │ • 2PL Lock Arbiter   │         │   - C: Consistency   │        │ • Bank Server 2 (ATM)   │
-                                │ • CPU Core (ALU)     │         │   - I: Isolation     │        │   Vault Acc #2001–#2002 │
-                                └──────────────────────┘         │   - D: Durability    │        ├─────────────────────────┤
-                                                                 │ • MySQL Commits/Rolls│        │ • Bank Server 3 (Payroll│
-                                                                 └──────────────────────┘        │   Treasury Acc #5001    │
-                                                                                                 └─────────────────────────┘
-```
-
-### Pipeline Stages Explained in Simple Language:
-1. **Transaction Inputs (Step 1):**
-   * **UPI (60%):** High-frequency instant mobile payments (₹50–₹500). Fast 1–4 CPU ticks burst, requiring sender and receiver retail account locks.
-   * **ATM Withdrawals (25%):** Cash withdrawals (₹500–₹2,500). 2–6 CPU ticks burst, locking customer account + ATM physical cash vault.
-   * **Payroll / Salary (15%):** Bulk corporate disbursements (₹35,000–₹60,000). Heavy 10–30 CPU ticks burst, locking corporate treasury + employee accounts.
-2. **Adaptive Bank OS (Step 2):**
-   * **Queue 1 (High Priority — SRTF):** Shortest Remaining Time First priority for retail UPI and ATM micro-payments. Preempts Queue 2.
-   * **Queue 2 (Low Priority — Round Robin):** Dedicated to long payroll runs sliced into 5-tick time quantums ($Q=5$) to prevent monopolizing the CPU.
-   * **Anti-Starvation Aging Elevator:** If a Salary process waits $\ge 50$ ticks in Queue 2, it is automatically promoted to Queue 1.
-   * **Two-Phase Locking (2PL) Arbiter:** Locks resources in strict monotonic order $\min(A,B) < \max(A,B)$, mathematically eliminating circular wait conditions (**0% Deadlocks**).
-   * **CPU Dispatcher Core:** The virtual CPU executing transactions tick by tick.
-3. **Scheduled Bank Database (Step 3):**
-   * **Scheduled Commit Buffer:** Sequences validated transactions in serializable order.
-   * **ACID Integrity Gate:**
-     * **A - Atomicity:** All-or-nothing execution. Automatic rollback on overdraft / insufficient funds.
-     * **C - Consistency:** Invariants preserved ($Balance \ge 0.00$, sender debit == receiver credit).
-     * **I - Isolation:** Strict 2PL serializability prevents dirty reads, non-repeatable reads, and lost updates.
-     * **D - Durability:** Persistent commit log in MySQL InnoDB engine (`schema.sql`).
-4. **Bank Destination Servers (Step 4):**
-   * **Bank Server 1 (Retail Switch):** Manages retail checking/savings accounts (1001–1008: Alice, Bob, Charlie, Diana, etc.).
-   * **Bank Server 2 (ATM Network & Vault):** Coordinates physical cash vault reserves (2001–2002) and cash hardware balances.
-   * **Bank Server 3 (Corporate Payroll Core):** Manages corporate treasury (5001–5002: Apex Corp) and bulk employee splits.
+A full-stack banking middleware engine built with **Python (Flask)**, **MySQL (`mysql-connector-python`)**, and modern **HTML/CSS/JavaScript**. It models high-volume incoming banking transactions as Operating System Processes (**Process Control Blocks / PCBs**) scheduled through a thread-safe **3-Level Multi-Level Feedback Queue (MLFQ)** before committing atomically to MySQL storage.
 
 ---
 
-## 📚 DBMS & Operating System Concepts Implemented
+## 🚀 Quickstart: Exact 3-Step Setup
 
-| Category | Concept | Implementation in BankOS |
-|---|---|---|
-| **OS** | **Process Control Block (PCB)** | Banking transactions modeled as OS processes with PID, state registers (`NEW`, `READY`, `RUNNING`, `WAITING`, `TERMINATED`), burst cycles, and lock dependencies. |
-| **OS** | **MLFQ CPU Scheduling** | Dual-queue preemptive CPU scheduler balancing high-frequency retail micro-payments (SRTF) and batch corporate payrolls (Round Robin). |
-| **OS** | **Anti-Starvation Aging** | Mathematical promotion elevator: if $WaitTime(P) \ge 50\text{ ticks}$, dynamically promotes $P$ to Queue 1. |
-| **OS** | **Preemption & Context Switching** | Round Robin time quantum expiration ($Q=5$) and higher-priority SRTF job arrival preemption. |
-| **DBMS** | **Two-Phase Locking (2PL)** | *Phase 1 (Growing):* Acquires all required account locks. *Phase 2 (Lock Point):* Active CPU balance mutation. *Phase 3 (Shrinking):* Releases all locks only at COMMIT or ROLLBACK. |
-| **DBMS** | **Deadlock Prevention** | Havender’s Monotonic Ordering: Locks always acquired in $\min(From, To) < \max(From, To)$ order. Denies Coffman's circular wait condition ($0\%$ deadlocks). |
-| **DBMS** | **Atomicity (ACID)** | Overdraft protection test: If Account #1005 (balance ₹300) attempts a ₹5,000 transfer, an automatic ROLLBACK aborts the transaction with zero partial state. |
-| **DBMS** | **Consistency (ACID)** | Table constraints (`CHECK (Balance >= 0.00)`) and balance conservation ($Debit = Credit$). |
-| **DBMS** | **Isolation (ACID)** | Strict 2PL guarantees serializable transaction execution without dirty reads. |
-| **DBMS** | **Durability (ACID)** | Transactions and audit trails committed to persistent MySQL storage with Write-Ahead Logging (WAL). |
-
----
-
-## 🖥 Professional Multi-Page Web Observability Console
-
-The web console (`http://localhost:8080`) features a **clean, tabbed multi-page interface** designed for technical presentations:
-
-1. **`1. ARCHITECTURE & RUNNING DIAGRAM`**:
-   * Live animated packet flow matching the system sketch.
-   * Simple-language explanation on every block.
-   * **Bank Core Accounts Ledger Table:** Real-time balances with green/red credit/debit flashes, lock status, and 2PL phases (`Growing`, `Lock Point`, `Shrinking`).
-   * **Bank Database Transaction Dispatch Log:** Live streaming of the exact transactional SQL commands dispatched to the central database.
-2. **`2. CPU & MLFQ SCHEDULER`**:
-   * CPU Dispatcher Core (Core 0 ALU) with active process registers (guaranteed **never empty**).
-   * Multi-Level Feedback Queue visualizer (Queue 1 SRTF, Aging Elevator, Queue 2 Round Robin, Waiting Chamber).
-3. **`3. OSCILLOSCOPE & BENCHMARKS`**:
-   * Real-time canvas charts for Throughput Velocity (TPS), Contention Dynamics, and Abort Rate Shield.
-   * **Interactive Benchmark Scenarios (Clickable Buttons):**
-     * `⚡ UPI SURGE`: Injects 30 retail payments into Queue 1 (SRTF).
-     * `🏢 PAYROLL BATCH`: Injects 20 corporate payroll runs into Queue 2 (Round Robin).
-     * `🔒 HOTSPOT CONTENTION`: Injects 24 colliding transactions on Account #1001 (Havender 2PL).
-     * `🛡 TEST ACID ROLLBACK`: Dispatches an overdraft on Account #1005 (₹300 balance vs ₹5,000 transfer) to trigger an immediate atomicity rollback.
-     * `🔄 RESET`: Resets simulation counters and queues.
-4. **`4. PCB TABLE & AUDIT FEED`**:
-   * Searchable and filterable PCB table (`ALL`, `RUNNING`, `READY`, `WAITING`, `COMMITTED`, `FAILED`).
-   * Click any row to inspect full 64-byte OS process registers and raw JSON.
-   * Kernel state transition audit log.
-5. **`5. DBMS & OS CONCEPTS`**:
-   * Educational architecture cards with formulas, state machine diagrams, and explanations in plain language.
-6. **`6. MYSQL DATABASE & SQL JOINS` (Faculty Showcase)**:
-   * **5 Relational Tables:** `Customers` (Sender/Receiver KYC), `BankBranches` (IFSC clearing), `Accounts` (2PL balances), `Transactions` (audit ledger), `AuditLogs` (security/deadlock denial).
-   * **Live Credentials Connector:** Connect directly to local MySQL (`host`, `port`, `user`, `password`).
-   * **Multi-Table SQL JOIN Viewer:** Visualizes real-time `INNER JOIN` & `LEFT JOIN` queries linking Sender Customer, Sender Account, Receiver Customer, Receiver Account, Branch, and Amount.
-   * **CLI Faculty Tool:** Run `./db/show_database.sh` to output beautiful ASCII tables directly in terminal!
-
----
-
-## 🚀 Building & Running
-
-### Prerequisites
-* Modern C++ compiler supporting **C++20** (`clang++` or `g++`).
-* `make` build system.
-* *(Optional)* MySQL 8.x Server with MySQL C++ Connector (X DevAPI). If MySQL is not running, BankOS automatically falls back to its embedded in-memory ACID transactional ledger engine.
-
-### 1. Build the Simulator
+### Step 1: Initialize Database in MySQL
+Log into MySQL and execute `schema.sql` to initialize `bankos_db` and seed 8 customer accounts with ₹50,000+ balances:
 ```bash
-make clean && make -j4
+mysql -u root -p < schema.sql
 ```
+*(If MySQL has no password, simply run `mysql -u root < schema.sql`. If MySQL is unavailable, the application automatically activates an In-Memory ACID engine so live demonstrations never fail).*
 
-### 2. Run Comprehensive Test Suite
+### Step 2: Install Python Dependencies
 ```bash
-make test
+pip install -r requirements.txt
 ```
-The unit test suite validates:
-1. `ProcessControlBlock` fields and JSON serialization.
-2. `WorkloadGenerator` generation of 176,000 bursty transactions.
-3. Queue 1 Shortest Remaining Time First (SRTF) dispatching.
-4. Queue 2 Round Robin time quantum preemption.
-5. Anti-starvation Aging mechanism promotion from Q2 to Q1.
-6. 2PL mutual exclusion lock arbitration and `WAITING` transitions.
-7. State transitions JSON file export.
-8. Real-time telemetry tracking and contention scoring.
-9. MD-ACC Exponential Backoff delays ($B_0 \times 2^{retry}$).
-10. Comparison mode (Baseline collision aborts vs. Adaptive MD-ACC).
-11. Strict lock ordering deadlock prevention (1,000 reciprocal transfers without deadlock).
-12. MySQL transaction rollback on insufficient funds (ACID Atomicity).
+*(Packages required: `flask`, `mysql-connector-python`)*
 
-### 3. Launch Live Simulation Dashboard
+### Step 3: Launch BankOS Middleware
 ```bash
-./bank_os_sim --port 8080
+python app.py
 ```
-Open your browser at:
-```
-http://localhost:8080
-```
-
-### 4. Fast Headless Batch Mode
-To run full batch execution without the HTTP server:
-```bash
-./bank_os_sim --headless
-```
-This generates `state_transitions.json` containing the full transition audit log.
+Open your browser at **[http://127.0.0.1:5000](http://127.0.0.1:5000)**.
 
 ---
 
-## 📡 REST API Endpoints
+## 🏛️ System Architecture
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/status` | `GET` | Simulation tick, queue sizes, completed count, and aging promotions |
-| `/api/state` | `GET` | Full simulation snapshot: running PCB, queues, active PCBs, bank accounts, and metrics |
-| `/api/accounts` | `GET` | Live bank account balances, customer mapping, and 2PL lock states |
-| `/api/queues` | `GET` | Snapshot of Queue 1 (SRTF), Queue 2 (RR), and Waiting Chamber |
-| `/api/transitions` | `GET` | Live stream of recent state transitions with reason metadata |
-| `/api/workload/spike` | `GET/POST` | Inject benchmark scenarios: `upi_peak`, `salary_clearing`, `settlement_hotspot`, `acid_rollback`, `reset` |
-| `/api/comparison-mode` | `GET/POST` | Toggle between Baseline (Direct DB collisions) and Adaptive BankOS Ledger (MD-ACC) |
-| `/api/database/joins` | `GET` | Multi-table SQL JOIN query results (Transactions ⨝ Accounts ⨝ Customers ⨝ Branches) |
-| `/api/database/tables` | `GET` | 5-table schema metadata, live row counts, and active storage engine status |
-| `/api/database/connect` | `POST` | Live runtime reconnection to MySQL server (`host`, `port`, `user`, `password`) |
-| `/api/db/status` | `GET` | MySQL persistent storage stats: connection status, queries, commits, rollbacks |
-| `/api/lockmanager/status` | `GET` | 2PL Lock Manager stats: lock attempts, conflicts, timeouts, deadlocks prevented |
-| `/api/control/pause` | `GET` | Pause discrete tick execution |
-| `/api/control/resume` | `GET` | Resume discrete tick execution |
-| `/api/control/speed` | `GET` | Adjust clock speed delay in microseconds (`?delay=80000`) |
-| `/api/export` | `GET` | Trigger export of state transitions to `state_transitions.json` |
+### 1. Relational Database Schema (`schema.sql` & `bankos_db`)
+The system enforces strict relational normalization across **5 linked tables**:
+1. `accounts` (`account_id` PK, `customer_name`, `account_type`, `created_at`)
+2. `balance` (`balance_id` PK, `account_id` FK -> accounts, `current_balance`, `last_updated`)
+3. `transactions` (`txn_id` PK, `sender_id` FK, `receiver_id` FK, `txn_category`, `amount`, `burst_time`, `assigned_queue`, `status`, `created_at`)
+4. `atm_transactions` (`atm_id` PK, `txn_id` FK -> transactions, `atm_location`, `card_last4`)
+5. `upi_payroll_transactions` (`channel_id` PK, `txn_id` FK -> transactions, `channel_mode`, `reference_handle`)
+
+#### Mandatory Multi-Table SQL JOIN
+All transaction views and history are fetched via multi-table relational `JOIN` queries:
+```sql
+SELECT 
+    t.txn_id,
+    t.sender_id, s.customer_name AS sender_name, sb.current_balance AS sender_balance,
+    t.receiver_id, r.customer_name AS receiver_name, rb.current_balance AS receiver_balance,
+    t.txn_category, t.amount, t.burst_time, t.assigned_queue, t.status, t.created_at,
+    atm.atm_location, atm.card_last4,
+    up.channel_mode, up.reference_handle
+FROM transactions t
+INNER JOIN accounts s ON t.sender_id = s.account_id
+INNER JOIN balance sb ON s.account_id = sb.account_id
+INNER JOIN accounts r ON t.receiver_id = r.account_id
+INNER JOIN balance rb ON r.account_id = rb.account_id
+LEFT JOIN atm_transactions atm ON t.txn_id = atm.txn_id
+LEFT JOIN upi_payroll_transactions up ON t.txn_id = up.txn_id
+ORDER BY t.created_at DESC;
+```
+
+#### ACID Concurrency & Verification
+When a transaction finishes its CPU burst, balances are updated inside an isolated MySQL transaction:
+```sql
+START TRANSACTION;
+SELECT current_balance FROM balance WHERE account_id = ? FOR UPDATE;
+-- Validate balance >= amount
+UPDATE balance SET current_balance = current_balance - ? WHERE account_id = ?;
+UPDATE balance SET current_balance = current_balance + ? WHERE account_id = ?;
+UPDATE transactions SET status = 'COMPLETED' WHERE txn_id = ?;
+COMMIT; -- If insufficient balance: ROLLBACK and mark status = 'FAILED'
+```
 
 ---
 
-## 📁 Repository Structure
+### 2. OS Scheduler Engine: 3-Level MLFQ (`scheduler.py`)
+Transactions enter the middleware as **Process Control Blocks (PCBs)** with an arrival time, burst time (1s to 8s), and category:
 
-```
-BankOS-Banking-Transaction-OS-Simulator/
-├── include/
-│   ├── pcb.hpp                     # Process Control Block struct & OS lifecycle states
-│   ├── mlfq_scheduler.hpp          # MLFQ Scheduler (SRTF + RR + Aging + Auto-Stream)
-│   ├── lock_manager.hpp            # 2PL Concurrency Control & Havender Deadlock Denial
-│   ├── mysql_storage.hpp           # Persistent MySQL Storage (X DevAPI) & ACID rollback engine
-│   ├── middleware.hpp              # MD-ACC Adaptive Concurrency & Exponential Backoff
-│   ├── workload_generator.hpp      # Bursty 176k transaction workload generator
-│   ├── state_transition.hpp        # Transition audit logging
-│   └── httplib.h                   # Embedded C++ HTTP server
-├── src/
-│   └── main.cpp                    # Application entrypoint & REST API server
-├── tests/
-│   └── test_bank_os_simulator.cpp  # 12 unit tests validating OS & DBMS features
-├── web/
-│   ├── index.html                  # Multi-page tabbed dashboard with running diagram
-│   ├── styles.css                  # Professional systems console styling (charcoal/slate)
-│   └── app.js                      # Client engine, state polling, oscilloscopes & logs
-├── db/
-│   └── schema.sql                  # MySQL database schema (Customers, Accounts, Transactions, AuditLogs)
-├── Makefile                        # Compilation & test runner
-└── README.md                       # Architectural documentation
-```
+| Queue | Priority | Algorithm | Workload Filter | Description |
+|---|---|---|---|---|
+| **Queue 1** | **High** | **Preemptive Priority** | `ATM` & `UPI` | Instant micro-payments. Preempts Q2 and Q3. |
+| **Queue 2** | **Medium** | **Shortest Job First (SJF)** | `STANDARD` (`burst <= 3s`) | Small wire transfers. Sorted ascending by burst time. |
+| **Queue 3** | **Low** | **First-Come, First-Served (FCFS)** | `PAYROLL` & `burst > 3s` | Batch salary runs & heavy transfers. Executed in arrival order when Q1 & Q2 are empty. |
+
+* **Background Traffic Generator:** Continuously generates realistic ATM, UPI, and Payroll transactions between accounts every 3–4 seconds to keep the queues dynamic. Can be toggled on/off via the **Traffic** button.
+
+---
+
+### 3. Frontend: 3-Slide Horizontal Viewport (`templates/index.html`)
+The user interface avoids vertical scrolling by using a clean **3-Slide Horizontal Carousel** styled in a sober, minimalist light theme (White `#FFFFFF`, Blush `#FFF5F7`, and Rose-Pink `#E11D48`):
+
+* **Slide 1: Live Middleware & Testing Console:**
+  * **Left Column:** Manual Test Transaction Injector with preset buttons (Test ATM, Test UPI, Test SJF, Test Payroll, Test Overdraft). Injected transactions are marked with `is_test_txn = True`.
+  * **Right Column:** 
+    * **Tracked Test Transaction Banner:** Dedicated glowing pink badge (`★ DEMO TEST`) and 3-step progress pipeline (`Queued in MLFQ ➔ Executing on CPU Core 0 ➔ Committed to MySQL (ACID Passed)`).
+    * **Active CPU Core 0 ALU Worker Card** with animated progress bar and remaining burst display.
+    * **Queue 1, Queue 2, and Queue 3 Monitors** displaying live PCBs with glowing highlights for demo transactions.
+* **Slide 2: MySQL Joined Ledger & Channel Logs:**
+  * Live multi-table joined table showing customer names, channel metadata, burst time, assigned queue, status, and post-transaction balance.
+  * Category filter pills (`ALL`, `ATM`, `UPI`, `STANDARD`, `PAYROLL`), search bar, and CSV export.
+* **Slide 3: System Architecture & OS Metrics:**
+  * Performance KPIs: Total Processed, Queue 1/2/3 Average Wait Times, and Throughput.
+  * Interactive MLFQ Routing Architecture Diagram.
+  * Real-Time Verified Customer Balances Table.
+
+---
+
+## 🧪 Live Demonstration Guide (For Evaluators & Faculty)
+
+1. **Demonstrate Queue 1 Priority (ATM/UPI Preemption):**
+   * On Slide 1, click **"Test ATM (Q1)"** or **"Test UPI (Q1)"** and click **"Proceed & Inject"**.
+   * Notice the transaction enters **Queue 1** and is highlighted with a glowing pink **`★ DEMO TEST`** card.
+   * Watch it immediately preempt lower queues and execute on **CPU Core 0**.
+
+2. **Demonstrate Queue 2 Shortest Job First (SJF):**
+   * Click **"Test Small (Q2 SJF)"** (Burst: 2s).
+   * Notice it enters **Queue 2**, sorting ahead of longer standard jobs.
+
+3. **Demonstrate Queue 3 First-Come, First-Served (FCFS):**
+   * Click **"Test Payroll (Q3 FCFS)"** (Burst: 6s).
+   * Notice it is routed to **Queue 3** as batch payroll and executes in arrival order once Q1 and Q2 are cleared.
+
+4. **Demonstrate ACID Rollback (Insufficient Balance):**
+   * Click **"Test Overdraft (ACID)"** (transfers ₹500,000 from Ananya Iyer who only has ₹65,000).
+   * Watch the CPU worker execute the burst, invoke MySQL `SELECT FOR UPDATE`, detect the constraint violation, and trigger a safe **ACID ROLLBACK** (Status: `FAILED`, Reason: `ACID Rollback: Insufficient Balance`).
+
+5. **Demonstrate Multi-Table SQL JOINs:**
+   * Slide over to **Slide 2: MySQL Joined Ledger**.
+   * Show that each transaction displays the sender and receiver's actual customer name, their post-transfer balance, and specific channel metadata (`ATM Location` or `UPI Virtual Payment Address`).
+
+6. **Demonstrate Keyboard Slide Navigation:**
+   * Use the **Left Arrow (←)** and **Right Arrow (→)** keys to smoothly slide between the 3 views.

@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BankOS Middleware — 3-Level MLFQ OS Scheduler & MySQL Ledger</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ====================================================================
+           BankOS Middleware: Soft White & Rose-Pink Aesthetic Light Theme
+           Sober, Clean, Disciplined Systems Architecture
+           ==================================================================== */
+        :root {
+            --bg-base: #FFF5F7;
+            --bg-card: #FFFFFF;
+            --bg-subtle: #FFF1F4;
+            --border-card: #FECDD3;
+            --border-subtle: #FFE4E8;
+            --border-focus: #F43F5E;
+
+            --rose-primary: #E11D48;
+            --rose-hover: #BE123C;
+            --rose-light: #FFF1F2;
+            --rose-border: #FDA4AF;
+
+            --text-primary: #1E293B;
+            --text-secondary: #334155;
+            --text-muted: #64748B;
+            --text-dim: #94A3B8;
+
+            --emerald: #059669;
+            --emerald-bg: #ECFDF5;
+            --emerald-border: #A7F3D0;
+
+            --amber: #D97706;
+            --amber-bg: #FEF3C7;
+            --amber-border: #FDE68A;
+
+            --sky: #0284C7;
+            --sky-bg: #F0F9FF;
+            --sky-border: #BAE6FD;
+
+            --crimson: #DC2626;
+            --crimson-bg: #FEE2E2;
+            --crimson-border: #FECACA;
+
+            --purple: #7C3AED;
+            --purple-bg: #F5F3FF;
+            --purple-border: #DDD6FE;
+
+            --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', SFMono-Regular, Consolas, monospace;
+
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-full: 9999px;
+
+            --shadow-subtle: 0 2px 10px rgba(225, 29, 72, 0.04);
+            --shadow-card: 0 4px 16px rgba(225, 29, 72, 0.06);
+            --shadow-glow: 0 0 16px rgba(244, 63, 94, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Top Header & Sticky Navigation Bar */
+        .app-header {
+            background: #FFFFFF;
+            border-bottom: 1.5px solid var(--border-card);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(225, 29, 72, 0.05);
+        }
+
+        .header-content {
+            max-width: 1540px;
+            margin: 0 auto;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .brand-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--rose-primary), #F43F5E);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #FFFFFF;
+            font-size: 1.2rem;
+            font-weight: 800;
+            box-shadow: 0 4px 10px rgba(225, 29, 72, 0.25);
+        }
+
+        .brand-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+        }
+
+        .brand-subtitle {
+            font-size: 0.75rem;
+            color: var(--rose-primary);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* 3-Slide Navigation Pills (Horizontal Slide Controller) */
+        .slide-nav-pills {
+            display: flex;
+            background: var(--bg-subtle);
+            padding: 4px;
+            border-radius: var(--radius-full);
+            border: 1px solid var(--border-card);
+            gap: 4px;
+        }
+
+        .nav-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            border-radius: var(--radius-full);
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+        }
+
+        .nav-pill:hover {
+            color: var(--rose-primary);
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .nav-pill.active {
+            background: #FFFFFF;
+            color: var(--rose-primary);
+            box-shadow: 0 2px 8px rgba(225, 29, 72, 0.15);
+            border: 1px solid var(--border-card);
+        }
+
+        .pill-badge {
+            font-size: 0.68rem;
+            padding: 2px 7px;
+            border-radius: var(--radius-full);
+            background: var(--rose-light);
+            color: var(--rose-primary);
+            font-weight: 800;
+        }
+
+        /* Header Utility Tools */
+        .header-tools {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            background: var(--emerald-bg);
+            color: var(--emerald);
+            border: 1px solid var(--emerald-border);
+        }
+
+        .pulse-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--emerald);
+            animation: pulse-green 1.6s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(5, 150, 105, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-size: 0.82rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-rose {
+            background: var(--rose-primary);
+            color: #FFFFFF;
+            box-shadow: 0 2px 8px rgba(225, 29, 72, 0.25);
+        }
+
+        .btn-rose:hover {
+            background: var(--rose-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-card);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--rose-primary);
+            color: var(--rose-primary);
+            background: var(--rose-light);
+        }
+
+        /* ====================================================================
+           SLIDING VIEWS CAROUSEL CONTAINER (CSS translateX)
+           ==================================================================== */
+        .slides-viewport {
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .slides-wrapper {
+            display: flex;
+            width: 300%;
+            transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+        }
+
+        .slide-pane {
+            width: 33.333333%;
+            flex-shrink: 0;
+            padding: 24px;
+            max-width: 1540px;
+            margin: 0 auto;
+        }
+
+        /* Generic Card Panels */
+        .card-panel {
+            background: var(--bg-card);
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-subtitle {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* ====================================================================
+           SLIDE 1: LIVE MIDDLEWARE & TESTING CONSOLE
+           ==================================================================== */
+        .slide-1-grid {
+            display: grid;
+            grid-template-columns: 460px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .slide-1-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Left Column: Form Controls */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: var(--rose-primary);
+            box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12);
+        }
+
+        .burst-slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .styled-slider {
+            flex: 1;
+            accent-color: var(--rose-primary);
+            height: 6px;
+            cursor: pointer;
+        }
+
+        .burst-badge {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            background: var(--rose-light);
+            color: var(--rose-primary);
+            border: 1px solid var(--rose-border);
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .presets-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+            margin-bottom: 18px;
+        }
+
+        .preset-btn {
+            font-size: 0.74rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-card);
+            background: var(--bg-subtle);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preset-btn:hover {
+            border-color: var(--rose-primary);
+            color: var(--rose-primary);
+            background: #FFFFFF;
+        }
+
+        .btn-inject-large {
+            width: 100%;
+            padding: 13px;
+            font-size: 0.92rem;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+        }
+
+        /* Right Column: Tracked Test Transaction Banner & Queues */
+        .tracked-test-banner {
+            background: #FFFFFF;
+            border: 2px solid var(--rose-primary);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .test-banner-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .test-badge-glowing {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--rose-primary);
+            color: #FFFFFF;
+            font-size: 0.75rem;
+            font-weight: 800;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            box-shadow: 0 0 12px rgba(225, 29, 72, 0.45);
+            letter-spacing: 0.5px;
+        }
+
+        .test-step-pill {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            background: var(--rose-light);
+            color: var(--rose-primary);
+            border: 1px solid var(--rose-border);
+        }
+
+        /* 3-Step Visual Progress Bar */
+        .progress-pipeline {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .pipeline-step {
+            padding: 8px 12px;
+            border-radius: var(--radius-md);
+            background: var(--bg-subtle);
+            border: 1.5px solid var(--border-subtle);
+            text-align: center;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .pipeline-step.active {
+            background: #FFFFFF;
+            border-color: var(--rose-primary);
+            color: var(--rose-primary);
+            box-shadow: 0 2px 8px rgba(225, 29, 72, 0.15);
+        }
+
+        .pipeline-step.completed {
+            background: var(--emerald-bg);
+            border-color: var(--emerald-border);
+            color: var(--emerald);
+        }
+
+        /* CPU Core 0 ALU Active Worker Card */
+        .cpu-worker-card {
+            background: linear-gradient(135deg, #FFFFFF, var(--bg-subtle));
+            border: 1.5px solid var(--rose-border);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+
+        .cpu-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .cpu-title {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cpu-progress-bar {
+            height: 8px;
+            background: var(--border-card);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .cpu-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--rose-primary), #F43F5E);
+            border-radius: var(--radius-full);
+            width: 0%;
+            transition: width 0.25s linear;
+        }
+
+        /* 3-Level MLFQ Queue Containers */
+        .queues-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .queues-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .queue-col {
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            min-height: 280px;
+        }
+
+        .queue-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1.5px solid var(--border-subtle);
+        }
+
+        .queue-title {
+            font-size: 0.82rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .q1-title { color: #0284C7; }
+        .q2-title { color: #059669; }
+        .q3-title { color: #7C3AED; }
+
+        .queue-list {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            max-height: 320px;
+        }
+
+        /* Transaction Process Cards */
+        .process-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .process-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .process-card.is-test {
+            border: 2px solid var(--rose-primary);
+            background: #FFF9FA;
+            box-shadow: 0 0 10px rgba(225, 29, 72, 0.2);
+        }
+
+        .pcb-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .pcb-id {
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .pcb-category {
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .cat-atm { background: var(--amber-bg); color: var(--amber); }
+        .cat-upi { background: var(--sky-bg); color: var(--sky); }
+        .cat-standard { background: var(--emerald-bg); color: var(--emerald); }
+        .cat-payroll { background: var(--purple-bg); color: var(--purple); }
+
+        .pcb-body {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            line-height: 1.35;
+        }
+
+        .pcb-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.74rem;
+            font-weight: 700;
+        }
+
+        .empty-queue-msg {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            padding: 30px 10px;
+            font-style: italic;
+        }
+
+        /* ====================================================================
+           SLIDE 2: MYSQL JOINED LEDGER & CHANNEL LOGS
+           ==================================================================== */
+        .ledger-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-tab {
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: var(--radius-full);
+            background: #FFFFFF;
+            border: 1px solid var(--border-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-tab.active {
+            background: var(--rose-primary);
+            color: #FFFFFF;
+            border-color: var(--rose-primary);
+        }
+
+        .search-wrap {
+            position: relative;
+            min-width: 280px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 14px 8px 34px;
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-md);
+            font-size: 0.82rem;
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-md);
+            background: #FFFFFF;
+        }
+
+        .ledger-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        .ledger-table thead {
+            background: var(--bg-subtle);
+            border-bottom: 2px solid var(--border-card);
+        }
+
+        .ledger-table th {
+            text-align: left;
+            padding: 12px 14px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .ledger-table td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            vertical-align: middle;
+        }
+
+        .ledger-table tbody tr:hover {
+            background: #FFF9FA;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .status-completed { background: var(--emerald-bg); color: var(--emerald); border: 1px solid var(--emerald-border); }
+        .status-failed { background: var(--crimson-bg); color: var(--crimson); border: 1px solid var(--crimson-border); }
+        .status-running { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+        .status-queued { background: var(--bg-subtle); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+
+        /* ====================================================================
+           SLIDE 3: SYSTEM ARCHITECTURE & OS METRICS
+           ==================================================================== */
+        .metrics-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .metrics-cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-md);
+            padding: 18px;
+        }
+
+        .stat-label {
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin: 6px 0;
+            font-family: var(--font-mono);
+        }
+
+        .stat-desc {
+            font-size: 0.74rem;
+            color: var(--rose-primary);
+            font-weight: 700;
+        }
+
+        /* Architecture Diagram Flowchart */
+        .arch-diagram-wrap {
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .arch-flow-grid {
+            display: grid;
+            grid-template-columns: 240px 40px 1fr 40px 240px;
+            align-items: center;
+            gap: 12px;
+        }
+
+        @media (max-width: 1100px) {
+            .arch-flow-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .arch-box {
+            background: var(--bg-subtle);
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            text-align: center;
+        }
+
+        .arch-box-title {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: var(--rose-primary);
+            margin-bottom: 6px;
+        }
+
+        .arch-box-desc {
+            font-size: 0.74rem;
+            color: var(--text-secondary);
+        }
+
+        .arch-arrow {
+            text-align: center;
+            font-size: 1.4rem;
+            color: var(--rose-primary);
+            font-weight: 800;
+        }
+
+        .arch-queues-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .arch-queue-item {
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-card);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Toast Notifications */
+        .toast-banner {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #FFFFFF;
+            border: 2px solid var(--rose-primary);
+            border-radius: var(--radius-md);
+            padding: 12px 20px;
+            box-shadow: 0 4px 20px rgba(225, 29, 72, 0.2);
+            display: none;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ====================================================================
+         TOP HEADER & 3-SLIDE HORIZONTAL NAVIGATION BAR
+         ==================================================================== -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="brand-group">
+                <div class="brand-icon">⚡</div>
+                <div>
+                    <h1 class="brand-title">BankOS Middleware</h1>
+                    <div class="brand-subtitle">3-Level MLFQ Scheduler &amp; ACID Ledger</div>
+                </div>
+            </div>
+
+            <!-- 3 Horizontal Sliding Views Navigation -->
+            <nav class="slide-nav-pills" id="slideNav">
+                <button class="nav-pill active" data-slide="0">
+                    <span>⚡ Slide 1: Live Middleware &amp; Testing Console</span>
+                </button>
+                <button class="nav-pill" data-slide="1">
+                    <span>📊 Slide 2: MySQL Joined Ledger &amp; Channel Logs</span>
+                </button>
+                <button class="nav-pill" data-slide="2">
+                    <span>🏛️ Slide 3: System Architecture &amp; OS Metrics</span>
+                </button>
+            </nav>
+
+            <!-- Utility Tools -->
+            <div class="header-tools">
+                <div class="status-indicator" id="engineStatusBadge">
+                    <span class="pulse-dot"></span>
+                    <span id="engineStatusText">MLFQ ENGINE ACTIVE</span>
+                </div>
+                <button class="btn btn-outline" id="btnToggleTraffic" title="Toggle background traffic generation">
+                    <span id="trafficIcon">⏸</span>
+                    <span id="trafficText">Traffic: Active</span>
+                </button>
+                <button class="btn btn-outline" id="btnResetAll" title="Reset queues and test accounts">
+                    <span>🔄 Reset</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ====================================================================
+         SLIDING VIEWPORT (Contains 3 Full-Width Horizontal Slides)
+         ==================================================================== -->
+    <main class="slides-viewport">
+        <div class="slides-wrapper" id="slidesWrapper">
+
+            <!-- ================================================================
+                 SLIDE 1: LIVE MIDDLEWARE & TESTING CONSOLE
+                 ================================================================ -->
+            <section class="slide-pane" id="slidePane0">
+                <div class="slide-1-grid">
+                    
+                    <!-- LEFT COLUMN: MANUAL TEST TRANSACTION INJECTOR -->
+                    <div class="card-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2 class="panel-title">🎯 Manual Test Transaction Injector</h2>
+                                <p class="panel-subtitle">Inject priority test jobs with custom burst times &amp; ACID parameters</p>
+                            </div>
+                            <span class="pill-badge">TEST CONSOLE</span>
+                        </div>
+
+                        <form id="formInjectTest">
+                            <div class="form-group">
+                                <label class="form-label" for="inpSender">Sender Customer Account</label>
+                                <select class="form-control" id="inpSender" required>
+                                    <option value="ACC1001">ACC1001: Rajesh Sharma (SAVINGS - ₹1,50,000)</option>
+                                    <option value="ACC1002">ACC1002: Priya Patel (SAVINGS - ₹85,000)</option>
+                                    <option value="ACC1003">ACC1003: Amit Verma (CURRENT - ₹2,40,000)</option>
+                                    <option value="ACC1004">ACC1004: Sneha Kulkarni (SAVINGS - ₹95,000)</option>
+                                    <option value="ACC1005">ACC1005: TechCorp Solutions (PAYROLL - ₹15,00,000)</option>
+                                    <option value="ACC1006">ACC1006: Metro ATM Cash Reserve (VAULT - ₹8,00,000)</option>
+                                    <option value="ACC1007">ACC1007: Vikram Malhotra (PREMIUM - ₹3,20,000)</option>
+                                    <option value="ACC1008">ACC1008: Ananya Iyer (SALARY - ₹65,000)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="inpReceiver">Receiver Customer Account</label>
+                                <select class="form-control" id="inpReceiver" required>
+                                    <option value="ACC1002">ACC1002: Priya Patel (SAVINGS)</option>
+                                    <option value="ACC1001">ACC1001: Rajesh Sharma (SAVINGS)</option>
+                                    <option value="ACC1004">ACC1004: Sneha Kulkarni (SAVINGS)</option>
+                                    <option value="ACC1003">ACC1003: Amit Verma (CURRENT)</option>
+                                    <option value="ACC1008">ACC1008: Ananya Iyer (SALARY)</option>
+                                    <option value="ACC1006">ACC1006: Metro ATM Cash Reserve (VAULT)</option>
+                                    <option value="ACC1007">ACC1007: Vikram Malhotra (PREMIUM)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="inpCategory">Transaction Type &amp; Channel</label>
+                                <select class="form-control" id="inpCategory" required>
+                                    <option value="UPI">⚡ UPI Transfer ➔ Routed to Queue 1 (Priority)</option>
+                                    <option value="ATM">🏧 ATM Withdrawal ➔ Routed to Queue 1 (Priority)</option>
+                                    <option value="STANDARD">⏱️ Standard Transfer ➔ Q2 (SJF) or Q3 (FCFS)</option>
+                                    <option value="PAYROLL">🏢 Company Payroll ➔ Routed to Queue 3 (FCFS)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="inpAmount">Transfer Amount (₹)</label>
+                                <input type="number" step="0.01" min="10" max="2000000" class="form-control" id="inpAmount" value="3500.00" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">CPU Burst Time (Seconds)</label>
+                                <div class="burst-slider-wrap">
+                                    <input type="range" min="1" max="8" value="2" class="styled-slider" id="sliderBurst">
+                                    <span class="burst-badge" id="lblBurstVal">2s Burst</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group" id="channelMetaWrap">
+                                <label class="form-label" id="lblChannelMeta">Channel Virtual Address / Handle</label>
+                                <input type="text" class="form-control" id="inpChannelMeta" value="rajesh@okaxis" placeholder="UPI VPA or ATM Location">
+                            </div>
+
+                            <!-- Quick Preset Demonstrations -->
+                            <div class="presets-row">
+                                <button type="button" class="preset-btn" id="btnPresetAtm">🏧 Test ATM (Q1)</button>
+                                <button type="button" class="preset-btn" id="btnPresetUpi">⚡ Test UPI (Q1)</button>
+                                <button type="button" class="preset-btn" id="btnPresetSjf">⏱️ Test Small (Q2 SJF)</button>
+                                <button type="button" class="preset-btn" id="btnPresetPayroll">🏢 Test Payroll (Q3 FCFS)</button>
+                                <button type="button" class="preset-btn" id="btnPresetOverdraft">🛡️ Test Overdraft (ACID)</button>
+                            </div>
+
+                            <button type="submit" class="btn btn-rose btn-inject-large" id="btnProceedInject">
+                                <span>🚀 PROCEED &amp; INJECT TRANSACTION</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- RIGHT COLUMN: TRACKED TEST TRANSACTION & LIVE 3-LEVEL MLFQ -->
+                    <div>
+                        <!-- CRITICAL REQUIREMENT: DEDICATED TRACKED TEST TRANSACTION BANNER -->
+                        <div class="tracked-test-banner" id="trackedTestBanner">
+                            <div class="test-banner-header">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="test-badge-glowing">★ DEMO TEST</span>
+                                    <strong id="trackedTestId" style="font-family: var(--font-mono); color: var(--rose-primary);">NO TEST INJECTED YET</strong>
+                                </div>
+                                <span class="test-step-pill" id="trackedTestStatusPill">Awaiting Injection</span>
+                            </div>
+
+                            <p style="font-size: 0.8rem; color: var(--text-secondary);" id="trackedTestSummary">
+                                Inject a transaction using the Test Console on the left. It will be highlighted with a glowing pink border and tracked here live.
+                            </p>
+
+                            <!-- 3-Phase Pipeline -->
+                            <div class="progress-pipeline">
+                                <div class="pipeline-step" id="stepQueued">1. Queued in MLFQ</div>
+                                <div class="pipeline-step" id="stepExecuting">2. Executing on CPU Core 0</div>
+                                <div class="pipeline-step" id="stepCommitted">3. Committed to MySQL (ACID)</div>
+                            </div>
+                        </div>
+
+                        <!-- ACTIVE CPU WORKER CARD -->
+                        <div class="cpu-worker-card">
+                            <div class="cpu-header">
+                                <div class="cpu-title">
+                                    <span>⚙️ Active CPU Worker (Core 0 ALU)</span>
+                                </div>
+                                <span class="pill-badge" id="cpuAlgoBadge">MLFQ DISPATCHER</span>
+                            </div>
+
+                            <div id="cpuRunningDetails" style="font-size: 0.82rem; color: var(--text-secondary);">
+                                <em>CPU Core 0 Idle. Awaiting incoming transactions...</em>
+                            </div>
+
+                            <div class="cpu-progress-bar">
+                                <div class="cpu-progress-fill" id="cpuProgressFill"></div>
+                            </div>
+
+                            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted);">
+                                <span id="cpuProgressText">Progress: 0%</span>
+                                <span id="cpuBurstTimeText">Remaining: 0s</span>
+                            </div>
+                        </div>
+
+                        <!-- 3-LEVEL MLFQ MONITORS -->
+                        <div class="queues-grid">
+                            <!-- QUEUE 1: PRIORITY -->
+                            <div class="queue-col">
+                                <div class="queue-header">
+                                    <span class="queue-title q1-title">⚡ Queue 1 (Priority)</span>
+                                    <span class="pill-badge" id="cntQ1">0</span>
+                                </div>
+                                <p style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">
+                                    ATM &amp; UPI micro-bursts. Highest execution priority.
+                                </p>
+                                <div class="queue-list" id="listQ1">
+                                    <div class="empty-queue-msg">Queue 1 empty</div>
+                                </div>
+                            </div>
+
+                            <!-- QUEUE 2: SJF -->
+                            <div class="queue-col">
+                                <div class="queue-header">
+                                    <span class="queue-title q2-title">⏱️ Queue 2 (SJF)</span>
+                                    <span class="pill-badge" id="cntQ2">0</span>
+                                </div>
+                                <p style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">
+                                    Small Standard (Burst &le; 3s). Shortest Job First.
+                                </p>
+                                <div class="queue-list" id="listQ2">
+                                    <div class="empty-queue-msg">Queue 2 empty</div>
+                                </div>
+                            </div>
+
+                            <!-- QUEUE 3: FCFS -->
+                            <div class="queue-col">
+                                <div class="queue-header">
+                                    <span class="queue-title q3-title">🏢 Queue 3 (FCFS)</span>
+                                    <span class="pill-badge" id="cntQ3">0</span>
+                                </div>
+                                <p style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">
+                                    Payroll batches &amp; large jobs. First-Come, First-Served.
+                                </p>
+                                <div class="queue-list" id="listQ3">
+                                    <div class="empty-queue-msg">Queue 3 empty</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================================================================
+                 SLIDE 2: MYSQL JOINED LEDGER & CHANNEL LOGS
+                 ================================================================ -->
+            <section class="slide-pane" id="slidePane1">
+                <div class="card-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">📊 MySQL Multi-Table Joined Ledger</h2>
+                            <p class="panel-subtitle">Executed via SQL INNER/LEFT JOIN across accounts, balance, transactions, atm_transactions &amp; upi_payroll_transactions</p>
+                        </div>
+                        <button class="btn btn-outline" id="btnExportCsv">
+                            <span>⬇️ Export CSV</span>
+                        </button>
+                    </div>
+
+                    <div class="ledger-toolbar">
+                        <div class="filter-group">
+                            <button class="filter-tab active" data-category="ALL">All Categories</button>
+                            <button class="filter-tab" data-category="ATM">🏧 ATM</button>
+                            <button class="filter-tab" data-category="UPI">⚡ UPI</button>
+                            <button class="filter-tab" data-category="STANDARD">⏱️ Standard</button>
+                            <button class="filter-tab" data-category="PAYROLL">🏢 Payroll</button>
+                        </div>
+
+                        <div class="search-wrap">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" class="search-input" id="inpLedgerSearch" placeholder="Search TxID, Customer, ATM, or Handle...">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="ledger-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 140px;">Txn ID</th>
+                                    <th style="width: 220px;">Sender ➔ Receiver</th>
+                                    <th style="width: 110px;">Category</th>
+                                    <th>Channel Metadata</th>
+                                    <th style="width: 110px;">Amount</th>
+                                    <th style="width: 80px;">Burst</th>
+                                    <th style="width: 110px;">Queue Used</th>
+                                    <th style="width: 110px;">Status</th>
+                                    <th style="width: 140px;">Post-Tx Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyLedger">
+                                <tr>
+                                    <td colspan="9" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                                        Loading joined database ledger...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================================================================
+                 SLIDE 3: SYSTEM ARCHITECTURE & OS METRICS
+                 ================================================================ -->
+            <section class="slide-pane" id="slidePane2">
+                <!-- OS KPI Metrics Grid -->
+                <div class="metrics-cards-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Transactions Processed</div>
+                        <div class="stat-value" id="valTotalProcessed">0</div>
+                        <div class="stat-desc">Throughput via 3-Level MLFQ</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Queue 1 (Priority) Avg Wait</div>
+                        <div class="stat-value" id="valAvgWaitQ1">0.0s</div>
+                        <div class="stat-desc">ATM &amp; UPI Low-Latency Lane</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Queue 2 (SJF) Avg Wait</div>
+                        <div class="stat-value" id="valAvgWaitQ2">0.0s</div>
+                        <div class="stat-desc">Shortest Job First Transfers</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Queue 3 (FCFS) Avg Wait</div>
+                        <div class="stat-value" id="valAvgWaitQ3">0.0s</div>
+                        <div class="stat-desc">Heavy Payroll &amp; Large Batches</div>
+                    </div>
+                </div>
+
+                <!-- Visual MLFQ Routing Architecture Diagram -->
+                <div class="arch-diagram-wrap">
+                    <div class="panel-header" style="margin-bottom: 12px; border: none; padding: 0;">
+                        <h3 class="panel-title">🏛️ 3-Level MLFQ OS Scheduling Architecture</h3>
+                    </div>
+
+                    <div class="arch-flow-grid">
+                        <div class="arch-box">
+                            <div class="arch-box-title">1. Incoming Banking Requests</div>
+                            <div class="arch-box-desc">ATM, UPI, Payroll, Standard Banking Workloads admitted as Process Control Blocks (PCBs)</div>
+                        </div>
+
+                        <div class="arch-arrow">➔</div>
+
+                        <div class="arch-queues-stack">
+                            <div class="arch-queue-item" style="border-left: 4px solid #0284C7;">
+                                <div>
+                                    <strong style="color: #0284C7;">Queue 1: High Priority (Preemptive)</strong>
+                                    <div style="font-size: 0.72rem; color: var(--text-muted);">Captures ATM &amp; UPI. Instant dispatch before Q2/Q3.</div>
+                                </div>
+                                <span class="pill-badge">URGENT</span>
+                            </div>
+
+                            <div class="arch-queue-item" style="border-left: 4px solid #059669;">
+                                <div>
+                                    <strong style="color: #059669;">Queue 2: Medium Priority (SJF)</strong>
+                                    <div style="font-size: 0.72rem; color: var(--text-muted);">Captures Standard Transfers (Burst &le; 3s). Sorted ascending.</div>
+                                </div>
+                                <span class="pill-badge">OPTIMAL</span>
+                            </div>
+
+                            <div class="arch-queue-item" style="border-left: 4px solid #7C3AED;">
+                                <div>
+                                    <strong style="color: #7C3AED;">Queue 3: Low Priority (FCFS)</strong>
+                                    <div style="font-size: 0.72rem; color: var(--text-muted);">Captures Heavy Payroll &amp; Transfers &gt; 3s. Order of arrival.</div>
+                                </div>
+                                <span class="pill-badge">BATCH</span>
+                            </div>
+                        </div>
+
+                        <div class="arch-arrow">➔</div>
+
+                        <div class="arch-box">
+                            <div class="arch-box-title">3. CPU Core 0 &amp; ACID Commit</div>
+                            <div class="arch-box-desc">Simulates burst execution, executes SELECT FOR UPDATE, updates balances and commits to MySQL</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Verified Account Balances Table -->
+                <div class="card-panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">👥 Verified Customer Balances (ACID Ledger)</h3>
+                        <span class="pill-badge">accounts INNER JOIN balance</span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="ledger-table">
+                            <thead>
+                                <tr>
+                                    <th>Account ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Account Type</th>
+                                    <th>Real-Time Balance (₹)</th>
+                                    <th>Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyAccounts">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading accounts...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Global Toast Banner -->
+    <div class="toast-banner" id="toastBanner">
+        <span id="toastIcon">🚀</span>
+        <span id="toastMessage">Notification message</span>
+    </div>
+
+    <!-- ====================================================================
+         CLIENT-SIDE JAVASCRIPT: SLIDE CAROUSEL, POLLING & REST API
+         ==================================================================== -->
+    <script>
+        (function () {
+            'use strict';
+
+            // State
+            let currentSlideIndex = 0;
+            let currentCategoryFilter = 'ALL';
+            let currentSearchTerm = '';
+            let pollingTimer = null;
+            let toastTimer = null;
+
+            // DOM Cache
+            const dom = {
+                navPills: document.querySelectorAll('.nav-pill'),
+                slidesWrapper: document.getElementById('slidesWrapper'),
+                btnToggleTraffic: document.getElementById('btnToggleTraffic'),
+                trafficIcon: document.getElementById('trafficIcon'),
+                trafficText: document.getElementById('trafficText'),
+                btnResetAll: document.getElementById('btnResetAll'),
+                engineStatusBadge: document.getElementById('engineStatusBadge'),
+                engineStatusText: document.getElementById('engineStatusText'),
+
+                // Slide 1
+                formInjectTest: document.getElementById('formInjectTest'),
+                inpSender: document.getElementById('inpSender'),
+                inpReceiver: document.getElementById('inpReceiver'),
+                inpCategory: document.getElementById('inpCategory'),
+                inpAmount: document.getElementById('inpAmount'),
+                sliderBurst: document.getElementById('sliderBurst'),
+                lblBurstVal: document.getElementById('lblBurstVal'),
+                lblChannelMeta: document.getElementById('lblChannelMeta'),
+                inpChannelMeta: document.getElementById('inpChannelMeta'),
+                btnProceedInject: document.getElementById('btnProceedInject'),
+
+                // Presets
+                btnPresetAtm: document.getElementById('btnPresetAtm'),
+                btnPresetUpi: document.getElementById('btnPresetUpi'),
+                btnPresetSjf: document.getElementById('btnPresetSjf'),
+                btnPresetPayroll: document.getElementById('btnPresetPayroll'),
+                btnPresetOverdraft: document.getElementById('btnPresetOverdraft'),
+
+                // Tracked Test Banner
+                trackedTestBanner: document.getElementById('trackedTestBanner'),
+                trackedTestId: document.getElementById('trackedTestId'),
+                trackedTestStatusPill: document.getElementById('trackedTestStatusPill'),
+                trackedTestSummary: document.getElementById('trackedTestSummary'),
+                stepQueued: document.getElementById('stepQueued'),
+                stepExecuting: document.getElementById('stepExecuting'),
+                stepCommitted: document.getElementById('stepCommitted'),
+
+                // CPU
+                cpuRunningDetails: document.getElementById('cpuRunningDetails'),
+                cpuProgressFill: document.getElementById('cpuProgressFill'),
+                cpuProgressText: document.getElementById('cpuProgressText'),
+                cpuBurstTimeText: document.getElementById('cpuBurstTimeText'),
+                cpuAlgoBadge: document.getElementById('cpuAlgoBadge'),
+
+                // Queues
+                cntQ1: document.getElementById('cntQ1'),
+                listQ1: document.getElementById('listQ1'),
+                cntQ2: document.getElementById('cntQ2'),
+                listQ2: document.getElementById('listQ2'),
+                cntQ3: document.getElementById('cntQ3'),
+                listQ3: document.getElementById('listQ3'),
+
+                // Slide 2
+                filterTabs: document.querySelectorAll('.filter-tab'),
+                inpLedgerSearch: document.getElementById('inpLedgerSearch'),
+                tbodyLedger: document.getElementById('tbodyLedger'),
+                btnExportCsv: document.getElementById('btnExportCsv'),
+
+                // Slide 3
+                valTotalProcessed: document.getElementById('valTotalProcessed'),
+                valAvgWaitQ1: document.getElementById('valAvgWaitQ1'),
+                valAvgWaitQ2: document.getElementById('valAvgWaitQ2'),
+                valAvgWaitQ3: document.getElementById('valAvgWaitQ3'),
+                tbodyAccounts: document.getElementById('tbodyAccounts'),
+
+                // Toast
+                toastBanner: document.getElementById('toastBanner'),
+                toastIcon: document.getElementById('toastIcon'),
+                toastMessage: document.getElementById('toastMessage')
+            };
+
+            // ================================================================
+            // SLIDE TRANSITION NAVIGATION (CSS translateX)
+            // ================================================================
+            function goToSlide(index) {
+                currentSlideIndex = Math.max(0, Math.min(2, index));
+                const translateX = -(currentSlideIndex * (100 / 3));
+                dom.slidesWrapper.style.transform = `translateX(${translateX}%)`;
+
+                dom.navPills.forEach((pill, idx) => {
+                    pill.classList.toggle('active', idx === currentSlideIndex);
+                });
+
+                if (currentSlideIndex === 1) fetchLedger();
+                if (currentSlideIndex === 2) fetchAccounts();
+            }
+
+            dom.navPills.forEach((pill, idx) => {
+                pill.addEventListener('click', () => goToSlide(idx));
+            });
+
+            // Keyboard navigation (ArrowLeft / ArrowRight)
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+                if (e.key === 'ArrowRight' && currentSlideIndex < 2) goToSlide(currentSlideIndex + 1);
+                if (e.key === 'ArrowLeft' && currentSlideIndex > 0) goToSlide(currentSlideIndex - 1);
+            });
+
+            // ================================================================
+            // TOAST NOTIFICATIONS
+            // ================================================================
+            function showToast(icon, message) {
+                if (toastTimer) clearTimeout(toastTimer);
+                dom.toastIcon.textContent = icon;
+                dom.toastMessage.textContent = message;
+                dom.toastBanner.style.display = 'flex';
+                toastTimer = setTimeout(() => {
+                    dom.toastBanner.style.display = 'none';
+                }, 3200);
+            }
+
+            // ================================================================
+            // FORM & PRESETS HANDLING
+            // ================================================================
+            dom.sliderBurst.addEventListener('input', (e) => {
+                dom.lblBurstVal.textContent = `${e.target.value}s Burst`;
+            });
+
+            dom.inpCategory.addEventListener('change', (e) => {
+                const cat = e.target.value;
+                if (cat === 'ATM') {
+                    dom.lblChannelMeta.textContent = 'ATM Kiosk Location';
+                    dom.inpChannelMeta.value = 'Connaught Place South ATM #04, New Delhi';
+                    dom.sliderBurst.value = 1;
+                    dom.lblBurstVal.textContent = '1s Burst';
+                } else if (cat === 'UPI') {
+                    dom.lblChannelMeta.textContent = 'UPI Virtual Payment Address (VPA)';
+                    dom.inpChannelMeta.value = `${dom.inpSender.value.toLowerCase()}@okhdfcbank`;
+                    dom.sliderBurst.value = 2;
+                    dom.lblBurstVal.textContent = '2s Burst';
+                } else if (cat === 'PAYROLL') {
+                    dom.lblChannelMeta.textContent = 'Payroll Batch Reference';
+                    dom.inpChannelMeta.value = 'BATCH-DEC-TECHCORP-SALARY';
+                    dom.sliderBurst.value = 5;
+                    dom.lblBurstVal.textContent = '5s Burst';
+                } else {
+                    dom.lblChannelMeta.textContent = 'Standard Wire Reference Note';
+                    dom.inpChannelMeta.value = 'IMPS/NEFT Clearing Channel';
+                    dom.sliderBurst.value = 3;
+                    dom.lblBurstVal.textContent = '3s Burst';
+                }
+            });
+
+            // Presets
+            dom.btnPresetAtm.addEventListener('click', () => {
+                dom.inpSender.value = 'ACC1001';
+                dom.inpReceiver.value = 'ACC1006';
+                dom.inpCategory.value = 'ATM';
+                dom.inpAmount.value = '2000.00';
+                dom.sliderBurst.value = 1;
+                dom.lblBurstVal.textContent = '1s Burst';
+                dom.lblChannelMeta.textContent = 'ATM Location';
+                dom.inpChannelMeta.value = 'Connaught Place South ATM #04, New Delhi';
+                showToast('🏧', 'Configured ATM Test (Enters Queue 1 Priority)');
+            });
+
+            dom.btnPresetUpi.addEventListener('click', () => {
+                dom.inpSender.value = 'ACC1002';
+                dom.inpReceiver.value = 'ACC1004';
+                dom.inpCategory.value = 'UPI';
+                dom.inpAmount.value = '1500.00';
+                dom.sliderBurst.value = 2;
+                dom.lblBurstVal.textContent = '2s Burst';
+                dom.lblChannelMeta.textContent = 'UPI Virtual Payment Address';
+                dom.inpChannelMeta.value = 'priya@okhdfcbank';
+                showToast('⚡', 'Configured UPI Test (Enters Queue 1 Priority)');
+            });
+
+            dom.btnPresetSjf.addEventListener('click', () => {
+                dom.inpSender.value = 'ACC1003';
+                dom.inpReceiver.value = 'ACC1007';
+                dom.inpCategory.value = 'STANDARD';
+                dom.inpAmount.value = '8000.00';
+                dom.sliderBurst.value = 2;
+                dom.lblBurstVal.textContent = '2s Burst';
+                dom.lblChannelMeta.textContent = 'Transfer Reference';
+                dom.inpChannelMeta.value = 'Interbank IMPS Standard';
+                showToast('⏱️', 'Configured Small Job (Enters Queue 2 SJF)');
+            });
+
+            dom.btnPresetPayroll.addEventListener('click', () => {
+                dom.inpSender.value = 'ACC1005';
+                dom.inpReceiver.value = 'ACC1008';
+                dom.inpCategory.value = 'PAYROLL';
+                dom.inpAmount.value = '65000.00';
+                dom.sliderBurst.value = 6;
+                dom.lblBurstVal.textContent = '6s Burst';
+                dom.lblChannelMeta.textContent = 'Corporate Payroll Batch';
+                dom.inpChannelMeta.value = 'BATCH-DEC-TECHCORP-SALARY';
+                showToast('🏢', 'Configured Company Payroll (Enters Queue 3 FCFS)');
+            });
+
+            dom.btnPresetOverdraft.addEventListener('click', () => {
+                dom.inpSender.value = 'ACC1008'; // Ananya Iyer (balance 65,000)
+                dom.inpReceiver.value = 'ACC1002';
+                dom.inpCategory.value = 'UPI';
+                dom.inpAmount.value = '500000.00'; // Exceeds balance!
+                dom.sliderBurst.value = 1;
+                dom.lblBurstVal.textContent = '1s Burst';
+                dom.lblChannelMeta.textContent = 'UPI Virtual Payment Address';
+                dom.inpChannelMeta.value = 'ananya@upi';
+                showToast('🛡️', 'Configured Overdraft Test (Triggers ACID Rollback)');
+            });
+
+            // Form Submit: Injects Test Transaction
+            dom.formInjectTest.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                dom.btnProceedInject.disabled = true;
+                dom.btnProceedInject.innerHTML = '<span>⏳ ADMITTING TO MLFQ...</span>';
+
+                const payload = {
+                    sender_id: dom.inpSender.value,
+                    receiver_id: dom.inpReceiver.value,
+                    txn_category: dom.inpCategory.value,
+                    amount: parseFloat(dom.inpAmount.value),
+                    burst_time: parseInt(dom.sliderBurst.value),
+                    channel_meta: {}
+                };
+
+                const cat = payload.txn_category;
+                if (cat === 'ATM') {
+                    payload.channel_meta = {
+                        atm_location: dom.inpChannelMeta.value,
+                        card_last4: '4821'
+                    };
+                } else {
+                    payload.channel_meta = {
+                        reference_handle: dom.inpChannelMeta.value
+                    };
+                }
+
+                try {
+                    const res = await fetch('/api/transaction/inject', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showToast('🚀', `Injected Test Txn #${data.transaction.txn_id} into ${data.transaction.assigned_queue}!`);
+                        await fetchSchedulerState();
+                    } else {
+                        throw new Error(data.message || 'Injection failed');
+                    }
+                } catch (err) {
+                    showToast('⚠️', `Failed to inject: ${err.message}`);
+                } finally {
+                    dom.btnProceedInject.disabled = false;
+                    dom.btnProceedInject.innerHTML = '<span>🚀 PROCEED &amp; INJECT TRANSACTION</span>';
+                }
+            });
+
+            // Toggle Background Traffic
+            dom.btnToggleTraffic.addEventListener('click', async () => {
+                try {
+                    const res = await fetch('/api/scheduler/traffic/toggle', { method: 'POST' });
+                    const data = await res.json();
+                    const active = data.traffic_enabled;
+                    dom.trafficIcon.textContent = active ? '⏸' : '▶';
+                    dom.trafficText.textContent = active ? 'Traffic: Active' : 'Traffic: Paused';
+                    showToast(active ? '⚡' : '⏸', `Background simulation traffic ${active ? 'resumed' : 'paused'}`);
+                } catch (err) {}
+            });
+
+            // Reset Simulation
+            dom.btnResetAll.addEventListener('click', async () => {
+                if (confirm('Reset all queues, test trackers, and restored baseline account balances?')) {
+                    await fetch('/api/scheduler/reset', { method: 'POST' });
+                    showToast('🔄', 'Simulation queues and database balances reset');
+                    fetchSchedulerState();
+                    fetchLedger();
+                    fetchAccounts();
+                }
+            });
+
+            // ================================================================
+            // LIVE POLLING: SCHEDULER STATE & TEST TRACKER
+            // ================================================================
+            async function fetchSchedulerState() {
+                try {
+                    const res = await fetch('/api/scheduler/state');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    renderSchedulerState(data);
+                } catch (e) {}
+            }
+
+            function renderSchedulerState(state) {
+                // Update Engine Status Badge
+                if (state.is_mysql_connected) {
+                    dom.engineStatusText.textContent = 'MYSQL 8.4 CONNECTED';
+                } else {
+                    dom.engineStatusText.textContent = 'ACID TRANSACTION ENGINE ACTIVE';
+                }
+
+                // Render Tracked Test Transaction
+                renderTrackedTest(state.tracked_test_txn);
+
+                // Render CPU Core 0 Worker
+                renderCpuWorker(state.active_process);
+
+                // Render Queues
+                renderQueue(dom.listQ1, dom.cntQ1, state.queue_1, 'Queue 1 empty');
+                renderQueue(dom.listQ2, dom.cntQ2, state.queue_2, 'Queue 2 empty');
+                renderQueue(dom.listQ3, dom.cntQ3, state.queue_3, 'Queue 3 empty');
+
+                // Update Metrics (Slide 3)
+                if (state.metrics) {
+                    const m = state.metrics;
+                    dom.valTotalProcessed.textContent = (m.total_completed + m.total_failed).toLocaleString();
+                    dom.valAvgWaitQ1.textContent = `${m.avg_wait_q1}s`;
+                    dom.valAvgWaitQ2.textContent = `${m.avg_wait_q2}s`;
+                    dom.valAvgWaitQ3.textContent = `${m.avg_wait_q3}s`;
+                }
+            }
+
+            function renderTrackedTest(testTxn) {
+                if (!testTxn) {
+                    dom.trackedTestId.textContent = 'NO TEST INJECTED YET';
+                    dom.trackedTestStatusPill.textContent = 'Awaiting Injection';
+                    dom.trackedTestSummary.innerHTML = 'Inject a transaction using the Test Console on the left. It will be highlighted with a glowing pink border and tracked here live.';
+                    dom.stepQueued.className = 'pipeline-step';
+                    dom.stepExecuting.className = 'pipeline-step';
+                    dom.stepCommitted.className = 'pipeline-step';
+                    return;
+                }
+
+                dom.trackedTestId.textContent = testTxn.txn_id;
+                dom.trackedTestStatusPill.textContent = testTxn.phase;
+
+                const amtFmt = `₹${Number(testTxn.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                dom.trackedTestSummary.innerHTML = `<strong>${testTxn.txn_category} Transfer</strong> of <strong>${amtFmt}</strong> from <code>${testTxn.sender_id}</code> ➔ <code>${testTxn.receiver_id}</code> | Burst: <strong>${testTxn.burst_time}s</strong>`;
+
+                // Update Pipeline steps
+                dom.stepQueued.className = 'pipeline-step';
+                dom.stepExecuting.className = 'pipeline-step';
+                dom.stepCommitted.className = 'pipeline-step';
+
+                if (testTxn.status === 'QUEUED') {
+                    dom.stepQueued.className = 'pipeline-step active';
+                } else if (testTxn.status === 'RUNNING') {
+                    dom.stepQueued.className = 'pipeline-step completed';
+                    dom.stepExecuting.className = 'pipeline-step active';
+                } else if (testTxn.status === 'COMPLETED') {
+                    dom.stepQueued.className = 'pipeline-step completed';
+                    dom.stepExecuting.className = 'pipeline-step completed';
+                    dom.stepCommitted.className = 'pipeline-step completed';
+                    dom.stepCommitted.textContent = '3. Committed to MySQL (ACID Passed)';
+                } else if (testTxn.status === 'FAILED') {
+                    dom.stepQueued.className = 'pipeline-step completed';
+                    dom.stepExecuting.className = 'pipeline-step completed';
+                    dom.stepCommitted.className = 'pipeline-step active';
+                    dom.stepCommitted.style.borderColor = 'var(--crimson)';
+                    dom.stepCommitted.style.color = 'var(--crimson)';
+                    dom.stepCommitted.textContent = '3. Rolled Back (ACID Overdraft Failed)';
+                }
+            }
+
+            function renderCpuWorker(activeProc) {
+                if (!activeProc) {
+                    dom.cpuRunningDetails.innerHTML = '<em>CPU Core 0 ALU Idle. Monitoring queues...</em>';
+                    dom.cpuProgressFill.style.width = '0%';
+                    dom.cpuProgressText.textContent = 'Progress: 0%';
+                    dom.cpuBurstTimeText.textContent = 'Idle';
+                    dom.cpuAlgoBadge.textContent = 'MLFQ IDLE';
+                    return;
+                }
+
+                const isTest = activeProc.is_test_txn;
+                const badgeHtml = isTest ? '<span class="test-badge-glowing" style="font-size: 0.68rem; margin-right: 6px;">★ DEMO TEST</span>' : '';
+                const amtFmt = `₹${Number(activeProc.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+                dom.cpuRunningDetails.innerHTML = `
+                    ${badgeHtml}
+                    <strong style="color: var(--rose-primary); font-family: var(--font-mono);">${activeProc.txn_id}</strong>
+                    &bull; <strong>${activeProc.txn_category}</strong> of <strong>${amtFmt}</strong>
+                    (<code>${activeProc.sender_id}</code> ➔ <code>${activeProc.receiver_id}</code>)
+                    &bull; Queue: <strong>${activeProc.assigned_queue}</strong>
+                `;
+
+                const pct = activeProc.progress_pct || 0;
+                dom.cpuProgressFill.style.width = `${pct}%`;
+                dom.cpuProgressText.textContent = `Progress: ${pct}%`;
+                dom.cpuBurstTimeText.textContent = `Elapsed: ${activeProc.time_elapsed || 0}s / ${activeProc.burst_time}s`;
+
+                if (activeProc.assigned_queue === 'Q1_PRIORITY') dom.cpuAlgoBadge.textContent = 'PREEMPTIVE PRIORITY';
+                else if (activeProc.assigned_queue === 'Q2_SJF') dom.cpuAlgoBadge.textContent = 'SHORTEST JOB FIRST';
+                else dom.cpuAlgoBadge.textContent = 'FCFS BATCH';
+            }
+
+            function renderQueue(container, badge, pcbList, emptyMsg) {
+                badge.textContent = pcbList.length;
+
+                if (!pcbList.length) {
+                    container.innerHTML = `<div class="empty-queue-msg">${emptyMsg}</div>`;
+                    return;
+                }
+
+                container.innerHTML = pcbList.map(p => {
+                    const isTest = p.is_test_txn;
+                    const catClass = `cat-${p.txn_category.toLowerCase()}`;
+                    const amtFmt = `₹${Number(p.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                    const testBadge = isTest ? '<span class="test-badge-glowing" style="font-size: 0.65rem; padding: 2px 7px;">★ DEMO TEST</span>' : '';
+
+                    return `
+                        <div class="process-card ${isTest ? 'is-test' : ''}">
+                            <div class="pcb-top">
+                                <span class="pcb-id">${p.txn_id}</span>
+                                <div>
+                                    ${testBadge}
+                                    <span class="pcb-category ${catClass}">${p.txn_category}</span>
+                                </div>
+                            </div>
+                            <div class="pcb-body">
+                                <code>${p.sender_id}</code> ➔ <code>${p.receiver_id}</code>
+                            </div>
+                            <div class="pcb-footer">
+                                <span style="color: var(--text-primary);">${amtFmt}</span>
+                                <span style="color: var(--rose-primary); font-size: 0.7rem;">Burst: ${p.burst_time}s</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // ================================================================
+            // SLIDE 2: MULTI-TABLE SQL JOINED LEDGER
+            // ================================================================
+            async function fetchLedger() {
+                try {
+                    const url = `/api/ledger?category=${encodeURIComponent(currentCategoryFilter)}&search=${encodeURIComponent(currentSearchTerm)}`;
+                    const res = await fetch(url);
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    renderLedgerTable(data.transactions);
+                } catch (e) {}
+            }
+
+            function renderLedgerTable(rows) {
+                if (!rows || !rows.length) {
+                    dom.tbodyLedger.innerHTML = `
+                        <tr>
+                            <td colspan="9" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                                No transaction records matching your current filter.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                dom.tbodyLedger.innerHTML = rows.map(r => {
+                    const isTest = r.txn_id.startsWith('TXN-TEST');
+                    const testPill = isTest ? '<span class="test-badge-glowing" style="font-size: 0.65rem; margin-right: 4px;">★ TEST</span>' : '';
+                    const catClass = `cat-${r.txn_category.toLowerCase()}`;
+                    const amtFmt = `₹${Number(r.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                    const senderBalFmt = `₹${Number(r.sender_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+                    let metaHtml = '-';
+                    if (r.txn_category === 'ATM' && r.atm_location) {
+                        metaHtml = `📍 ${escapeHtml(r.atm_location)} <span style="color: var(--text-muted); font-size: 0.72rem;">(Card ****${r.card_last4 || '1234'})</span>`;
+                    } else if (r.reference_handle) {
+                        metaHtml = `🔗 <code>${escapeHtml(r.reference_handle)}</code>`;
+                    }
+
+                    let statusClass = 'status-queued';
+                    if (r.status === 'COMPLETED') statusClass = 'status-completed';
+                    else if (r.status === 'RUNNING') statusClass = 'status-running';
+                    else if (r.status === 'FAILED') statusClass = 'status-failed';
+
+                    return `
+                        <tr>
+                            <td style="font-family: var(--font-mono); font-weight: 700;">
+                                ${testPill}#${r.txn_id}
+                            </td>
+                            <td>
+                                <div style="font-weight: 700;">${escapeHtml(r.sender_name)} ➔ ${escapeHtml(r.receiver_name)}</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">Acc: ${r.sender_id} ➔ ${r.receiver_id}</div>
+                            </td>
+                            <td><span class="pcb-category ${catClass}">${r.txn_category}</span></td>
+                            <td style="font-size: 0.76rem;">${metaHtml}</td>
+                            <td style="font-family: var(--font-mono); font-weight: 800;">${amtFmt}</td>
+                            <td style="font-family: var(--font-mono);">${r.burst_time}s</td>
+                            <td><span class="pill-badge">${r.assigned_queue}</span></td>
+                            <td><span class="status-badge ${statusClass}">${r.status}</span></td>
+                            <td style="font-family: var(--font-mono); font-weight: 700; color: var(--emerald);">${senderBalFmt}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Ledger Filters
+            dom.filterTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    dom.filterTabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentCategoryFilter = tab.getAttribute('data-category');
+                    fetchLedger();
+                });
+            });
+
+            dom.inpLedgerSearch.addEventListener('input', (e) => {
+                currentSearchTerm = e.target.value.trim();
+                fetchLedger();
+            });
+
+            // Export CSV
+            dom.btnExportCsv.addEventListener('click', async () => {
+                const res = await fetch('/api/ledger?limit=1000');
+                const data = await res.json();
+                const txns = data.transactions || [];
+                if (!txns.length) {
+                    showToast('⚠️', 'No transactions to export!');
+                    return;
+                }
+
+                const headers = ['TxnID', 'SenderID', 'SenderName', 'ReceiverID', 'ReceiverName', 'Category', 'Amount', 'BurstTime', 'Queue', 'Status', 'CreatedAt'];
+                const rows = txns.map(t => [
+                    t.txn_id, t.sender_id, `"${t.sender_name}"`, t.receiver_id, `"${t.receiver_name}"`,
+                    t.txn_category, t.amount, t.burst_time, t.assigned_queue, t.status, `"${t.created_at}"`
+                ]);
+
+                const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `bankos_ledger_${Date.now()}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('⬇️', `Exported ${txns.length} records to CSV!`);
+            });
+
+            // ================================================================
+            // SLIDE 3: ACCOUNTS LEDGER & OS METRICS
+            // ================================================================
+            async function fetchAccounts() {
+                try {
+                    const res = await fetch('/api/accounts');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    renderAccountsTable(data.accounts);
+                } catch (e) {}
+            }
+
+            function renderAccountsTable(accounts) {
+                if (!accounts || !accounts.length) return;
+                dom.tbodyAccounts.innerHTML = accounts.map(a => {
+                    const balFmt = `₹${Number(a.current_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                    return `
+                        <tr>
+                            <td style="font-family: var(--font-mono); font-weight: 800; color: var(--rose-primary);">${a.account_id}</td>
+                            <td style="font-weight: 700;">${escapeHtml(a.customer_name)}</td>
+                            <td><span class="pill-badge">${escapeHtml(a.account_type)}</span></td>
+                            <td style="font-family: var(--font-mono); font-weight: 800; color: var(--emerald);">${balFmt}</td>
+                            <td style="font-size: 0.75rem; color: var(--text-muted);">${a.last_updated || 'Active'}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+
+            // ================================================================
+            // INITIALIZATION & POLLING
+            // ================================================================
+            document.addEventListener('DOMContentLoaded', () => {
+                fetchSchedulerState();
+                fetchLedger();
+                fetchAccounts();
+
+                // Live polling every 500ms for fluid presentation animations
+                pollingTimer = setInterval(() => {
+                    fetchSchedulerState();
+                    if (currentSlideIndex === 1) fetchLedger();
+                    if (currentSlideIndex === 2) fetchAccounts();
+                }, 500);
+            });
+
+        })();
+    </script>
+</body>
+</html>
