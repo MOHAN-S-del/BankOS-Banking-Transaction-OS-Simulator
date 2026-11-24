@@ -35,13 +35,10 @@ if os.path.exists(env_path):
     except Exception:
         pass
 
-DB_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("MYSQL_PORT", 3306))
-DB_USER = os.getenv("MYSQL_USER", "root")
-DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "Mohan@252007")
-DB_NAME = os.getenv("MYSQL_DB", "bankos_db")
+in_memory_atm = {
+    'TXN-1001': {'atm_location': 'Connaught Place South ATM #04', 'card_last4': '4821'}
+}
 
-CPP_SCHEDULER_PORT = 8765
 CPP_SCHEDULER_URL = f"http://127.0.0.1:{CPP_SCHEDULER_PORT}"
 
 is_mysql_connected = False
