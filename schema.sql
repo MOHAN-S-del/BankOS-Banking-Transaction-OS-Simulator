@@ -115,7 +115,7 @@ CREATE TABLE scheduler_metrics (
     total_processed INT NOT NULL DEFAULT 0,
     avg_wait_time DECIMAL(6,2) NOT NULL DEFAULT 0.00,
     avg_turnaround_time DECIMAL(6,2) NOT NULL DEFAULT 0.00,
-    cpu_utilization_pct DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    starvation_rescued INT NOT NULL DEFAULT 0,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -141,10 +141,10 @@ INSERT INTO balance (account_id, current_balance) VALUES
 -- ============================================================================
 -- SEED INITIAL METRICS FOR 3 QUEUES
 -- ============================================================================
-INSERT INTO scheduler_metrics (queue_level, total_processed, avg_wait_time, avg_turnaround_time, cpu_utilization_pct) VALUES
-('Q1_PRIORITY', 2, 0.45, 1.95, 24.50),
-('Q2_SJF', 1, 1.20, 4.20, 31.00),
-('Q3_FCFS', 1, 3.50, 10.50, 44.50);
+INSERT INTO scheduler_metrics (queue_level, total_processed, avg_wait_time, avg_turnaround_time, starvation_rescued) VALUES
+('Q1_PRIORITY', 2, 0.45, 1.95, 0),
+('Q2_SJF', 1, 1.20, 4.20, 0),
+('Q3_FCFS', 1, 3.50, 10.50, 1);
 
 -- ============================================================================
 -- SEED INITIAL TRANSACTIONS (Enables Instant Multi-Table JOIN Demo)

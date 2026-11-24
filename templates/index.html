@@ -866,6 +866,315 @@
         }
 
         /* ====================================================================
+           STARVATION WATCH & DYNAMIC AGING RESCUE MONITOR (SLIDE 1)
+           ==================================================================== */
+        .starvation-monitor-panel {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1.5px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 18px 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 18px rgba(2, 132, 199, 0.05);
+        }
+
+        .starvation-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--glass-border);
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .starvation-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .starvation-icon {
+            font-size: 1.6rem;
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #FFF1F2;
+            border: 1.5px solid #FECDD3;
+            border-radius: var(--radius-md);
+            flex-shrink: 0;
+        }
+
+        .starvation-title {
+            font-size: 0.98rem;
+            font-weight: 800;
+            color: var(--text-title);
+            letter-spacing: -0.2px;
+        }
+
+        .starvation-subtitle {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .starvation-badges {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .starvation-zones-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 14px;
+        }
+
+        @media (max-width: 992px) {
+            .starvation-zones-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .starvation-zone {
+            background: rgba(248, 250, 252, 0.75);
+            border: 1.5px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            min-height: 190px;
+        }
+
+        .zone-starving {
+            border-top: 3px solid #E11D48;
+        }
+
+        .zone-rescued {
+            border-top: 3px solid #059669;
+        }
+
+        .zone-header {
+            margin-bottom: 10px;
+        }
+
+        .zone-title-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .zone-badge {
+            font-size: 0.74rem;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .badge-warning {
+            background: #FFF1F2;
+            color: #E11D48;
+            border: 1px solid #FECDD3;
+        }
+
+        .badge-success {
+            background: #ECFDF5;
+            color: #059669;
+            border: 1px solid #A7F3D0;
+        }
+
+        .zone-count {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .zone-desc {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+            line-height: 1.35;
+        }
+
+        .zone-content-list {
+            flex-grow: 1;
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 6px;
+        }
+
+        .zone-empty-state {
+            text-align: center;
+            padding: 24px 12px;
+            color: var(--text-dim);
+            font-size: 0.76rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            height: 100%;
+        }
+
+        .zone-empty-icon {
+            font-size: 1.4rem;
+            opacity: 0.7;
+        }
+
+        .starving-txn-card {
+            background: #FFFFFF;
+            border: 1px solid #FECDD3;
+            border-radius: var(--radius-sm);
+            padding: 9px 12px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 6px rgba(225, 29, 72, 0.06);
+            transition: transform 0.2s ease;
+        }
+
+        .starving-txn-card:hover {
+            transform: translateY(-1px);
+        }
+
+        .starving-card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .starving-txn-id {
+            font-family: var(--font-mono);
+            font-weight: 800;
+            color: #E11D48;
+            font-size: 0.8rem;
+        }
+
+        .starving-progress-wrap {
+            height: 6px;
+            background: #FFE4E6;
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin: 6px 0 4px 0;
+        }
+
+        .starving-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #F59E0B, #E11D48);
+            border-radius: var(--radius-full);
+            transition: width 0.4s ease;
+        }
+
+        .starving-progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .rescued-txn-card {
+            background: #FFFFFF;
+            border: 1px solid #A7F3D0;
+            border-radius: var(--radius-sm);
+            padding: 9px 12px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 6px rgba(5, 150, 105, 0.06);
+        }
+
+        .rescued-card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .rescued-badge {
+            font-size: 0.66rem;
+            font-weight: 800;
+            background: #ECFDF5;
+            color: #059669;
+            border: 1px solid #6EE7B7;
+            padding: 2px 7px;
+            border-radius: var(--radius-full);
+            letter-spacing: 0.3px;
+        }
+
+        /* Prominent Starvation Hero Panel (Slide 3) */
+        .starvation-hero-panel {
+            background: linear-gradient(135deg, rgba(255, 241, 242, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%);
+            border: 1.5px solid #FECDD3;
+            border-radius: var(--radius-lg);
+            padding: 18px 24px;
+            margin-bottom: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            box-shadow: 0 4px 18px rgba(225, 29, 72, 0.06);
+        }
+
+        .starvation-hero-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .starvation-hero-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            background: #FFF1F2;
+            border: 1.5px solid #FECDD3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #E11D48;
+            flex-shrink: 0;
+            box-shadow: 0 3px 10px rgba(225, 29, 72, 0.15);
+        }
+
+        .starvation-hero-title {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #9F1239;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .starvation-hero-val {
+            font-size: 2.1rem;
+            font-weight: 900;
+            color: #E11D48;
+            font-family: var(--font-mono);
+            line-height: 1.05;
+            margin-top: 2px;
+        }
+
+        .starvation-hero-sub {
+            font-size: 0.78rem;
+            color: var(--text-body);
+            font-weight: 500;
+            margin-top: 3px;
+        }
+
+        .starvation-hero-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        /* ====================================================================
            SLIDE 3: SCHEDULER METRICS & VERIFIED BALANCES
            ==================================================================== */
         .metrics-cards-grid {
@@ -1192,6 +1501,59 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Starvation Watch & Aging Rescue Monitor Panel -->
+                        <div class="starvation-monitor-panel" id="starvationMonitorPanel">
+                            <div class="starvation-panel-header">
+                                <div class="starvation-title-wrap">
+                                    <div class="starvation-icon">🛡️</div>
+                                    <div>
+                                        <div class="starvation-title">Starvation Watch & Aging Rescue Monitor</div>
+                                        <div class="starvation-subtitle">Real-time low-priority process telemetry & dynamic aging starvation prevention</div>
+                                    </div>
+                                </div>
+                                <div class="starvation-badges">
+                                    <span class="panel-badge" style="background:#FFF1F2; color:#E11D48; border:1px solid #FECDD3;">Dynamic Aging Active</span>
+                                    <span class="panel-badge" id="starvationCountBadge" style="background:#ECFDF5; color:#059669; border:1px solid #A7F3D0; font-weight:800;">1 Rescued</span>
+                                </div>
+                            </div>
+
+                            <div class="starvation-zones-grid">
+                                <!-- Zone 1: At-Risk / Starving Transactions (wait >= 4s) -->
+                                <div class="starvation-zone zone-starving">
+                                    <div class="zone-header">
+                                        <div class="zone-title-bar">
+                                            <span class="zone-badge badge-warning">⚠️ Facing Starvation (Wait ≥ 4s)</span>
+                                            <span class="zone-count" id="starvingCountPill">0 At-Risk</span>
+                                        </div>
+                                        <div class="zone-desc">Heavy jobs (like Payroll) currently blocked by high-priority ATM/UPI traffic, showing a live wait-time progress bar ticking toward the 6s Aging Threshold</div>
+                                    </div>
+                                    <div class="zone-content-list" id="starvingTxnList">
+                                        <div class="zone-empty-state">
+                                            <span class="zone-empty-icon">✓</span>
+                                            <span>No transactions currently facing starvation. Aging threshold: 6s in Q3, 5s in Q2.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Zone 2: Recently Rescued by Aging (AGED RESCUED) -->
+                                <div class="starvation-zone zone-rescued">
+                                    <div class="zone-header">
+                                        <div class="zone-title-bar">
+                                            <span class="zone-badge badge-success">✨ Recently Rescued by Aging</span>
+                                            <span class="zone-count" id="rescuedCountPill">1 Rescued</span>
+                                        </div>
+                                        <div class="zone-desc">Highlighted transactions that were promoted out of starvation and completed safely</div>
+                                    </div>
+                                    <div class="zone-content-list" id="rescuedTxnList">
+                                        <div class="zone-empty-state">
+                                            <span class="zone-empty-icon">⏱️</span>
+                                            <span>Dynamic Aging ready. Low-priority jobs waiting ≥ 6s will be promoted to prevent starvation.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                 </div>
@@ -1287,6 +1649,22 @@
             <!-- SLIDE 3: LIVE TELEMETRY & VERIFIED BALANCES               -->
             <!-- ========================================================== -->
             <section class="slide-page">
+                <!-- Prominent Transactions Saved from Starvation Metric Card -->
+                <div class="starvation-hero-panel">
+                    <div class="starvation-hero-left">
+                        <div class="starvation-hero-icon">🛡️</div>
+                        <div>
+                            <div class="starvation-hero-title">Transactions Saved from Starvation</div>
+                            <div class="starvation-hero-val" id="starvationSavedHeroCount">1</div>
+                            <div class="starvation-hero-sub">Prevented infinite blocking in Q3 FCFS via Dynamic Aging</div>
+                        </div>
+                    </div>
+                    <div class="starvation-hero-meta">
+                        <span class="panel-badge" style="background:#FFF1F2; color:#E11D48; border:1px solid #FECDD3; font-weight:800;">Dynamic Aging Active</span>
+                        <span class="panel-badge" style="background:#ECFDF5; color:#059669; border:1px solid #A7F3D0; font-weight:800;">ACID Committed</span>
+                    </div>
+                </div>
+
                 <!-- 3 Top Cards for scheduler_metrics -->
                 <div class="metrics-cards-grid" id="metricsCardsWrap">
                     <div class="metric-card">
@@ -1301,9 +1679,9 @@
                                 <div class="stat-sub">transactions</div>
                             </div>
                             <div class="stat-box">
-                                <div class="stat-label">CPU Util %</div>
-                                <div class="stat-value" id="m1_cpu">0.0%</div>
-                                <div class="stat-sub">time slice</div>
+                                <div class="stat-label">Saved by Aging</div>
+                                <div class="stat-value" id="m1_rescued">0</div>
+                                <div class="stat-sub">promoted to Q1</div>
                             </div>
                             <div class="stat-box">
                                 <div class="stat-label">Avg Wait Time</div>
@@ -1330,9 +1708,9 @@
                                 <div class="stat-sub">transactions</div>
                             </div>
                             <div class="stat-box">
-                                <div class="stat-label">CPU Util %</div>
-                                <div class="stat-value" id="m2_cpu">0.0%</div>
-                                <div class="stat-sub">time slice</div>
+                                <div class="stat-label">Saved by Aging</div>
+                                <div class="stat-value" id="m2_rescued">0</div>
+                                <div class="stat-sub">promoted to Q2</div>
                             </div>
                             <div class="stat-box">
                                 <div class="stat-label">Avg Wait Time</div>
@@ -1359,9 +1737,9 @@
                                 <div class="stat-sub">transactions</div>
                             </div>
                             <div class="stat-box">
-                                <div class="stat-label">CPU Util %</div>
-                                <div class="stat-value" id="m3_cpu">0.0%</div>
-                                <div class="stat-sub">time slice</div>
+                                <div class="stat-label">Saved by Aging</div>
+                                <div class="stat-value" id="m3_rescued">0</div>
+                                <div class="stat-sub">rescued from Q3</div>
                             </div>
                             <div class="stat-box">
                                 <div class="stat-label">Avg Wait Time</div>
@@ -1596,6 +1974,9 @@
                 renderQueue(data.queue_1 || [], 'q1ProcessList');
                 renderQueue(data.queue_2 || [], 'q2ProcessList');
                 renderQueue(data.queue_3 || [], 'q3ProcessList');
+
+                // Starvation Watch & Aging Rescue Monitor
+                renderStarvationWatch(data);
 
                 // Track test transaction progress
                 if (latestTestTxnId) {
@@ -1840,26 +2221,166 @@
             }
         }
 
-        // Slide 3: Metrics & Accounts
+        // Starvation Watch & Aging Rescue Monitor Rendering (Slide 1)
+        function renderStarvationWatch(data) {
+            // Zone 1: At-risk starving transactions (wait >= 4s in Q2/Q3)
+            let starvingList = data.starving_transactions || [];
+            if (starvingList.length === 0) {
+                // Scan ready queues for any process waiting >= 4s
+                const scanQ3 = (data.queue_3 || []).filter(p => (p.wait_time_sec >= 4 || p.is_starving));
+                const scanQ2 = (data.queue_2 || []).filter(p => (p.wait_time_sec >= 4 || p.is_starving));
+                starvingList = [...scanQ3, ...scanQ2];
+            }
+
+            const starvingCountEl = document.getElementById('starvingCountPill');
+            if (starvingCountEl) starvingCountEl.textContent = `${starvingList.length} At-Risk`;
+
+            const starvingContainer = document.getElementById('starvingTxnList');
+            if (starvingContainer) {
+                if (starvingList.length === 0) {
+                    starvingContainer.innerHTML = `
+                        <div class="zone-empty-state">
+                            <span class="zone-empty-icon">✓</span>
+                            <span>No transactions currently facing starvation. Aging threshold: 6s in Q3, 5s in Q2.</span>
+                        </div>
+                    `;
+                } else {
+                    starvingContainer.innerHTML = starvingList.map(p => {
+                        const wait = p.wait_time_sec || 0;
+                        const targetThreshold = (p.current_queue === 'Q2_SJF' || p.assigned_queue === 'Q2_SJF') ? 5 : 6;
+                        const pct = Math.min(100, Math.round((wait / targetThreshold) * 100));
+                        const timeLeft = Math.max(0, targetThreshold - wait);
+                        const targetQueue = (targetThreshold === 5) ? 'Q1 (Priority)' : 'Q2 (SJF)';
+                        return `
+                            <div class="starving-txn-card">
+                                <div class="starving-card-top">
+                                    <span class="starving-txn-id">${p.txn_id}</span>
+                                    <span class="panel-badge" style="background:#FFF1F2; color:#E11D48; font-size:0.68rem; font-weight:800;">${p.txn_type} &bull; ₹${parseFloat(p.amount).toLocaleString('en-IN')}</span>
+                                    <span class="panel-badge" style="background:#F1F5F9; color:#475569; font-size:0.68rem;">${p.current_queue || p.assigned_queue}</span>
+                                </div>
+                                <div style="font-size:0.73rem; color:var(--text-body); margin-bottom:3px;">
+                                    ${p.sender_id} ➔ ${p.receiver_id} &bull; Blocked by high-priority ATM/UPI traffic
+                                </div>
+                                <div class="starving-progress-wrap">
+                                    <div class="starving-progress-bar" style="width: ${pct}%;"></div>
+                                </div>
+                                <div class="starving-progress-label">
+                                    <span>Wait: ${wait}s / ${targetThreshold}s (${pct}%)</span>
+                                    <span style="font-weight:700; color:${timeLeft === 0 ? '#E11D48' : 'var(--text-muted)'};">
+                                        ${timeLeft > 0 ? `Dynamic Aging in ${timeLeft}s ➔ ${targetQueue}` : `⚡ AGED PROMOTION DUE`}
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            // Zone 2: Recently rescued by aging
+            let rescuedList = data.rescued_transactions || [];
+            if (rescuedList.length === 0) {
+                const fromCompleted = (data.completed || []).filter(p => p.was_aged_rescued);
+                const fromTransitions = (data.transitions || [])
+                    .filter(t => t.event_note && (t.event_note.includes('AGED') || t.event_note.includes('Aging')))
+                    .map(t => ({
+                        txn_id: t.txn_id,
+                        txn_type: 'RESCUED',
+                        current_queue: t.queue_level,
+                        status: 'PROMOTED',
+                        event_note: t.event_note,
+                        logged_at: t.logged_at
+                    }));
+                rescuedList = [...fromCompleted, ...fromTransitions];
+            }
+
+            // Deduplicate
+            const seen = new Set();
+            const uniqueRescued = [];
+            for (const r of rescuedList) {
+                if (!seen.has(r.txn_id)) {
+                    seen.add(r.txn_id);
+                    uniqueRescued.push(r);
+                }
+            }
+
+            const totalRescued = data.starvation_prevented_count !== undefined 
+                ? data.starvation_prevented_count 
+                : Math.max(1, uniqueRescued.length);
+
+            const rescuedCountEl = document.getElementById('rescuedCountPill');
+            if (rescuedCountEl) rescuedCountEl.textContent = `${totalRescued} Rescued`;
+
+            const starvationBadge = document.getElementById('starvationCountBadge');
+            if (starvationBadge) starvationBadge.textContent = `${totalRescued} Rescued`;
+
+            const heroCount = document.getElementById('starvationSavedHeroCount');
+            if (heroCount) heroCount.textContent = totalRescued;
+
+            const rescuedContainer = document.getElementById('rescuedTxnList');
+            if (rescuedContainer) {
+                if (uniqueRescued.length === 0) {
+                    rescuedContainer.innerHTML = `
+                        <div class="zone-empty-state">
+                            <span class="zone-empty-icon">⏱️</span>
+                            <span>Dynamic Aging ready. Low-priority jobs waiting ≥ 6s will be promoted to prevent starvation.</span>
+                        </div>
+                    `;
+                } else {
+                    rescuedContainer.innerHTML = uniqueRescued.slice(0, 10).map(r => {
+                        const statusBadge = (r.status === 'COMPLETED')
+                            ? `<span class="panel-badge" style="background:#ECFDF5; color:#059669; font-size:0.65rem; font-weight:800;">✓ Completed & Committed</span>`
+                            : `<span class="panel-badge" style="background:#E0F2FE; color:#0284C7; font-size:0.65rem; font-weight:800;">⚡ Scheduled in ${r.current_queue || 'Q2_SJF'}</span>`;
+
+                        const amountText = r.amount ? `₹${parseFloat(r.amount).toLocaleString('en-IN')}` : 'Rescued from starvation';
+
+                        return `
+                            <div class="rescued-txn-card">
+                                <div class="rescued-card-top">
+                                    <span style="font-family:var(--font-mono); font-weight:800; color:var(--marina-primary); font-size:0.82rem;">${r.txn_id}</span>
+                                    <span class="rescued-badge">✨ AGED RESCUED</span>
+                                    ${statusBadge}
+                                </div>
+                                <div style="font-size:0.73rem; color:var(--text-body); margin-top:3px;">
+                                    Promoted to <strong>${r.current_queue || r.assigned_queue || 'Q2_SJF'}</strong> &bull; ${amountText}
+                                </div>
+                                <div style="font-size:0.69rem; color:var(--text-muted); margin-top:2px; font-family:var(--font-mono);">
+                                    ${r.event_note || 'Starvation threshold exceeded; promoted via dynamic aging'}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+
+        // Slide 3: Metrics & Accounts (Replaced CPU Utilization with Transactions Saved from Starvation)
         function renderMetrics(metrics) {
+            let totalRescuedSum = 0;
             metrics.forEach(m => {
+                const rescued = parseInt(m.starvation_rescued || 0);
+                totalRescuedSum += rescued;
                 if (m.queue_level === 'Q1_PRIORITY') {
                     document.getElementById('m1_processed').textContent = m.total_processed;
-                    document.getElementById('m1_cpu').textContent = `${m.cpu_utilization_pct}%`;
+                    document.getElementById('m1_rescued').textContent = rescued;
                     document.getElementById('m1_wait').textContent = `${m.avg_wait_time}s`;
                     document.getElementById('m1_turnaround').textContent = `${m.avg_turnaround_time}s`;
                 } else if (m.queue_level === 'Q2_SJF') {
                     document.getElementById('m2_processed').textContent = m.total_processed;
-                    document.getElementById('m2_cpu').textContent = `${m.cpu_utilization_pct}%`;
+                    document.getElementById('m2_rescued').textContent = rescued;
                     document.getElementById('m2_wait').textContent = `${m.avg_wait_time}s`;
                     document.getElementById('m2_turnaround').textContent = `${m.avg_turnaround_time}s`;
                 } else if (m.queue_level === 'Q3_FCFS') {
                     document.getElementById('m3_processed').textContent = m.total_processed;
-                    document.getElementById('m3_cpu').textContent = `${m.cpu_utilization_pct}%`;
+                    document.getElementById('m3_rescued').textContent = rescued;
                     document.getElementById('m3_wait').textContent = `${m.avg_wait_time}s`;
                     document.getElementById('m3_turnaround').textContent = `${m.avg_turnaround_time}s`;
                 }
             });
+
+            const heroCount = document.getElementById('starvationSavedHeroCount');
+            if (heroCount && (!heroCount.textContent || heroCount.textContent === '0')) {
+                heroCount.textContent = totalRescuedSum;
+            }
         }
 
         async function loadSlide3Data() {

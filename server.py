@@ -187,19 +187,19 @@ in_memory_metrics = {
     'Q1_PRIORITY': {
         'queue_level': 'Q1_PRIORITY', 'total_processed': 2,
         'avg_wait_time': Decimal('0.45'), 'avg_turnaround_time': Decimal('1.95'),
-        'cpu_utilization_pct': Decimal('24.50'),
+        'starvation_rescued': 0,
         'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     },
     'Q2_SJF': {
         'queue_level': 'Q2_SJF', 'total_processed': 1,
         'avg_wait_time': Decimal('1.20'), 'avg_turnaround_time': Decimal('4.20'),
-        'cpu_utilization_pct': Decimal('31.00'),
+        'starvation_rescued': 0,
         'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     },
     'Q3_FCFS': {
         'queue_level': 'Q3_FCFS', 'total_processed': 1,
         'avg_wait_time': Decimal('3.50'), 'avg_turnaround_time': Decimal('10.50'),
-        'cpu_utilization_pct': Decimal('44.50'),
+        'starvation_rescued': 1,
         'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
 }
@@ -246,6 +246,10 @@ def init_mysql():
                             cur.execute(stmt)
                         except Exception:
                             pass
+            try:
+                cur.execute("ALTER TABLE scheduler_metrics ADD COLUMN starvation_rescued INT NOT NULL DEFAULT 0;")
+            except Exception:
+                pass
             conn.commit()
             cur.close()
             conn.close()
@@ -461,7 +465,7 @@ def query_scheduler_metrics():
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute("""
-                SELECT metric_id, queue_level, total_processed, avg_wait_time, avg_turnaround_time, cpu_utilization_pct, last_updated
+                SELECT metric_id, queue_level, total_processed, avg_wait_time, avg_turnaround_time, starvation_rescued, last_updated
                 FROM scheduler_metrics
                 ORDER BY metric_id ASC;
             """)
@@ -471,7 +475,7 @@ def query_scheduler_metrics():
             for r in rows:
                 r['avg_wait_time'] = float(r['avg_wait_time'])
                 r['avg_turnaround_time'] = float(r['avg_turnaround_time'])
-                r['cpu_utilization_pct'] = float(r['cpu_utilization_pct'])
+                r['starvation_rescued'] = int(r.get('starvation_rescued', 0))
                 if isinstance(r.get('last_updated'), datetime):
                     r['last_updated'] = r['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
             return rows
@@ -488,7 +492,7 @@ def query_scheduler_metrics():
                     'total_processed': m['total_processed'],
                     'avg_wait_time': float(m['avg_wait_time']),
                     'avg_turnaround_time': float(m['avg_turnaround_time']),
-                    'cpu_utilization_pct': float(m['cpu_utilization_pct']),
+                    'starvation_rescued': int(m.get('starvation_rescued', 0)),
                     'last_updated': m['last_updated']
                 })
         return res
@@ -865,14 +869,14 @@ def sync_metrics_table(metrics_list):
             cur = conn.cursor()
             for m in metrics_list:
                 cur.execute("""
-                    INSERT INTO scheduler_metrics (queue_level, total_processed, avg_wait_time, avg_turnaround_time, cpu_utilization_pct)
+                    INSERT INTO scheduler_metrics (queue_level, total_processed, avg_wait_time, avg_turnaround_time, starvation_rescued)
                     VALUES (%s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         total_processed = VALUES(total_processed),
                         avg_wait_time = VALUES(avg_wait_time),
                         avg_turnaround_time = VALUES(avg_turnaround_time),
-                        cpu_utilization_pct = VALUES(cpu_utilization_pct);
-                """, (m['queue_level'], m['total_processed'], m['avg_wait_time'], m['avg_turnaround_time'], m['cpu_utilization_pct']))
+                        starvation_rescued = VALUES(starvation_rescued);
+                """, (m['queue_level'], m['total_processed'], m['avg_wait_time'], m['avg_turnaround_time'], m.get('starvation_rescued', 0)))
             conn.commit()
             cur.close()
             conn.close()
@@ -890,7 +894,7 @@ def sync_metrics_table(metrics_list):
                 'total_processed': m['total_processed'],
                 'avg_wait_time': Decimal(str(m['avg_wait_time'])),
                 'avg_turnaround_time': Decimal(str(m['avg_turnaround_time'])),
-                'cpu_utilization_pct': Decimal(str(m['cpu_utilization_pct'])),
+                'starvation_rescued': int(m.get('starvation_rescued', 0)),
                 'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
 
@@ -949,10 +953,18 @@ def fetch_cpp_state():
                     data['metrics'] = query_scheduler_metrics()
                 if 'transitions' not in data:
                     data['transitions'] = []
+                if 'starving_transactions' not in data:
+                    data['starving_transactions'] = []
+                if 'rescued_transactions' not in data:
+                    data['rescued_transactions'] = []
+                if 'starvation_prevented_count' not in data:
+                    data['starvation_prevented_count'] = sum(int(m.get('starvation_rescued', 0)) for m in data.get('metrics', []))
                 return data
     except Exception:
         pass
 
+    metrics_rows = query_scheduler_metrics()
+    starvation_rescued_sum = sum(int(m.get('starvation_rescued', 0)) for m in metrics_rows)
     return {
         "active_process": None,
         "queue_1": [],
@@ -960,8 +972,11 @@ def fetch_cpp_state():
         "queue_3": [],
         "completed": [],
         "transitions": [],
-        "metrics": query_scheduler_metrics(),
-        "stats": {"total_admitted": 0, "total_completed": 0, "cpu_active": False}
+        "starving_transactions": [],
+        "rescued_transactions": [],
+        "starvation_prevented_count": starvation_rescued_sum,
+        "metrics": metrics_rows,
+        "stats": {"total_admitted": 0, "total_completed": 0, "starvation_prevented_count": starvation_rescued_sum, "cpu_active": False}
     }
 
 def send_txn_to_cpp(txn_data):
@@ -1056,6 +1071,8 @@ def get_state():
     state = fetch_cpp_state()
     state['db_connected'] = is_mysql_connected
     state['traffic_active'] = is_traffic_active
+    if 'starvation_prevented_count' not in state or state['starvation_prevented_count'] is None:
+        state['starvation_prevented_count'] = state.get('stats', {}).get('starvation_prevented_count', 0)
     return jsonify(state)
 
 @app.route('/api/inject', methods=['POST'])

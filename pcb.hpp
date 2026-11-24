@@ -113,6 +113,8 @@ struct Process {
     int wait_time_sec = 0;             // Total seconds spent waiting in ready state
     int time_in_current_queue = 0;     // Seconds spent in current queue level (for aging)
     int progress_pct = 0;              // Progress 0% to 100%
+    bool is_starving = false;          // True if waiting >= 4s in Q2/Q3 (Facing Starvation)
+    bool was_aged_rescued = false;     // True if promoted via Dynamic Aging
     
     // Test Tracking Flag (Highlights manual injections in UI)
     bool is_test = false;              // True if manually injected via test panel
@@ -136,6 +138,8 @@ struct Process {
            << "\"queue_level\":\"" << current_queue << "\","
            << "\"status\":\"" << status << "\","
            << "\"is_test\":" << (is_test ? "true" : "false") << ","
+           << "\"is_starving\":" << (is_starving ? "true" : "false") << ","
+           << "\"was_aged_rescued\":" << (was_aged_rescued ? "true" : "false") << ","
            << "\"priority_score\":" << priority_score << ","
            << "\"wait_time_sec\":" << wait_time_sec << ","
            << "\"time_in_current_queue\":" << time_in_current_queue << ","
@@ -155,8 +159,7 @@ struct QueueTelemetry {
     int total_processed = 0;
     double total_wait_time = 0.0;
     double total_turnaround_time = 0.0;
-    double cpu_utilization_pct = 0.0;
-    int total_cpu_busy_seconds = 0;
+    int starvation_rescued = 0;
 
     double get_avg_wait() const {
         return total_processed > 0 ? (total_wait_time / total_processed) : 0.0;
@@ -173,7 +176,7 @@ struct QueueTelemetry {
            << "\"total_processed\":" << total_processed << ","
            << "\"avg_wait_time\":" << std::fixed << std::setprecision(2) << get_avg_wait() << ","
            << "\"avg_turnaround_time\":" << std::fixed << std::setprecision(2) << get_avg_turnaround() << ","
-           << "\"cpu_utilization_pct\":" << std::fixed << std::setprecision(2) << cpu_utilization_pct
+           << "\"starvation_rescued\":" << starvation_rescued
            << "}";
         return ss.str();
     }

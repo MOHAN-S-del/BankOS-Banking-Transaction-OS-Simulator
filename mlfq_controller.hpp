@@ -50,19 +50,21 @@ public:
         metrics_q1_.total_processed = 2;
         metrics_q1_.total_wait_time = 0.90;
         metrics_q1_.total_turnaround_time = 3.90;
-        metrics_q1_.cpu_utilization_pct = 24.50;
+        metrics_q1_.starvation_rescued = 0;
 
         metrics_q2_.queue_level = "Q2_SJF";
         metrics_q2_.total_processed = 1;
         metrics_q2_.total_wait_time = 1.20;
         metrics_q2_.total_turnaround_time = 4.20;
-        metrics_q2_.cpu_utilization_pct = 31.00;
+        metrics_q2_.starvation_rescued = 0;
 
         metrics_q3_.queue_level = "Q3_FCFS";
         metrics_q3_.total_processed = 1;
         metrics_q3_.total_wait_time = 3.50;
         metrics_q3_.total_turnaround_time = 10.50;
-        metrics_q3_.cpu_utilization_pct = 44.50;
+        metrics_q3_.starvation_rescued = 1;
+
+        starvation_prevented_count_ = 1;
     }
 
     // ------------------------------------------------------------------------
@@ -127,7 +129,7 @@ public:
         std::lock_guard<std::mutex> lock(mtx_);
         bool state_changed = false;
 
-        // Increment wait times
+        // Increment wait times and mark starvation status
         for (auto& p : queue_1_) {
             p.wait_time_sec++;
             p.time_in_current_queue++;
@@ -135,10 +137,12 @@ public:
         for (auto& p : queue_2_) {
             p.wait_time_sec++;
             p.time_in_current_queue++;
+            p.is_starving = (p.wait_time_sec >= 4);
         }
         for (auto& p : queue_3_) {
             p.wait_time_sec++;
             p.time_in_current_queue++;
+            p.is_starving = (p.wait_time_sec >= 4);
         }
 
         // Starvation Check: Q3 -> Q2 (Threshold: 6 seconds)
@@ -155,10 +159,19 @@ public:
                 p.current_queue = "Q2_SJF";
                 p.time_in_current_queue = 0;
                 p.priority_score = 5;
+                p.is_starving = false;
+                p.was_aged_rescued = true;
+                starvation_prevented_count_++;
+                metrics_q3_.starvation_rescued++;
                 queue_2_.push(p);
 
+                rescued_history_.push_front(p);
+                while (rescued_history_.size() > 30) {
+                    rescued_history_.pop_back();
+                }
+
                 log_transition_unlocked(p.txn_id, "Q3_FCFS", "Q2_SJF", "Q2_SJF",
-                    "Dynamic Aging: Starvation threshold exceeded (6s wait); promoted to Queue 2 (SJF)");
+                    "AGED_PROMOTION: Dynamic Aging: Starvation threshold exceeded (6s wait in Q3); promoted to Queue 2 (SJF)");
                 state_changed = true;
             }
         }
@@ -177,10 +190,19 @@ public:
                 p.current_queue = "Q1_PRIORITY";
                 p.time_in_current_queue = 0;
                 p.priority_score = 9;
+                p.is_starving = false;
+                p.was_aged_rescued = true;
+                starvation_prevented_count_++;
+                metrics_q2_.starvation_rescued++;
                 queue_1_.push(p);
 
+                rescued_history_.push_front(p);
+                while (rescued_history_.size() > 30) {
+                    rescued_history_.pop_back();
+                }
+
                 log_transition_unlocked(p.txn_id, "Q2_SJF", "Q1_PRIORITY", "Q1_PRIORITY",
-                    "Dynamic Aging: High wait threshold exceeded (5s wait); promoted to Queue 1 (Priority)");
+                    "AGED_PROMOTION: Dynamic Aging: High wait threshold exceeded (5s wait in Q2); promoted to Queue 1 (Priority)");
                 state_changed = true;
             }
         }
@@ -208,20 +230,22 @@ public:
                 int executed = active_process_->auto_burst_time - active_process_->remaining_burst;
                 active_process_->progress_pct = (executed * 100) / active_process_->auto_burst_time;
 
-                // Track CPU time slices
-                if (active_process_->current_queue == "Q1_PRIORITY") {
-                    metrics_q1_.total_cpu_busy_seconds++;
-                } else if (active_process_->current_queue == "Q2_SJF") {
-                    metrics_q2_.total_cpu_busy_seconds++;
-                } else {
-                    metrics_q3_.total_cpu_busy_seconds++;
-                }
-
                 // 1. Process Finished Execution
                 if (active_process_->remaining_burst <= 0) {
                     active_process_->status = "COMPLETED";
                     active_process_->state = ProcessState::TERMINATED;
                     active_process_->progress_pct = 100;
+
+                    if (active_process_->was_aged_rescued) {
+                        for (auto& r : rescued_history_) {
+                            if (r.txn_id == active_process_->txn_id) {
+                                r.status = "COMPLETED";
+                                r.state = ProcessState::TERMINATED;
+                                r.progress_pct = 100;
+                                break;
+                            }
+                        }
+                    }
 
                     double turnaround = std::chrono::duration<double>(
                         std::chrono::steady_clock::now() - active_process_->arrival_tp
@@ -366,8 +390,13 @@ public:
         queue_3_.clear();
         completed_.clear();
         transitions_.clear();
+        rescued_history_.clear();
         total_admitted_ = 0;
         total_completed_ = 0;
+        starvation_prevented_count_ = 0;
+        metrics_q1_.starvation_rescued = 0;
+        metrics_q2_.starvation_rescued = 0;
+        metrics_q3_.starvation_rescued = 0;
     }
 
 private:
@@ -381,6 +410,7 @@ private:
     std::unique_ptr<Process> active_process_ = nullptr;
     std::deque<Process> completed_;
     std::deque<StateTransition> transitions_;
+    std::deque<Process> rescued_history_;
 
     QueueTelemetry metrics_q1_;
     QueueTelemetry metrics_q2_;
@@ -388,6 +418,7 @@ private:
 
     int total_admitted_ = 4;
     int total_completed_ = 4;
+    int starvation_prevented_count_ = 1;
 
     const int QUANTUM_Q1 = 2; // 2 seconds
     const int QUANTUM_Q2 = 4; // 4 seconds
@@ -439,16 +470,33 @@ private:
         }
         ss << "],";
 
-        // Dynamic CPU Utilization computation
-        int q1_busy = metrics_q1_.total_cpu_busy_seconds;
-        int q2_busy = metrics_q2_.total_cpu_busy_seconds;
-        int q3_busy = metrics_q3_.total_cpu_busy_seconds;
-        int total_busy = q1_busy + q2_busy + q3_busy;
-        if (total_busy > 0) {
-            metrics_q1_.cpu_utilization_pct = (double)q1_busy * 100.0 / total_busy;
-            metrics_q2_.cpu_utilization_pct = (double)q2_busy * 100.0 / total_busy;
-            metrics_q3_.cpu_utilization_pct = (double)q3_busy * 100.0 / total_busy;
+        // Starvation Watch: At-risk transactions currently waiting >= 4s in Q3 or Q2
+        std::vector<Process> starving_list;
+        for (size_t i = 0; i < queue_3_.size(); ++i) {
+            if (queue_3_[i].wait_time_sec >= 4) {
+                starving_list.push_back(queue_3_[i]);
+            }
         }
+        for (size_t i = 0; i < queue_2_.size(); ++i) {
+            if (queue_2_[i].wait_time_sec >= 4) {
+                starving_list.push_back(queue_2_[i]);
+            }
+        }
+
+        ss << "\"starving_transactions\":[";
+        for (size_t i = 0; i < starving_list.size(); ++i) {
+            ss << starving_list[i].to_json();
+            if (i + 1 < starving_list.size()) ss << ",";
+        }
+        ss << "],";
+
+        // Aging Rescues: Recently promoted transactions
+        ss << "\"rescued_transactions\":[";
+        for (size_t i = 0; i < rescued_history_.size(); ++i) {
+            ss << rescued_history_[i].to_json();
+            if (i + 1 < rescued_history_.size()) ss << ",";
+        }
+        ss << "],";
 
         ss << "\"metrics\":[";
         ss << metrics_q1_.to_json() << ",";
@@ -459,6 +507,8 @@ private:
         ss << "\"stats\":{"
            << "\"total_admitted\":" << total_admitted_ << ","
            << "\"total_completed\":" << total_completed_ << ","
+           << "\"starvation_prevented_count\":" << starvation_prevented_count_ << ","
+           << "\"starvation_rescued\":" << starvation_prevented_count_ << ","
            << "\"cpu_active\":" << (active_process_ ? "true" : "false")
            << "}";
 
