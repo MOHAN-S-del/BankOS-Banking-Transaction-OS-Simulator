@@ -48,6 +48,7 @@ is_mysql_connected = False
 db_conn = None
 db_lock = threading.RLock()
 
+
 try:
     import mysql.connector
     from mysql.connector import pooling
