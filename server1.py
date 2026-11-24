@@ -235,18 +235,12 @@ def init_mysql():
             database=DB_NAME
         )
 
-        schema_file = os.path.join(os.path.dirname(__file__), "schema.sql")
-        if os.path.exists(schema_file):
-            conn = mysql_pool.get_connection()
-            cur = conn.cursor()
-            with open(schema_file, 'r', encoding='utf-8') as f:
-                statements = f.read().split(';')
-                for stmt in statements:
-                    stmt = stmt.strip()
-                    if stmt and not stmt.upper().startswith("CREATE DATABASE") and not stmt.upper().startswith("USE "):
-                        try:
-                            cur.execute(stmt)
-                        except Exception:
+
+
+        in_memory_atm = {
+    'TXN-1001': {'atm_location': 'Connaught Place South ATM #04', 'card_last4': '4821'}
+}
+
                             pass
             try:
                 cur.execute("ALTER TABLE scheduler_metrics ADD COLUMN starvation_rescued INT NOT NULL DEFAULT 0;")
