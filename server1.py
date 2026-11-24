@@ -107,13 +107,14 @@ in_memory_transactions = [
     }
 ]
 
-in_memory_atm = {
-    'TXN-1001': {'atm_location': 'Connaught Place South ATM #04', 'card_last4': '4821'}
-}
 
 in_memory_upi_payroll = {
     'TXN-1002': {'channel_mode': 'UPI', 'reference_id': 'priya@okhdfcbank'},
     'TXN-1004': {'channel_mode': 'PAYROLL', 'reference_id': 'BATCH-DEC-TECHCORP-01'}
+}
+
+in_memory_atm = {
+    'TXN-1001': {'atm_location': 'Connaught Place South ATM #04', 'card_last4': '4821'}
 }
 
 # Table 6: transaction_queue (RAM snapshot of waiting processes)
