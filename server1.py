@@ -1,1 +1,1 @@
-// this is sample website 
+// removed server1.py 
