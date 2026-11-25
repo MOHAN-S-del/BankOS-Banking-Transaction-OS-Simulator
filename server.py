@@ -1278,11 +1278,15 @@ def reset_database():
 # ----------------------------------------------------------------------------
 # Port Detection & Server Initialization
 # ----------------------------------------------------------------------------
-def find_available_port(ports=[5001, 5000, 5050, 8080]):
+def find_available_port(ports=[5001, 5050, 8080, 5000, 8000]):
     for port in ports:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex(('127.0.0.1', port)) != 0:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(('0.0.0.0', port))
                 return port
+        except Exception:
+            continue
     return 5001
 
 if __name__ == '__main__':
